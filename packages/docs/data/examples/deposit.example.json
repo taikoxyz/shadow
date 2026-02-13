@@ -4,9 +4,9 @@
   "secret": "0x8bf39fa0027306fade07fbc8f5289fbde5067bbec2e22fda0452aec68815864d",
   "notes": [
     {
-      "recipient": "0xa92c80b3962f10e063ad5463f996fe414f0e1f66",
+      "recipient": "0x1111111111111111111111111111111111111111",
       "amount": "1230000000000",
-      "label": "tiny-test-note"
+      "label": "example-only"
     }
   ]
 }
