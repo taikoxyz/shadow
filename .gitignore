@@ -12,6 +12,8 @@ pnpm-debug.log*
 # Codex / agent scratch
 .code/
 **/.code/
+.claude/
+**/.claude/
 
 # Rust / Cargo
 target/
@@ -34,5 +36,6 @@ dist/
 **/dist/
 
 # Shadow generated proofs / deployment records (outputs, not source)
+packages/docs/data/deposits/*.json
 packages/docs/data/deposits/note-*.proof.json
 packages/docs/data/deployments/*.json

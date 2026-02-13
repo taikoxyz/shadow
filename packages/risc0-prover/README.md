@@ -7,7 +7,7 @@ This package replaces the Circom proving workflow with a RISC Zero prover.
 The canonical user input is the **deposit file**.
 
 - Schema: `packages/docs/data/schema/deposit.schema.json`
-- Example: `packages/docs/data/deposits/deposit-a92c-1f66-20260209T131509Z.json`
+- Example: `packages/docs/data/examples/deposit.example.json`
 
 Minimum required fields:
 
@@ -42,7 +42,7 @@ Validate the example deposit:
 
 ```bash
 node scripts/shadowcli.mjs validate \
-  --deposit packages/docs/data/deposits/deposit-a92c-1f66-20260209T131509Z.json \
+  --deposit packages/docs/data/examples/deposit.example.json \
   --rpc https://rpc.hoodi.taiko.xyz
 ```
 
@@ -50,7 +50,7 @@ Generate a proof from the example deposit:
 
 ```bash
 node scripts/shadowcli.mjs prove \
-  --deposit packages/docs/data/deposits/deposit-a92c-1f66-20260209T131509Z.json \
+  --deposit packages/docs/data/examples/deposit.example.json \
   --rpc https://rpc.hoodi.taiko.xyz \
   --receipt-kind groth16 \
   --proof-out packages/docs/data/deposits/note-0.proof.json
