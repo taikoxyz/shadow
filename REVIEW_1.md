@@ -37,7 +37,6 @@ None identified.
 
 | ID | Issue | Location | Exploit Scenario |
 |----|-------|----------|------------------|
-| M-1 | State root freshness not enforced | `ShadowVerifier.sol:29-40` | Stale proofs could be used with old state roots |
 | M-2 | Privacy linkability via timing | System-wide | Claims can be correlated via timing analysis |
 | M-3 | Calldata exposes note structure | `Shadow.sol:42` | Public input reveals note index and amount |
 
@@ -45,7 +44,6 @@ None identified.
 
 | ID | Issue | Location | Notes |
 |----|-------|----------|-------|
-| L-1 | No explicit max block age | `IShadow.sol` | PRD mentions freshness requirement |
 | L-2 | Event metadata leakage | `Shadow.sol:54` | `Claimed` event exposes amount |
 | L-3 | Missing integration test coverage | `test/` | No full E2E proof generation + claim test |
 
@@ -223,24 +221,11 @@ PoW requirement: Last 3 bytes of `sha256(MAGIC_POW || secret)` must be zero.
 - Prevents mass claim preparation
 - Verified on-chain: `ShadowPublicInputs.sol:38-41`
 
-### C.4 State Root Freshness (M-1)
+### C.4 Checkpoint Recency Policy
 
-**Status: MEDIUM ISSUE**
+**Status: N/A (By Design)**
 
-The PRD states:
-> "State root freshness - the contract should enforce that blockNumber is sufficiently recent to prevent stale proofs."
-
-**Current implementation does NOT enforce this:**
-
-```solidity
-// ShadowVerifier.sol:29
-require(_input.blockNumber > 0, CheckpointNotFound(_input.blockNumber));
-// No max age check!
-```
-
-**Risk:** Attacker could use an arbitrarily old state root where target address had sufficient balance, even if funds have since moved.
-
-**Recommendation:** Add `require(block.number - _input.blockNumber <= MAX_BLOCK_AGE)` or similar.
+Shadow intentionally allows using old checkpoints. In this protocol the deposit address is intended to be **unspendable**, so the L1 balance should not decrease. That means accepting an older state root does not create an “insolvency via stale proof” attack; at worst it can be a liveness/UX issue (a too-old checkpoint may predate the funding transaction, so the proof would fail and the user must use a newer checkpoint).
 
 ---
 
@@ -386,14 +371,10 @@ All claim metadata is fully public on-chain.
 
 ### Critical (Before Mainnet)
 
-1. **Add state root freshness check** (M-1)
-   - Implement `MAX_BLOCK_AGE` constant
-   - Add validation in `ShadowVerifier.verifyProof`
-
-2. **Add E2E integration tests**
+1. **Add E2E integration tests**
    - Test full flow: deposit file -> proof generation -> claim
 
-3. **Document privacy limitations** (M-2, M-3)
+2. **Document privacy limitations** (M-2, M-3)
    - Create user-facing documentation
    - Clarify what is and isn't private
 
@@ -462,7 +443,7 @@ All claim metadata is fully public on-chain.
 | 7 | Recipient binding | PASS | `notes.circom:163-178` |
 | 8 | No trusted setup | PASS | RISC0 uses STARKs |
 | 9 | Local proving | PASS | `shadow-risc0-host` |
-| 10 | State root freshness | **FAIL** | Not enforced (M-1) |
+| 10 | Checkpoint recency policy | N/A | By design: old checkpoints are acceptable |
 | 11 | Chain ID validation | PASS | `Shadow.sol:43` |
 | 12 | ICheckpointStore integration | PASS | `ShadowVerifier.sol:32` |
 | 13 | IEthMinter mock | PASS | `DummyEtherMinter.sol` |
