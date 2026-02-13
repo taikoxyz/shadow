@@ -9,6 +9,10 @@ pnpm-debug.log*
 # OS
 .DS_Store
 
+# Codex / agent scratch
+.code/
+**/.code/
+
 # Rust / Cargo
 target/
 **/target/
@@ -25,7 +29,10 @@ cache/
 broadcast/
 **/broadcast/
 
+# Frontend build outputs
+dist/
+**/dist/
+
 # Shadow generated proofs / deployment records (outputs, not source)
 packages/docs/data/deposits/note-*.proof.json
 packages/docs/data/deployments/*.json
-
