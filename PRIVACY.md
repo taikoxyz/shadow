@@ -33,9 +33,18 @@ Claims are public transactions. Observers can see:
 - `nullifier` (and when it is consumed)
 - transaction sender (may be different from `recipient`)
 
-In the current implementation, the claim proof payload also includes a **RISC Zero journal** that is sent on-chain and therefore public. This journal contains additional fields including:
+In the current implementation, the claim proof payload also includes a **RISC Zero journal** that is sent on-chain and therefore public. This journal contains a packed copy of the claim inputs:
 
-The journal is used only to bind the proof to the already-public claim inputs (e.g. `blockNumber`, `stateRoot`, `chainId`, `noteIndex`, `recipient`, `amount`, `nullifier`, `powDigest`) and does **not** include:
+- `blockNumber`
+- `stateRoot`
+- `chainId`
+- `noteIndex`
+- `recipient`
+- `amount`
+- `nullifier`
+- `powDigest`
+
+The journal is used only to bind the proof to the already-public claim inputs and does **not** include:
 
 - `targetAddress`
 - total note-set sum (e.g. `totalAmount`)
@@ -48,11 +57,11 @@ Shadow does not publish `targetAddress` on L2 as part of a claim. This reduces p
 
 ### Linking Multiple Claims From the Same Note Set
 
-Claims from the same deposit file/note set are linkable (for example via the published `targetAddress` and/or note-set commitments).
+Claims from the same deposit file/note set are linkable (for example via the published `powDigest`, which is constant for a given note set + secret).
 
 ### Recipient/Amount Are Not Private
 
-Each claim mints ETH to the note’s `recipient` for the note’s `amount`. Both are public in calldata and events.
+Each claim publicly reveals the note’s `recipient` and `amount` in calldata and events. The contract applies a 0.1% claim fee (sent to a fixed `feeRecipient`), so the net amount minted to `recipient` is `amount - (amount / 1000)`.
 
 ### Timing Analysis
 
@@ -60,10 +69,7 @@ Even if you avoid reusing addresses, observers can correlate deposits and claims
 
 ### Secret Reuse Is Unsafe
 
-Reusing the same `secret` across multiple deposit files is strongly discouraged:
-
-- it reduces privacy (correlations via derived values)
-- it can create nullifier collisions (claims may fail or be blocked)
+Reusing the same `secret` across multiple deposit files is strongly discouraged because `nullifier` does not include the note set, so it can create nullifier collisions across deposits (claims may fail or be blocked).
 
 ## Operational Guidance (Non-Technical)
 

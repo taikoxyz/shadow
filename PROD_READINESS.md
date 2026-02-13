@@ -2,7 +2,7 @@
 
 This checklist tracks end-to-end readiness for Shadow on **Taiko Hoodi**:
 
-- Local proof generation (no Docker)
+- Local proof generation (Groth16 receipts require Docker)
 - On-chain verifier wiring (Taiko `ICheckpointStore` + RISC0 verifier)
 - Claim execution + nullifier consumption
 - Contract verification on TaikoScan (Etherscan)
@@ -31,8 +31,8 @@ See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.m
 
 ### Core Protocol
 
-- [x] **1) RISC0 guest+host proving pipeline works (no Docker)**
-  - `shadow-risc0-host prove --receipt-kind groth16` succeeds using local `snarkjs` shrinkwrap.
+- [x] **1) RISC0 guest+host proving pipeline works (Groth16 requires Docker)**
+  - `shadow-risc0-host prove --receipt-kind groth16` succeeds using the upstream `risc0-groth16` Docker shrinkwrap.
   - **Files:** `packages/risc0-prover/host/src/main.rs`
 
 - [x] **2) Journal format is chain-verifiable**
@@ -49,7 +49,7 @@ See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.m
 - [x] **4) On-chain deployment complete (Hoodi L2)**
   - Deploy script: `packages/contracts/script/DeployTaiko.s.sol`
   - Default verifier: Taiko Hoodi RISC0 verifier (`0xd1934807041B168f383870A0d8F565aDe2DF9D7D`)
-  - Image ID: `0x6eb3c68a0378110f3401e10e81cf3870c6c2378068a7ae56a06c11b141f99c5f`
+  - Image ID: `0x9ea74bd84383a9ca3d776790823f48d79638cf8f99bccc77f2eac4cb70c89216`
 
 - [x] **5) On-chain proof verification (view)**
   - `Risc0CircuitVerifier.verifyProof(bytes,uint256[])` returns `true` for a generated Groth16 proof.
@@ -58,8 +58,9 @@ See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.m
 - [x] **6) Claim transaction succeeds**
   - `Shadow.claim(bytes,PublicInput)` succeeds
   - Nullifier consumed
-  - `DummyEtherMinter.EthMinted` + `Shadow.Claimed` emitted
-  - **Files:** `packages/contracts/src/impl/Shadow.sol:42-55`
+  - `DummyEtherMinter.EthMinted` emitted for recipient net amount and feeRecipient fee (0.1%)
+  - `Shadow.Claimed` emitted with the note’s gross amount
+  - **Files:** `packages/contracts/src/impl/Shadow.sol`
 
 - [x] **7) Contracts verified on TaikoScan (Etherscan API v2)**
   - Verified: `DummyEtherMinter`, `Nullifier`, `Risc0CircuitVerifier`, `ShadowVerifier`, `Shadow` (implementation), `ERC1967Proxy`

@@ -30,7 +30,7 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
         address predictedShadowProxy = vm.computeCreateAddress(address(this), nonce + 2);
         nullifier = new Nullifier(predictedShadowProxy);
 
-        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier));
+        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(this));
         ERC1967Proxy shadowProxy =
             new ERC1967Proxy(address(shadowImpl), abi.encodeCall(Shadow.initialize, (address(this))));
         shadow = Shadow(address(shadowProxy));
@@ -57,7 +57,10 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
         });
 
         vm.expectEmit(true, false, false, true, address(etherMinter));
-        emit EthMinted(recipient, amount);
+        emit EthMinted(recipient, amount - (amount / 1000));
+
+        vm.expectEmit(true, false, false, true, address(etherMinter));
+        emit EthMinted(address(this), amount / 1000);
 
         shadow.claim("", input);
 

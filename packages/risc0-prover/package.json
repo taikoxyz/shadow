@@ -14,7 +14,6 @@
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "ajv": "^8.17.1",
-    "ethers": "^6.15.0",
-    "snarkjs": "^0.7.5"
+    "ethers": "^6.15.0"
   }
 }

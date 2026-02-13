@@ -16,7 +16,7 @@
 ## Components
 
 ### Core Implementations (`src/impl/`)
-- **`Shadow`**: Claim contract with immutable dependencies (verifier, ETH minter hook, nullifier).
+- **`Shadow`**: Claim contract with immutable dependencies (verifier, ETH minter hook, nullifier, feeRecipient). Applies a 0.1% claim fee (`amount / 1000`).
 - **`ShadowVerifier`**: Wrapper that checks state roots before dispatching to the circuit verifier.
 - **`Risc0CircuitVerifier`**: ICircuitVerifier adapter that binds public inputs to a RISC0 journal and delegates receipt-seal validation to a RISC0 verifier contract.
 - **`Nullifier`**: Registry that tracks and burns nullifiers to prevent replayed claims.
@@ -28,6 +28,7 @@
 
 ### Public input layout
 - `docs/public-inputs.md` – Flattened public input ordering and byte layout.
+- `docs/circuit-public-inputs-spec.md` – Normative specification, including the RISC0 journal binding rules.
 
 ### Testing
 Mocks for every interface live under `test/mocks` to keep integration tests hermetic. Upgradeable contracts are tested behind ERC1967Proxy to ensure proper initialization behavior.
@@ -52,7 +53,7 @@ The adapter:
 2. `DummyEtherMinter`
 3. `Risc0CircuitVerifier`
 4. `ShadowVerifier`
-5. `Shadow` implementation + `ERC1967Proxy` initialized with `initialize(owner)`
+5. `Shadow` implementation (with immutable `feeRecipient = owner`) + `ERC1967Proxy` initialized with `initialize(owner)`
 
 Required environment variables:
 

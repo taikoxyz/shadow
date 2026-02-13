@@ -6,6 +6,8 @@ import {Nullifier} from "../src/impl/Nullifier.sol";
 import {INullifier} from "../src/iface/INullifier.sol";
 
 contract NullifierTest is Test {
+    event NullifierConsumed(bytes32 indexed nullifier);
+
     Nullifier internal nullifier;
     address internal shadow = address(0x1234);
 
@@ -35,5 +37,17 @@ contract NullifierTest is Test {
         vm.prank(shadow);
         vm.expectRevert(abi.encodeWithSelector(INullifier.NullifierAlreadyConsumed.selector, value));
         nullifier.consume(value);
+    }
+
+    function test_consume_setsConsumedAndEmitsEvent() external {
+        bytes32 value = keccak256("nullifier-event");
+
+        vm.expectEmit(true, false, false, false, address(nullifier));
+        emit NullifierConsumed(value);
+
+        vm.prank(shadow);
+        nullifier.consume(value);
+
+        assertTrue(nullifier.isConsumed(value));
     }
 }

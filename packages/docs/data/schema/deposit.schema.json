@@ -8,7 +8,7 @@
   "properties": {
     "version": {
       "type": "string",
-      "const": "v1"
+      "const": "v2"
     },
     "chainId": {
       "type": "string",

@@ -12,9 +12,6 @@ use serde::{Deserialize, Serialize};
 use shadow_proof_core::{evaluate_claim, unpack_journal, ClaimInput, ClaimJournal, MAX_NOTES};
 use shadow_risc0_methods::{SHADOW_CLAIM_GUEST_ELF, SHADOW_CLAIM_GUEST_ID};
 
-mod groth16_snarkjs;
-mod shrinkwrap;
-
 #[derive(Debug, Parser)]
 #[command(name = "shadow-risc0-host")]
 #[command(about = "Local RISC Zero prover for Shadow claims")]
@@ -108,16 +105,11 @@ fn cmd_prove(input_path: &Path, receipt_path: &Path, journal_path: &Path, receip
         .context("failed to build executor env")?;
 
     let started = Instant::now();
-    let receipt = match receipt_kind {
-        "groth16" => prove_groth16(env).context("failed to prove groth16 receipt")?,
-        _ => {
-            let opts = parse_prover_opts(receipt_kind)?;
-            let prove_info = default_prover()
-                .prove_with_opts(env, SHADOW_CLAIM_GUEST_ELF, &opts)
-                .context("prover execution failed")?;
-            prove_info.receipt
-        }
-    };
+    let opts = parse_prover_opts(receipt_kind)?;
+    let prove_info = default_prover()
+        .prove_with_opts(env, SHADOW_CLAIM_GUEST_ELF, &opts)
+        .context("prover execution failed")?;
+    let receipt = prove_info.receipt;
     let elapsed = started.elapsed();
 
     receipt
@@ -143,41 +135,6 @@ fn cmd_prove(input_path: &Path, receipt_path: &Path, journal_path: &Path, receip
     println!("Receipt kind: {}", describe_receipt_kind(&receipt.inner));
 
     Ok(())
-}
-
-fn prove_groth16(env: ExecutorEnv) -> Result<Receipt> {
-    use risc0_zkvm::recursion::identity_p254;
-    use risc0_zkvm::{Groth16Receipt, Groth16ReceiptVerifierParameters};
-    use risc0_zkvm::sha::Digestible as _;
-
-    // First, generate a succinct receipt (no Docker).
-    let prove_info = default_prover()
-        .prove_with_opts(env, SHADOW_CLAIM_GUEST_ELF, &ProverOpts::succinct())
-        .context("prover execution failed (succinct)")?;
-
-    // Expect a succinct receipt and convert it to the identity_p254 form required by the
-    // shrink-wrap Groth16 circuit.
-    let Receipt { inner, journal, .. } = prove_info.receipt;
-    let journal_bytes = journal.bytes;
-    let succinct = match inner {
-        InnerReceipt::Succinct(inner) => inner,
-        other => bail!("unexpected receipt kind from succinct prover: {}", describe_receipt_kind(&other)),
-    };
-
-    let ident = identity_p254(&succinct).context("failed to generate identity_p254 receipt")?;
-    let seal_bytes = ident.get_seal_bytes();
-
-    // Produce the Groth16 proof seal with snarkjs.
-    let groth16_seal = crate::groth16_snarkjs::shrink_wrap(&seal_bytes)
-        .context("failed to shrink-wrap with snarkjs")?;
-
-    let groth16_receipt = Groth16Receipt::new(
-        groth16_seal,
-        succinct.claim,
-        Groth16ReceiptVerifierParameters::default().digest(),
-    );
-
-    Ok(Receipt::new(InnerReceipt::Groth16(groth16_receipt), journal_bytes))
 }
 
 fn cmd_verify(receipt_path: &Path) -> Result<()> {

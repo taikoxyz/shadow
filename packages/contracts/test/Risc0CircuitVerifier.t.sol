@@ -19,6 +19,11 @@ contract Risc0CircuitVerifierTest is Test {
         adapter = new Risc0CircuitVerifier(address(risc0Verifier), _IMAGE_ID);
     }
 
+    function test_constructor_RevertWhen_VerifierIsZeroAddress() external {
+        vm.expectRevert(Risc0CircuitVerifier.ZeroVerifier.selector);
+        new Risc0CircuitVerifier(address(0), _IMAGE_ID);
+    }
+
     function test_verifyProof_succeedsWhenBindingMatches() external {
         IShadow.PublicInput memory input = _sampleInput();
         uint256[] memory publicInputs = this._toArray(input);
@@ -45,6 +50,97 @@ contract Risc0CircuitVerifierTest is Test {
         assertFalse(ok);
     }
 
+    function test_verifyProof_returnsFalseWhenBlockNumberMismatch() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"beef";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[0] = publicInputs[0] + 1;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_returnsFalseWhenChainIdMismatch() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"cafe";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[33] = publicInputs[33] + 1;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_returnsFalseWhenNoteIndexMismatch() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"0001";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[34] = publicInputs[34] + 1;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_returnsFalseWhenStateRootMismatch() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"0002";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[32] = (publicInputs[32] + 1) % 256;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_returnsFalseWhenRecipientMismatch() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"0003";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[36] = (publicInputs[36] + 1) % 256;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_returnsFalseWhenNullifierMismatch() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"0004";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[87] = (publicInputs[87] + 1) % 256;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_returnsFalseWhenPowDigestMismatch() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"0005";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[116] = (publicInputs[116] + 1) % 256;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
     function test_verifyProof_returnsFalseWhenVerifierRejects() external {
         IShadow.PublicInput memory input = _sampleInput();
         uint256[] memory publicInputs = this._toArray(input);
@@ -66,6 +162,16 @@ contract Risc0CircuitVerifierTest is Test {
         assertFalse(ok);
     }
 
+    function test_verifyProof_returnsFalseWhenPublicInputsLengthInvalid() external {
+        bytes memory seal = hex"eeee";
+        bytes memory journal = new bytes(_JOURNAL_LEN);
+        bytes memory proof = abi.encode(seal, journal);
+
+        uint256[] memory publicInputs = new uint256[](0);
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
     function test_verifyProof_returnsFalseWhenPublicInputByteOutOfRange() external {
         IShadow.PublicInput memory input = _sampleInput();
         uint256[] memory publicInputs = this._toArray(input);
@@ -75,6 +181,19 @@ contract Risc0CircuitVerifierTest is Test {
         bytes memory proof = abi.encode(seal, journal);
 
         publicInputs[1] = 300;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_returnsFalseWhenRecipientByteOutOfRange() external {
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input);
+
+        bytes memory seal = hex"cccd";
+        bytes memory journal = _buildJournal(input);
+        bytes memory proof = abi.encode(seal, journal);
+
+        publicInputs[36] = 300;
         bool ok = adapter.verifyProof(proof, publicInputs);
         assertFalse(ok);
     }

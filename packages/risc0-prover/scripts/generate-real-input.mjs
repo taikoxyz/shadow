@@ -26,7 +26,6 @@ import { keccak_256 } from "@noble/hashes/sha3";
 const MAGIC = {
   RECIPIENT: "shadow.recipient.v1",
   ADDRESS: "shadow.address.v1",
-  POW: "shadow.pow.v1",
 };
 
 const MAX_NOTES = 5;
@@ -122,10 +121,9 @@ function deriveTargetAddress(secretBytes, chainId, notesHash) {
   return hash.slice(12);
 }
 
-function computePowDigest(secretBytes) {
-  const magic = padMagicLabel(MAGIC.POW);
+function computePowDigest(notesHash, secretBytes) {
   const input = new Uint8Array(64);
-  input.set(magic, 0);
+  input.set(notesHash, 0);
   input.set(secretBytes, 32);
   const digest = sha256(input);
   const valid = digest[29] === 0 && digest[30] === 0 && digest[31] === 0;
@@ -184,7 +182,7 @@ async function main() {
   const targetAddress = deriveTargetAddress(secretBytes, chainId, notesHash);
   const targetAddressHex = bytesToHex(targetAddress);
   const addressHash = keccak256(targetAddress);
-  const { digest: powDigest, valid: powValid } = computePowDigest(secretBytes);
+  const { digest: powDigest, valid: powValid } = computePowDigest(notesHash, secretBytes);
 
   console.log("Target address:", targetAddressHex);
   console.log("Address hash:", bytesToHex(addressHash));

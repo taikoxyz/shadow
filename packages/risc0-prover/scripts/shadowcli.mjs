@@ -18,8 +18,7 @@ const SCHEMA_PATH = path.join(WORKSPACE_ROOT, "packages", "docs", "data", "schem
 const MAGIC = {
   RECIPIENT: "shadow.recipient.v1",
   ADDRESS: "shadow.address.v1",
-  NULLIFIER: "shadow.nullifier.v1",
-  POW: "shadow.pow.v1"
+  NULLIFIER: "shadow.nullifier.v1"
 };
 
 const MAX_NOTES = 5;
@@ -170,7 +169,7 @@ async function cmdProve(opts) {
   console.log("Total required:", derived.totalAmount.toString(), "wei");
   if (!powDigestIsValid(derived.powDigest)) {
     throw new Error(
-      "PoW digest is not valid for this secret (needs last 24 bits == 0). Use a valid secret before proving."
+      "PoW digest is not valid for this note set + secret (needs last 24 bits == 0). Use a valid secret before proving."
     );
   }
 
@@ -616,7 +615,7 @@ function deriveFromDeposit(deposit, chainId, noteIndex) {
   const notesHash = computeNotesHash(noteAmounts, recipientHashes);
   const targetAddress = deriveTargetAddress(secretBytes, chainId, notesHash);
   const nullifier = deriveNullifier(secretBytes, chainId, noteIndex);
-  const powDigest = computePowDigest(secretBytes);
+  const powDigest = computePowDigest(notesHash, secretBytes);
 
   return {
     secretBytes,
@@ -771,9 +770,9 @@ function deriveNullifier(secretBytes, chainId, noteIndex) {
   return sha256(input);
 }
 
-function computePowDigest(secretBytes) {
+function computePowDigest(notesHash, secretBytes) {
   const input = new Uint8Array(64);
-  input.set(padMagicLabel(MAGIC.POW), 0);
+  input.set(notesHash, 0);
   input.set(secretBytes, 32);
   return sha256(input);
 }
@@ -811,22 +810,15 @@ function runHost(hostBin, args, options = {}) {
   });
   if (result.status !== 0) {
     const output = `${result.stderr || ""}\n${result.stdout || ""}`.trim();
-    const isGroth16ArchIssue =
-      output.includes("stark_to_snark is only supported on x86 architecture");
-    const archHint = isGroth16ArchIssue
-      ? `\nHint: build an x86 host and re-run:\n` +
-        `  rustup target add x86_64-apple-darwin\n` +
-        `  cargo +stable build --release -p shadow-risc0-host --target x86_64-apple-darwin\n` +
-        `  node scripts/shadowcli.mjs prove ... --host-bin "${path.join(
-          PACKAGE_ROOT,
-          "target",
-          "x86_64-apple-darwin",
-          "release",
-          "shadow-risc0-host"
-        )}"`
+    const needsDocker =
+      args.includes("--receipt-kind") &&
+      args.includes("groth16") &&
+      (output.includes("Please install docker first.") || output.includes("docker returned failure exit code"));
+    const dockerHint = needsDocker
+      ? `\nHint: Groth16 receipts require Docker (risc0-groth16 shrinkwrap). Ensure Docker is installed and running, then retry.`
       : "";
     const suffix = output ? `\n${output}` : "";
-    throw new Error(`host command failed: ${hostBin} ${args.join(" ")}${suffix}${archHint}`);
+    throw new Error(`host command failed: ${hostBin} ${args.join(" ")}${suffix}${dockerHint}`);
   }
   return result;
 }

@@ -15,7 +15,6 @@ pub const MAX_NODE_BYTES: usize = 4096;
 const MAGIC_RECIPIENT: &[u8] = b"shadow.recipient.v1";
 const MAGIC_ADDRESS: &[u8] = b"shadow.address.v1";
 const MAGIC_NULLIFIER: &[u8] = b"shadow.nullifier.v1";
-const MAGIC_POW: &[u8] = b"shadow.pow.v1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaimInput {
@@ -232,7 +231,7 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
     }
 
     let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index);
-    let pow_digest = compute_pow_digest(&input.secret);
+    let pow_digest = compute_pow_digest(&notes_hash, &input.secret);
     if !pow_digest_is_valid(&pow_digest) {
         return Err(ClaimValidationError::InvalidPowDigest);
     }
@@ -302,9 +301,9 @@ pub fn derive_nullifier(secret: &[u8; 32], chain_id: u64, note_index: u32) -> [u
     sha256(&input)
 }
 
-pub fn compute_pow_digest(secret: &[u8; 32]) -> [u8; 32] {
+pub fn compute_pow_digest(notes_hash: &[u8; 32], secret: &[u8; 32]) -> [u8; 32] {
     let mut input = [0u8; 64];
-    input[..32].copy_from_slice(&pad_magic_label(MAGIC_POW));
+    input[..32].copy_from_slice(notes_hash);
     input[32..64].copy_from_slice(secret);
     sha256(&input)
 }
@@ -323,6 +322,24 @@ pub fn compute_proof_commitment(nodes: &[Vec<u8>]) -> [u8; 32] {
     let mut digest = [0u8; 32];
     digest.copy_from_slice(&out);
     digest
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+
+    #[test]
+    fn nullifier_includes_note_index() {
+        let secret = [7u8; 32];
+        let chain_id = 167013u64;
+
+        let n0 = derive_nullifier(&secret, chain_id, 0);
+        let n1 = derive_nullifier(&secret, chain_id, 1);
+
+        assert_ne!(n0, n1);
+    }
 }
 
 fn u128_to_bytes32(value: u128) -> [u8; 32] {

@@ -28,6 +28,10 @@ async function main() {
 
   ensureCmd("cargo", ["--version"], { env });
 
+  if (!hasCmd("docker", ["--version"], { env })) {
+    console.log("Warning: docker not found. Groth16 receipts require Docker for risc0-groth16 shrinkwrap.");
+  }
+
   if (!hasCmd("rzup", ["--version"], { env })) {
     console.log("rzup not found; installing via cargo...");
     run("cargo", ["install", "rzup", "--locked"], { env });
@@ -37,7 +41,7 @@ async function main() {
   console.log("Installing RISC0 toolchain via rzup...");
   run("rzup", ["install"], { env });
 
-  // Install JS deps for shadowcli (ethers, snarkjs).
+  // Install JS deps for shadowcli.
   console.log("Installing JS dependencies (no lockfile)...");
   run("npm", ["install", "--no-package-lock"], { cwd: PACKAGE_ROOT, env });
 
@@ -86,4 +90,3 @@ function run(cmd, args, opts) {
     throw new Error(`Command failed (${res.status}): ${cmd} ${args.join(" ")}`);
   }
 }
-

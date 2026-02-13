@@ -2,7 +2,7 @@
 
 ## Goal
 
-Shadow is a privacy-forward ETH claim system on **Taiko Hoodi** where claims are authorized by proving that a **deterministically derived target address** held enough ETH on **Hoodi L1** at a checkpointed `stateRoot`.
+Shadow is a privacy-forward ETH claim system on **Taiko Hoodi** where claims are authorized by proving that a **deterministically derived target address** held enough ETH on **Hoodi L1** at a `stateRoot` checkpointed on Hoodi L2 by Taiko's system `ICheckpointStore` (protocol-guaranteed; finality is trusted).
 
 Key property: deposits are normal ETH transfers to the target address (no deposit contract, no burn event).
 
@@ -31,17 +31,18 @@ Shadow provides privacy properties but does not guarantee anonymity. See `PRIVAC
 A JSON file containing `secret` and the fixed note set.
 
 - Losing the file means losing the ability to claim.
-- Leaking the file means anyone can generate proofs, but **claims still mint to the note’s bound `recipient`**.
+- Leaking the file means anyone can generate proofs, but **claims still mint to the note’s bound `recipient`** (net of the claim fee).
 
 Schema: `packages/docs/data/schema/deposit.schema.json`.
+Current deposit format version: `v2`.
 
 ### Target Address (Derived, “Unspendable”)
 
 The target address is derived from `(secret, chainId, notes[])` in a way that does not correspond to a known private key.
 
 Current implementation:
-- Compute a note commitment `notes_hash` from `amounts[]` + `recipient_hashes[]`.
-- Derive `targetAddress = last20bytes(SHA256(domain_sep || chainId || secret || notes_hash))`.
+- Compute a note commitment `notesHash` from `amounts[]` + `recipient_hashes[]`.
+- Derive `targetAddress = last20bytes(SHA256(domain_sep || chainId || secret || notesHash))`.
 
 Deposits are made to `targetAddress` on **Hoodi L1** using standard ETH transfers.
 
@@ -70,7 +71,7 @@ Given private inputs `(secret, full note set, accountProofNodes...)` and public 
    - `noteIndex` is within note set bounds.
    - Selected note matches the public `recipient` and `amount` (recipient is bound via a hash inside the circuit).
 2. Target address derivation
-   - `targetAddress` is derived deterministically from `(secret, chainId, notes_hash)`.
+   - `targetAddress` is derived deterministically from `(secret, chainId, notesHash)`.
 3. L1 balance authorization (account proof)
    - The provided Merkle-Patricia trie proof is valid under the supplied `stateRoot`.
    - It authenticates the account record for `targetAddress` in the L1 state trie.
@@ -78,7 +79,7 @@ Given private inputs `(secret, full note set, accountProofNodes...)` and public 
 4. Nullifier correctness
    - `nullifier` is derived correctly for `(secret, chainId, noteIndex)`.
 5. Anti-spam PoW (currently enforced)
-   - `powDigest = SHA256(domain_sep || secret)` has **24 trailing zero bits**.
+   - `powDigest = SHA256(notesHash || secret)` has **24 trailing zero bits** (bound to the note set).
 
 Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-chain verification (trusted setup is provided by RISC0 tooling; no new ceremony required).
 
@@ -88,11 +89,13 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
   - Checks `chainId == block.chainid`, `amount > 0`, `recipient != 0`, and PoW predicate.
   - Calls `ShadowVerifier.verifyProof`.
   - Consumes the nullifier.
-  - Mints ETH to the recipient via `IEthMinter.mintEth`.
+  - Applies claim fee: `fee = amount / 1000` (0.1%).
+  - Mints `amount - fee` to the note `recipient` and (if `fee > 0`) mints `fee` to an immutable `feeRecipient` (currently set to the initial owner at deployment).
 
 - `ShadowVerifier`:
   - Loads a checkpoint from `ICheckpointStore.getCheckpoint(blockNumber)`.
   - Requires checkpoint `stateRoot == publicInput.stateRoot`.
+  - Trust model: the checkpoint is provided by a Taiko **system-level** contract and is guaranteed by the Taiko rollup protocol; Shadow trusts checkpoint correctness and finality.
   - Calls `ICircuitVerifier.verifyProof(proof, publicInputsArray)`.
   - Note: no freshness constraint is enforced (old checkpoints are acceptable).
 
@@ -115,10 +118,11 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
 - Hoodi L1 RPC (used for `eth_getProof`): `https://ethereum-hoodi-rpc.publicnode.com`
 - `ICheckpointStore` (Hoodi L2): `0x1670130000000000000000000000000000000005`
 
-## CLI / Proving UX (No Docker)
+## CLI / Proving UX
 
 - Install prerequisites + build host binary:
   - `node packages/risc0-prover/scripts/install-cli.mjs`
+- Groth16 receipts require Docker (used by upstream `risc0-groth16` shrinkwrap).
 - Deposit validation / proof / verify / claim:
   - `node packages/risc0-prover/scripts/shadowcli.mjs --help`
 

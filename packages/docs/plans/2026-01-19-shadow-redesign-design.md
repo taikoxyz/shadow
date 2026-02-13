@@ -28,7 +28,7 @@ by proving a derived target address holds enough ETH in a recent L1 block.
   via `recipientHash`.
 - Prove `notesHash = sha256(concat(note_0..note_{n-1}))` where each note is
   `amount_i` (uint256, 32-byte big-endian) + `recipientHash_i` (32 bytes).
-- Prove PoW: `sha256(MAGIC_POW || secret) mod 2^24 == 0`.
+- Prove PoW: `sha256(notesHash || secret) mod 2^24 == 0`.
 - Emit a per-note nullifier:
   `sha256(MAGIC_NULLIFIER || chainId || secret || index)`.
 

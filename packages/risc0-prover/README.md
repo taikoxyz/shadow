@@ -11,7 +11,7 @@ The canonical user input is the **deposit file**.
 
 Minimum required fields:
 
-- `version`: must be `v1`
+- `version`: must be `v2`
 - `chainId`: target chain id as a base-10 string (for Taiko Hoodi: `167013`)
 - `secret`: 32-byte hex string (`0x...`)
 - `notes`: 1..5 entries, each with:
@@ -94,6 +94,9 @@ Use `scripts/shadowcli.mjs` for the full deposit -> proof workflow.
 ## Notes
 
 - The first build/prove may take several minutes because Metal kernels are compiled on first use.
+- Groth16 receipts require Docker to be installed and running (used by upstream `risc0-groth16` shrinkwrap).
 - Guest logic validates note/recipient/nullifier/PoW invariants and performs in-guest Ethereum account MPT verification against `stateRoot`.
+- PoW digest is bound to the full note set: `powDigest = sha256(notesHash || secret)` (same trailing-24-zero-bits requirement).
 - The target address must be funded at or above `sum(noteAmounts)` on the proof block unless `--allow-insufficient-balance` is used.
+- `Shadow.claim` applies a 0.1% fee (`amount / 1000`); the note `amount` in the proof is the gross amount.
 - Taiko Hoodi's deployed RISC0 verifier expects Groth16 receipts; succinct receipts will not verify on-chain.

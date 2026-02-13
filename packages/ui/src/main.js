@@ -12,14 +12,15 @@ import "./style.css";
 const MAGIC = {
   RECIPIENT: "shadow.recipient.v1",
   ADDRESS: "shadow.address.v1",
-  NULLIFIER: "shadow.nullifier.v1",
-  POW: "shadow.pow.v1"
+  NULLIFIER: "shadow.nullifier.v1"
 };
 
-const MAX_NOTES = 10;
+// Must match the proving system + deposit schema (Shadow supports 1..5 notes).
+const MAX_NOTES = 5;
 const MAX_TOTAL_WEI = 32000000000000000000n;
 const HOODI_MAX_TX_SIZE_BYTES = 131072;
-const DEFAULT_SHADOW_ADDRESS = "0x30AEf68b8A1784C5C553be9391b6c7cbd1f76ba3";
+// Intentionally empty: the correct address depends on the current deployment (image ID).
+const DEFAULT_SHADOW_ADDRESS = "";
 const PUBLIC_INPUTS_LEN = 120;
 const PUBLIC_INPUT_IDX = {
   BLOCK_NUMBER: 0,
@@ -36,6 +37,10 @@ const HOODI_CHAIN_ID = 167013n;
 const HOODI_CHAIN_HEX = "0x28c65";
 const HOODI_RPC_HOST = "rpc.hoodi.taiko.xyz";
 const HOODI_RPC_URL = `https://${HOODI_RPC_HOST}`;
+const HOODI_L1_CHAIN_ID = 560048n;
+const HOODI_L1_CHAIN_HEX = "0x88bb0";
+const HOODI_L1_RPC_HOST = "ethereum-hoodi-rpc.publicnode.com";
+const HOODI_L1_RPC_URL = `https://${HOODI_L1_RPC_HOST}`;
 const HOODI_CHAIN_PARAMS = {
   chainId: HOODI_CHAIN_HEX,
   chainName: "Taiko Hoodi",
@@ -48,6 +53,17 @@ const HOODI_CHAIN_PARAMS = {
   blockExplorerUrls: ["https://hoodi.taikoscan.io"]
 };
 
+const HOODI_L1_CHAIN_PARAMS = {
+  chainId: HOODI_L1_CHAIN_HEX,
+  chainName: "Taiko Hoodi L1",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18
+  },
+  rpcUrls: [HOODI_L1_RPC_URL]
+};
+
 const app = document.querySelector("#app");
 app.innerHTML = `
   <main class="shell">
@@ -57,7 +73,8 @@ app.innerHTML = `
       <p class="sub">Minimal local-first UI for DEPOSIT file generation, prove command prep, and claim tx submission.</p>
       <div class="wallet-bar">
         <button id="wallet-connect" type="button">Connect Wallet</button>
-        <button id="wallet-switch" class="hidden" type="button">Switch to Hoodi (167013)</button>
+        <button id="wallet-switch-l2" class="hidden" type="button">Switch to Hoodi L2 (167013)</button>
+        <button id="wallet-switch-l1" class="hidden" type="button">Switch to Hoodi L1 (560048)</button>
         <p id="wallet-status" class="wallet-status">Wallet: not connected</p>
       </div>
     </header>
@@ -101,7 +118,7 @@ app.innerHTML = `
       </section>
       <div id="deposit-generated-actions" class="generated-actions hidden">
         <div class="cta-row">
-          <button id="deposit-send-ether" type="button" disabled>Deposit Ether</button>
+          <button id="deposit-send-ether" type="button" disabled>Deposit Ether (L1)</button>
           <button id="deposit-reset" type="button">Reset</button>
         </div>
         <div class="tx-row">
@@ -116,14 +133,18 @@ app.innerHTML = `
     <section class="panel" id="tab-prove">
       <div class="grid two">
         <label>
-          RPC URL
+          L2 RPC URL (Hoodi)
           <input id="prove-rpc" type="text" value="${HOODI_RPC_HOST}" placeholder="${HOODI_RPC_HOST}" />
         </label>
         <label>
-          Shadow contract (optional, for unclaimed check)
-          <input id="prove-shadow-address" type="text" value="${DEFAULT_SHADOW_ADDRESS}" placeholder="0x..." />
+          L1 RPC URL (Hoodi L1)
+          <input id="prove-l1-rpc" type="text" value="${HOODI_L1_RPC_HOST}" placeholder="${HOODI_L1_RPC_HOST}" />
         </label>
       </div>
+      <label>
+        Shadow contract (optional, for unclaimed check)
+        <input id="prove-shadow-address" type="text" value="${DEFAULT_SHADOW_ADDRESS}" placeholder="0x..." />
+      </label>
 
       <div id="prove-drop-zone" class="drop-zone" role="button" tabindex="0">
         Drop DEPOSIT file here or click to choose
@@ -235,7 +256,8 @@ function bindTabs() {
 
 function bindWallet() {
   const connectBtn = document.querySelector("#wallet-connect");
-  const switchBtn = document.querySelector("#wallet-switch");
+  const switchL2Btn = document.querySelector("#wallet-switch-l2");
+  const switchL1Btn = document.querySelector("#wallet-switch-l1");
 
   connectBtn.addEventListener("click", async () => {
     try {
@@ -245,9 +267,17 @@ function bindWallet() {
     }
   });
 
-  switchBtn.addEventListener("click", async () => {
+  switchL2Btn.addEventListener("click", async () => {
     try {
-      await switchToHoodi();
+      await switchToHoodiL2();
+    } catch (error) {
+      setWalletStatus(`Switch error: ${errorMessage(error)}`);
+    }
+  });
+
+  switchL1Btn.addEventListener("click", async () => {
+    try {
+      await switchToHoodiL1();
     } catch (error) {
       setWalletStatus(`Switch error: ${errorMessage(error)}`);
     }
@@ -324,7 +354,7 @@ async function connectWallet() {
   maybeEnableDepositSendButton();
 }
 
-async function switchToHoodi() {
+async function switchToHoodiL2() {
   if (!window.ethereum) {
     throw new Error("No injected wallet detected. Install MetaMask or another EIP-1193 wallet.");
   }
@@ -356,14 +386,48 @@ async function switchToHoodi() {
   maybeEnableDepositSendButton();
 }
 
+async function switchToHoodiL1() {
+  if (!window.ethereum) {
+    throw new Error("No injected wallet detected. Install MetaMask or another EIP-1193 wallet.");
+  }
+
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: HOODI_L1_CHAIN_HEX }]
+    });
+  } catch (error) {
+    const code = Number(error?.code);
+    if (code !== 4902) {
+      throw error;
+    }
+    await window.ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [HOODI_L1_CHAIN_PARAMS]
+    });
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: HOODI_L1_CHAIN_HEX }]
+    });
+  }
+
+  const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
+  state.wallet.chainId = BigInt(chainIdHex);
+  updateWalletUi();
+  maybeEnableClaimButton();
+  maybeEnableDepositSendButton();
+}
+
 function updateWalletUi() {
   const connectBtn = document.querySelector("#wallet-connect");
-  const switchBtn = document.querySelector("#wallet-switch");
+  const switchL2Btn = document.querySelector("#wallet-switch-l2");
+  const switchL1Btn = document.querySelector("#wallet-switch-l1");
   const status = document.querySelector("#wallet-status");
 
   if (!window.ethereum) {
     connectBtn.disabled = true;
-    switchBtn.classList.add("hidden");
+    switchL2Btn.classList.add("hidden");
+    switchL1Btn.classList.add("hidden");
     setWalletStatus("Wallet: not detected (install MetaMask)");
     return;
   }
@@ -374,7 +438,8 @@ function updateWalletUi() {
 
   if (!account) {
     connectBtn.textContent = "Connect Wallet";
-    switchBtn.classList.add("hidden");
+    switchL2Btn.classList.add("hidden");
+    switchL1Btn.classList.add("hidden");
     setWalletStatus("Wallet: not connected");
     return;
   }
@@ -382,11 +447,10 @@ function updateWalletUi() {
   const [first, last] = shortAddressParts(account);
   connectBtn.textContent = "Wallet Connected";
 
-  if (chainId && chainId !== HOODI_CHAIN_ID) {
-    switchBtn.classList.remove("hidden");
-  } else {
-    switchBtn.classList.add("hidden");
-  }
+  if (chainId && chainId !== HOODI_CHAIN_ID) switchL2Btn.classList.remove("hidden");
+  else switchL2Btn.classList.add("hidden");
+  if (chainId && chainId !== HOODI_L1_CHAIN_ID) switchL1Btn.classList.remove("hidden");
+  else switchL1Btn.classList.add("hidden");
 
   const chainText = chainId ? chainId.toString() : "unknown";
   status.textContent = `Wallet: 0x${first}...${last}  |  Chain: ${chainText}`;
@@ -423,8 +487,8 @@ function bindDeposit() {
       if (!state.wallet.account) {
         throw new Error("Connect wallet first.");
       }
-      if (state.wallet.chainId !== HOODI_CHAIN_ID) {
-        throw new Error("Switch wallet to Hoodi (167013) first.");
+      if (state.wallet.chainId !== HOODI_L1_CHAIN_ID) {
+        throw new Error(`Switch wallet to Hoodi L1 (${HOODI_L1_CHAIN_ID.toString()}) first.`);
       }
       if (!window.ethereum) {
         throw new Error("No injected wallet detected.");
@@ -444,6 +508,7 @@ function bindDeposit() {
 
       state.deposit.tx = {
         hash: txHash,
+        chainId: state.wallet.chainId,
         status: "pending"
       };
       renderDepositGenerated();
@@ -610,15 +675,26 @@ function updateDepositTxUi() {
     return;
   }
 
-  link.classList.remove("hidden");
-  link.href = `https://hoodi.taikoscan.io/tx/${tx.hash}`;
+  if (tx.chainId === HOODI_CHAIN_ID) {
+    link.classList.remove("hidden");
+    link.href = `https://hoodi.taikoscan.io/tx/${tx.hash}`;
+    link.textContent = "View transaction (L2)";
+  } else {
+    // L1 explorer URL is not configured; show status with the tx hash instead.
+    link.classList.add("hidden");
+    link.href = "#";
+  }
+
+  const chainLabel =
+    tx.chainId === HOODI_L1_CHAIN_ID ? "L1" : tx.chainId === HOODI_CHAIN_ID ? "L2" : "tx";
+  const hashSuffix = tx.chainId === HOODI_L1_CHAIN_ID ? ` (${tx.hash})` : "";
 
   if (tx.status === "confirmed") {
-    status.textContent = "Confirmed";
+    status.textContent = `${chainLabel} Confirmed${hashSuffix}`;
   } else if (tx.status === "failed") {
-    status.textContent = "Failed";
+    status.textContent = `${chainLabel} Failed${hashSuffix}`;
   } else {
-    status.textContent = "Confirming...";
+    status.textContent = `${chainLabel} Confirming...${hashSuffix}`;
   }
 }
 
@@ -627,7 +703,7 @@ function maybeEnableDepositSendButton() {
   if (!btn) return;
 
   const hasGenerated = Boolean(state.deposit.generated);
-  const walletReady = Boolean(state.wallet.account) && state.wallet.chainId === HOODI_CHAIN_ID;
+  const walletReady = Boolean(state.wallet.account) && state.wallet.chainId === HOODI_L1_CHAIN_ID;
   const txPending = state.deposit.tx?.status === "pending";
   const txConfirmed = state.deposit.tx?.status === "confirmed";
   btn.disabled = !(hasGenerated && walletReady) || txPending || txConfirmed;
@@ -677,8 +753,12 @@ function bindProve() {
     noteSelectWrap.classList.add("hidden");
 
     const rpcRaw = document.querySelector("#prove-rpc").value.trim();
-    if (!rpcRaw) throw new Error("RPC URL is required.");
+    if (!rpcRaw) throw new Error("L2 RPC URL is required.");
     const rpcUrl = normalizeRpcUrl(rpcRaw);
+
+    const l1RpcRaw = document.querySelector("#prove-l1-rpc").value.trim();
+    if (!l1RpcRaw) throw new Error("L1 RPC URL is required.");
+    const l1RpcUrl = normalizeRpcUrl(l1RpcRaw);
 
     const rpcChainId = await fetchChainId(rpcUrl);
     let resolvedChainId = rpcChainId;
@@ -695,6 +775,13 @@ function bindProve() {
       throw new Error(`Only Hoodi (167013) is supported. Resolved chainId=${resolvedChainId.toString()}`);
     }
 
+    const l1ChainId = await fetchChainId(l1RpcUrl);
+    if (l1ChainId !== HOODI_L1_CHAIN_ID) {
+      throw new Error(
+        `L1 chainId mismatch: expected=${HOODI_L1_CHAIN_ID.toString()} rpc=${l1ChainId.toString()}`
+      );
+    }
+
     const usePrecomputed =
       options.precomputedDerived && options.precomputedChainId === resolvedChainId;
     const derived = usePrecomputed
@@ -706,8 +793,8 @@ function bindProve() {
         throw new Error(`targetAddress mismatch: deposit=${expected} derived=${derived.targetAddress}`);
       }
     }
-    const balance = await fetchBalanceWei(rpcUrl, derived.targetAddress);
-    const sufficientBalance = balance >= derived.totalAmount;
+    const l1Balance = await fetchBalanceWei(l1RpcUrl, derived.targetAddress);
+    const sufficientBalance = l1Balance >= derived.totalAmount;
 
     state.prove.targetAddress = derived.targetAddress;
     state.prove.totalAmount = derived.totalAmount;
@@ -719,8 +806,8 @@ function bindProve() {
         "prove-output",
         [
           `Target address: ${derived.targetAddress}`,
-          `Resolved chainId: ${resolvedChainId.toString()}`,
-          `Balance: ${balance.toString()} wei (${formatEther(balance)} ETH)`,
+          `Resolved L2 chainId: ${resolvedChainId.toString()}`,
+          `L1 balance: ${l1Balance.toString()} wei (${formatEther(l1Balance)} ETH)`,
           `Required: ${derived.totalAmount.toString()} wei (${formatEther(derived.totalAmount)} ETH)`,
           "Balance sufficient: no"
         ].join("\n")
@@ -759,8 +846,8 @@ function bindProve() {
     const unclaimedCount = noteStatuses.filter((note) => !note.claimed).length;
     const lines = [
       `Target address: ${derived.targetAddress}`,
-      `Resolved chainId: ${resolvedChainId.toString()}`,
-      `Balance: ${balance.toString()} wei (${formatEther(balance)} ETH)`,
+      `Resolved L2 chainId: ${resolvedChainId.toString()}`,
+      `L1 balance: ${l1Balance.toString()} wei (${formatEther(l1Balance)} ETH)`,
       `Required: ${derived.totalAmount.toString()} wei (${formatEther(derived.totalAmount)} ETH)`,
       `Balance sufficient: ${sufficientBalance ? "yes" : "no"}`,
       shadowAddress
@@ -893,16 +980,20 @@ function renderProveCommand() {
 function buildProveCommand(noteIndex) {
   const rpcRaw = document.querySelector("#prove-rpc").value.trim();
   const rpcUrl = normalizeRpcUrl(rpcRaw);
+  const l1RpcRaw = document.querySelector("#prove-l1-rpc").value.trim();
+  const l1RpcUrl = l1RpcRaw ? normalizeRpcUrl(l1RpcRaw) : HOODI_L1_RPC_URL;
   const [first, last] = shortAddressParts(state.prove.targetAddress);
   const stamp = state.prove.validationStamp || timestampForFilename();
   const proofFileName = `deposit-${first}-${last}-${stamp}-${noteIndex}.proof.json`;
   const depositFilePath = shellQuote(state.prove.depositFilePath || state.prove.depositFileName || "deposit.json");
 
   return [
-    "cd /Users/d/Projects/taiko/shadow",
+    "# Run from repo root (shadow-gpt).",
+    "# Groth16 receipts require Docker (risc0-groth16 shrinkwrap).",
     "node packages/risc0-prover/scripts/shadowcli.mjs prove \\",
     `  --deposit ${depositFilePath} \\`,
     `  --rpc "${rpcUrl}" \\`,
+    `  --l1-rpc "${l1RpcUrl}" \\`,
     `  --note-index ${noteIndex} \\`,
     "  --receipt-kind groth16 \\",
     `  --proof-out "${proofFileName}"`
@@ -939,11 +1030,11 @@ function renderProveNotes() {
     const item = document.createElement("label");
     item.className = "note-choice";
     item.innerHTML = `
-      <input type="radio" name="prove-note" value="${note.index}" ${note.index === state.prove.selectedNoteIndex ? "checked" : ""} />
-      <span>
+      <span class="note-choice-content">
         #${note.index} • ${formatEther(note.amountWei)} ETH (${note.amountWei.toString()} wei)
         <small>Recipient: ${note.recipient}</small>
       </span>
+      <input type="radio" name="prove-note" value="${note.index}" ${note.index === state.prove.selectedNoteIndex ? "checked" : ""} />
     `;
 
     item.querySelector("input").addEventListener("change", () => {
@@ -964,6 +1055,9 @@ function bindClaim() {
       try {
         const parsed = await readJsonFile(file);
         const prepared = prepareClaimPayload(parsed);
+        const grossWei = prepared.claimInput.amount;
+        const feeWei = grossWei / 1000n;
+        const netWei = grossWei - feeWei;
         const proofBytes = hexDataByteLength(prepared.proof);
         state.claim.proofJson = parsed;
         state.claim.proofPayload = prepared;
@@ -976,6 +1070,9 @@ function bindClaim() {
             `Proof version: ${String(parsed.version || "unknown")}`,
             `Chain ID: ${prepared.chainId.toString()}`,
             `Note index: ${prepared.claimInput.noteIndex.toString()}`,
+            `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
+            `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
+            `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
             `Proof bytes: ${proofBytes.toLocaleString()}`,
             proofBytes > HOODI_MAX_TX_SIZE_BYTES
               ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
@@ -1279,7 +1376,7 @@ async function readJsonFile(file) {
 
 function normalizeDeposit(raw) {
   if (!raw || typeof raw !== "object") throw new Error("Invalid deposit JSON");
-  if (raw.version !== "v1") throw new Error("deposit.version must be v1");
+  if (raw.version !== "v2") throw new Error("deposit.version must be v2");
 
   assertHex(raw.secret, 32, "secret");
   if (typeof raw.chainId !== "string" || !/^[0-9]+$/.test(raw.chainId)) {
@@ -1308,7 +1405,7 @@ function normalizeDeposit(raw) {
   });
 
   const normalized = {
-    version: "v1",
+    version: "v2",
     chainId: raw.chainId,
     secret: raw.secret.toLowerCase(),
     notes
@@ -1357,7 +1454,13 @@ async function buildDepositPayload(input, options = {}) {
   let secretHex = input.secret;
   let powAttempts = 0;
   if (options.minePowSecret) {
-    const mined = await minePowValidSecret(options.onMiningProgress);
+    const noteAmounts = notes.map((note) => BigInt(note.amount));
+    const recipientHashes = await Promise.all(
+      notes.map((note) => computeRecipientHash(hexToBytes(note.recipient)))
+    );
+    const notesHash = await computeNotesHash(noteAmounts, recipientHashes);
+
+    const mined = await minePowValidSecret(notesHash, options.onMiningProgress);
     secretHex = mined.secretHex;
     powAttempts = mined.attempts;
   }
@@ -1365,7 +1468,7 @@ async function buildDepositPayload(input, options = {}) {
   assertHex(secretHex, 32, "secret");
 
   const depositJson = {
-    version: "v1",
+    version: "v2",
     chainId: chainId.toString(),
     secret: secretHex.toLowerCase(),
     notes
@@ -1373,7 +1476,7 @@ async function buildDepositPayload(input, options = {}) {
 
   const derived = await deriveFromDeposit(depositJson, chainId);
   if (!derived.powDigestValid) {
-    throw new Error("secret does not satisfy PoW requirement (powDigest last 24 bits must be zero).");
+    throw new Error("secret does not satisfy PoW requirement for this note set (powDigest last 24 bits must be zero).");
   }
   depositJson.targetAddress = derived.targetAddress;
 
@@ -1419,7 +1522,7 @@ async function deriveFromDeposit(deposit, chainId) {
   const notesHash = await computeNotesHash(noteAmounts, recipientHashes);
   const targetAddressBytes = await deriveTargetAddress(secretBytes, chainId, notesHash);
   const targetAddress = normalizeAddress(bytesToHex(targetAddressBytes));
-  const powDigest = bytesToHex(await computePowDigest(secretBytes));
+  const powDigest = bytesToHex(await computePowDigest(notesHash, secretBytes));
 
   return {
     notes,
@@ -1507,8 +1610,8 @@ async function deriveNullifier(secretBytes, chainId, noteIndex) {
   return sha256Bytes(payload);
 }
 
-async function computePowDigest(secretBytes) {
-  const payload = concatBytes(padMagicLabel(MAGIC.POW), secretBytes);
+async function computePowDigest(notesHash, secretBytes) {
+  const payload = concatBytes(notesHash, secretBytes);
   return sha256Bytes(payload);
 }
 
@@ -1573,13 +1676,12 @@ function normalizeAddress(value, fieldName = "address") {
   return getAddress(value);
 }
 
-async function minePowValidSecret(onProgress) {
-  const magicPow = padMagicLabel(MAGIC.POW);
+async function minePowValidSecret(notesHash, onProgress) {
   let attempts = 0;
 
   while (true) {
     const secret = crypto.getRandomValues(new Uint8Array(32));
-    const digest = sha256Sync(concatBytes(magicPow, secret));
+    const digest = sha256Sync(concatBytes(notesHash, secret));
     attempts += 1;
 
     if (powDigestIsValidBytes(digest)) {

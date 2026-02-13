@@ -25,5 +25,6 @@ interface IShadow {
     error ProofVerificationFailed();
 
     /// @notice Submits a proof and public inputs to mint ETH via the configured minter hook.
+    /// @dev The Shadow implementation applies a 0.1% claim fee (`amount / 1000`) to an immutable feeRecipient.
     function claim(bytes calldata _proof, PublicInput calldata _input) external;
 }

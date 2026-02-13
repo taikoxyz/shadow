@@ -4,7 +4,10 @@
 of length **120**. Each byte of `bytes32` and `address` values is written in
 the same order as Solidity's `bytes` indexing (most-significant byte first).
 
-## Layout (v1)
+For the full, normative specification (including the RISC0 journal binding),
+see `docs/circuit-public-inputs-spec.md`.
+
+## Layout (current)
 
 | Field | Offset | Length | Notes |
 | --- | --- | --- | --- |
@@ -20,4 +23,4 @@ the same order as Solidity's `bytes` indexing (most-significant byte first).
 ## Notes
 
 - `inputs.length == 120` must hold for verifier calls.
-- The byte ordering matches the circuit tooling and `ShadowPublicInputs` tests.
+- The byte ordering matches Solidity byte indexing (MSB -> LSB) and is enforced by `ShadowPublicInputs` tests.

@@ -13,6 +13,8 @@ import {MockEtherMinter} from "./mocks/MockEtherMinter.sol";
 import {MockCheckpointStore} from "./mocks/MockCheckpointStore.sol";
 
 contract ShadowTest is Test {
+    event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount);
+
     MockCheckpointStore internal checkpointStore;
     MockCircuitVerifier internal circuitVerifier;
     ShadowVerifier internal shadowVerifier;
@@ -29,7 +31,7 @@ contract ShadowTest is Test {
         address predictedShadowProxy = vm.computeCreateAddress(address(this), nonce + 2);
         nullifier = new Nullifier(predictedShadowProxy);
 
-        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier));
+        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(this));
         ERC1967Proxy shadowProxy =
             new ERC1967Proxy(address(shadowImpl), abi.encodeCall(Shadow.initialize, (address(this))));
         shadow = Shadow(address(shadowProxy));
@@ -37,17 +39,26 @@ contract ShadowTest is Test {
 
     function test_constructor_RevertWhen_VerifierIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(0), address(etherMinter), address(nullifier));
+        new Shadow(address(0), address(etherMinter), address(nullifier), address(this));
     }
 
     function test_constructor_RevertWhen_EtherMinterIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(shadowVerifier), address(0), address(nullifier));
+        new Shadow(address(shadowVerifier), address(0), address(nullifier), address(this));
     }
 
     function test_constructor_RevertWhen_NullifierIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(shadowVerifier), address(etherMinter), address(0));
+        new Shadow(address(shadowVerifier), address(etherMinter), address(0), address(this));
+    }
+
+    function test_constructor_RevertWhen_FeeRecipientIsZeroAddress() external {
+        vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
+        new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(0));
+    }
+
+    function test_feeRecipient_isImmutable() external view {
+        assertEq(shadow.feeRecipient(), address(this));
     }
 
     function test_claim_succeeds() external {
@@ -71,9 +82,49 @@ contract ShadowTest is Test {
             powDigest: powDigest
         });
 
+        vm.expectEmit(true, true, false, true, address(shadow));
+        emit Claimed(nullifierValue, recipient, amount);
         shadow.claim("", input);
-        assertEq(etherMinter.lastRecipient(), recipient);
-        assertEq(etherMinter.lastAmount(), amount);
+        uint256 fee = amount / 1000;
+        uint256 netAmount = amount - fee;
+        assertEq(etherMinter.mintCount(), 2);
+        assertEq(etherMinter.firstRecipient(), recipient);
+        assertEq(etherMinter.firstAmount(), netAmount);
+        assertEq(etherMinter.secondRecipient(), address(this));
+        assertEq(etherMinter.secondAmount(), fee);
+        assertTrue(shadow.isConsumed(nullifierValue));
+    }
+
+    function test_claim_mintsOnlyOnceWhen_FeeIsZero() external {
+        uint48 blockNumber = uint48(block.number);
+        bytes32 stateRoot = keccak256("root");
+        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+
+        address recipient = address(0xBEEF);
+        bytes32 nullifierValue = keccak256("nullifier-fee-zero");
+        uint256 amount = 999;
+        bytes32 powDigest = bytes32(uint256(1) << 24);
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            stateRoot: stateRoot,
+            chainId: block.chainid,
+            noteIndex: 1,
+            amount: amount,
+            recipient: recipient,
+            nullifier: nullifierValue,
+            powDigest: powDigest
+        });
+
+        vm.expectEmit(true, true, false, true, address(shadow));
+        emit Claimed(nullifierValue, recipient, amount);
+        shadow.claim("", input);
+
+        assertEq(etherMinter.mintCount(), 1);
+        assertEq(etherMinter.firstRecipient(), recipient);
+        assertEq(etherMinter.firstAmount(), amount);
+        assertEq(etherMinter.secondRecipient(), address(0));
+        assertEq(etherMinter.secondAmount(), 0);
         assertTrue(shadow.isConsumed(nullifierValue));
     }
 
@@ -188,6 +239,31 @@ contract ShadowTest is Test {
         assertEq(etherMinter.mintCount(), 0);
     }
 
+    function test_claim_RevertWhen_FeeMintFails_doesNotConsumeOrMint() external {
+        uint48 blockNumber = uint48(block.number);
+        bytes32 stateRoot = keccak256("root");
+        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        etherMinter.setRevertOnMintNumber(2);
+
+        bytes32 nullifierValue = keccak256("nullifier-fee-mint-failure");
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            stateRoot: stateRoot,
+            chainId: block.chainid,
+            noteIndex: 1,
+            amount: 1000,
+            recipient: address(0xBEEF),
+            nullifier: nullifierValue,
+            powDigest: bytes32(uint256(1) << 24)
+        });
+
+        vm.expectRevert(MockEtherMinter.MintFailed.selector);
+        shadow.claim("", input);
+
+        assertFalse(shadow.isConsumed(nullifierValue));
+        assertEq(etherMinter.mintCount(), 0);
+    }
+
     function test_claim_RevertWhen_NullifierReused() external {
         uint48 blockNumber = uint48(block.number);
         bytes32 stateRoot = keccak256("root");
@@ -254,6 +330,11 @@ contract ShadowTest is Test {
         assertFalse(shadow.isConsumed(keccak256("unused")));
     }
 
+    function test_initialize_RevertWhen_AlreadyInitialized() external {
+        vm.expectRevert();
+        shadow.initialize(address(this));
+    }
+
     function test_transferOwnership_succeeds() external {
         address newOwner = address(0x1234);
         shadow.transferOwnership(newOwner);
@@ -262,5 +343,39 @@ contract ShadowTest is Test {
         vm.prank(newOwner);
         shadow.acceptOwnership();
         assertEq(shadow.owner(), newOwner);
+    }
+
+    function test_feeRecipient_doesNotChangeWithOwnershipTransfer() external {
+        address initialFeeRecipient = shadow.feeRecipient();
+        assertEq(initialFeeRecipient, address(this));
+
+        address newOwner = address(0x1234);
+        shadow.transferOwnership(newOwner);
+        vm.prank(newOwner);
+        shadow.acceptOwnership();
+
+        assertEq(shadow.owner(), newOwner);
+        assertEq(shadow.feeRecipient(), initialFeeRecipient);
+    }
+
+    function test_upgradeToAndCall_RevertWhen_NotOwner() external {
+        Shadow newImpl =
+            new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(0xCAFE));
+
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        shadow.upgradeToAndCall(address(newImpl), "");
+    }
+
+    function test_upgradeToAndCall_succeedsAndUpdatesFeeRecipient() external {
+        address newFeeRecipient = address(0xCAFE);
+        Shadow newImpl =
+            new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), newFeeRecipient);
+
+        // OZ UUPS upgradeToAndCall() always delegatecalls the new implementation.
+        // Use a safe no-op view call to avoid triggering fallback reverts.
+        shadow.upgradeToAndCall(address(newImpl), abi.encodeWithSignature("feeRecipient()"));
+
+        assertEq(shadow.feeRecipient(), newFeeRecipient);
     }
 }

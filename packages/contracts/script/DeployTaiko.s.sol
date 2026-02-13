@@ -17,7 +17,7 @@ contract DeployTaiko is Script {
     address internal constant HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
     address internal constant HOODI_CHECKPOINT_STORE = 0x1670130000000000000000000000000000000005;
 
-    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x6eb3c68a0378110f3401e10e81cf3870c6c2378068a7ae56a06c11b141f99c5f;
+    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x9ea74bd84383a9ca3d776790823f48d79638cf8f99bccc77f2eac4cb70c89216;
     uint64 internal constant _SHADOW_PROXY_NONCE_OFFSET = 5;
 
     error UnexpectedShadowProxy(address expected, address actual);
@@ -50,7 +50,7 @@ contract DeployTaiko is Script {
         deployed_.risc0CircuitVerifier = address(new Risc0CircuitVerifier(risc0Verifier, imageId));
         deployed_.shadowVerifier = address(new ShadowVerifier(checkpointStore, deployed_.risc0CircuitVerifier));
         deployed_.shadowImplementation =
-            address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, deployed_.nullifier));
+            address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, deployed_.nullifier, owner));
 
         bytes memory initData = abi.encodeCall(Shadow.initialize, (owner));
         deployed_.shadowProxy = address(new ERC1967Proxy(deployed_.shadowImplementation, initData));
@@ -76,6 +76,7 @@ contract DeployTaiko is Script {
         console2.log("chainId", block.chainid);
         console2.log("deployer", deployer);
         console2.log("owner", owner);
+        console2.log("feeRecipient", owner);
         console2.log("checkpointStore", checkpointStore);
         console2.log("risc0Verifier", risc0Verifier);
         console2.logBytes32(imageId);

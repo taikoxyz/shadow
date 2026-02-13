@@ -15,14 +15,16 @@ pnpm ui:build
 
 ## What it does
 
-- `Deposit`: create a `v1` DEPOSIT file (current schema) with multiple recipient notes and download it as:
+- `Deposit`: create a `v2` DEPOSIT file (current schema) with multiple recipient notes and download it as:
   - `deposit-[first4]-[last4]-timestamp.json`
-  - secret is auto-generated on click and mined until PoW-valid; it is never shown in the UI
-  - chain id is fixed to Hoodi (`167013`) in the Deposit flow
-  - after `Generate Deposit File`, the form is locked and a summary is shown (`target address`, `total amount`, `file path`), followed by a `Deposit Ether` action that sends the exact total amount
-  - once send tx is submitted, a tx link + status indicator is shown until confirmation
+  - secret is auto-generated on click and mined until PoW-valid for that note set; it is never shown in the UI
+  - deposit file `chainId` is fixed to Hoodi L2 (`167013`) in the Deposit flow
+  - note set size is limited to 1..5 notes (protocol maximum)
+  - after `Generate Deposit File`, the form is locked and a summary is shown (`target address`, `total amount`, `file path`), followed by a `Deposit Ether (L1)` action that sends the exact total amount on Hoodi L1 (`560048`)
+  - once send tx is submitted, a tx status indicator is shown until confirmation
 - `Prove`: drop a DEPOSIT file, check target (unspendable) address balance on RPC, list one selectable unclaimed note, and generate the terminal command for local proof generation with proof file name:
   - `deposit-[first4]-[last4]-timestamp-[note-index].proof.json`
 - `Claim`: drop a proof file, connect wallet, and submit `claim(bytes, PublicInput)` tx to the Shadow contract.
-- `Web3`: global wallet connect is available in the header; if connected to a non-Hoodi chain, a `Switch to Hoodi (167013)` button is shown.
-- default Shadow contract address used in Prove/Claim: `0x30AEf68b8A1784C5C553be9391b6c7cbd1f76ba3`
+  - Shadow applies a 0.1% claim fee (`amount / 1000`); the UI shows gross, fee, and net amounts when a proof file is loaded.
+- `Web3`: global wallet connect is available in the header, with buttons to switch to Hoodi L2 (`167013`) or Hoodi L1 (`560048`).
+- Shadow contract address for Prove/Claim must be provided (it is deployment-dependent, especially when the RISC0 guest image ID changes).

@@ -7,19 +7,10 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 bincode.workspace = true
-bytemuck.workspace = true
-circom-witnesscalc.workspace = true
 clap.workspace = true
 hex.workspace = true
-num-bigint.workspace = true
-num-traits.workspace = true
-risc0-core.workspace = true
-risc0-groth16.workspace = true
-risc0-zkp.workspace = true
 risc0-zkvm = { workspace = true, features = ["client", "prove"] }
-rzup.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 shadow-proof-core = { path = "../crates/shadow-proof-core" }
 shadow-risc0-methods = { path = "../methods" }
-tempfile.workspace = true

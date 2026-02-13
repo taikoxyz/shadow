@@ -471,14 +471,23 @@ button.danger:hover {
   border-radius: 0;
   padding: 10px;
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   cursor: pointer;
   background: rgba(6, 14, 11, 0.7);
 }
 
+.note-choice-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .note-choice input {
   width: auto;
-  margin-top: 2px;
+  margin-top: 0;
+  margin-left: 12px;
   accent-color: #1fffaa;
 }
 
