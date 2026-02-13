@@ -1,0 +1,18 @@
+{
+  "name": "shadow",
+  "private": true,
+  "scripts": {
+    "ui:dev": "pnpm --filter shadow-ui dev",
+    "ui:build": "pnpm --filter shadow-ui build",
+    "ui:preview": "pnpm --filter shadow-ui preview",
+    "contracts:test": "pnpm --filter shadow-contracts test",
+    "contracts:fmt": "pnpm --filter shadow-contracts fmt",
+    "prover:build": "pnpm --filter shadow-risc0-prover build",
+    "prover:prove": "pnpm --filter shadow-risc0-prover prove",
+    "prover:verify": "pnpm --filter shadow-risc0-prover verify",
+    "prover:inspect": "pnpm --filter shadow-risc0-prover inspect",
+    "prover:generate-input": "pnpm --filter shadow-risc0-prover generate:real-input",
+    "prover:shadow": "pnpm --filter shadow-risc0-prover shadow:cli",
+    "test": "pnpm run contracts:test"
+  }
+}

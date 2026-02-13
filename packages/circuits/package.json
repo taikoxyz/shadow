@@ -1,0 +1,41 @@
+{
+  "name": "shadow-circuits",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ZK circuits for Shadow protocol - privacy-forward claim system on Taiko",
+  "type": "module",
+  "scripts": {
+    "assert:plonk": "node scripts/assert-plonk.js",
+    "compile": "circomkit compile shadow",
+    "compile:test": "circomkit compile keccak_test && circomkit compile mpt_test && circomkit compile rlp_test",
+    "compile:all": "circomkit compile --all",
+    "setup:plonk": "pnpm assert:plonk && node scripts/setup-plonk.js",
+    "prove:plonk": "pnpm assert:plonk && circomkit prove shadow",
+    "verify:plonk": "pnpm assert:plonk && circomkit verify shadow",
+    "setup": "pnpm setup:plonk",
+    "prove": "pnpm prove:plonk",
+    "verify": "pnpm verify:plonk",
+    "clean": "circomkit clean shadow && rm -rf build/",
+    "generate-verifier": "pnpm assert:plonk && node scripts/generate-verifier.js",
+    "export-calldata": "pnpm assert:plonk && node scripts/export-proof-calldata.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --testPathPattern='(keccak|mpt|rlp|witness|eth-proof|block-header)'",
+    "test:integration": "vitest run --testPathPattern='integration'",
+    "ptau:download": "node scripts/download-ptau.js",
+    "full-build": "pnpm assert:plonk && pnpm ptau:download && pnpm compile && pnpm setup:plonk && pnpm generate-verifier",
+    "input:real": "node scripts/generate-real-input.mjs"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "circomkit": "^0.3.4",
+    "circomlib": "^2.0.5",
+    "snarkjs": "^0.7.5",
+    "keccak256-circom": "git+https://github.com/vocdoni/keccak256-circom.git"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  }
+}

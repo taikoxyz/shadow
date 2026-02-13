@@ -1,0 +1,34 @@
+[workspace]
+members = [
+  "crates/shadow-proof-core",
+  "methods",
+  "methods/guest",
+  "host",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1.0"
+bincode = "1.3"
+bytemuck = "1.14"
+circom-witnesscalc = "0.2.1"
+clap = { version = "4.5", features = ["derive"] }
+hex = "0.4"
+num-bigint = "0.4"
+num-traits = "0.2"
+risc0-core = "3.0.1"
+risc0-build = "3.0.5"
+risc0-groth16 = "3.0.4"
+risc0-zkp = "3.0.4"
+risc0-zkvm = { version = "3.0.5", default-features = false }
+rzup = { version = "0.5.0", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = "1.0"
+sha2 = { version = "0.10", default-features = false }
+tempfile = "3"
+tiny-keccak = { version = "2.0", features = ["keccak"] }

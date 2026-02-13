@@ -1,0 +1,17 @@
+{
+  "network": "mock",
+  "description": "Minimal account proof used by unit tests",
+  "blockNumber": 1,
+  "address": "0x0000000000000000000000000000000000000001",
+  "proof": {
+    "stateRoot": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "accountProof": [
+      "0xf84c820001a020202020202020202020202020202020202020202020202020202020202020a030303030303030303030303030303030303030303030303030303030303030",
+      "0xe680040506"
+    ],
+    "balance": "0x01",
+    "nonce": "0x00",
+    "codeHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "storageHash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  }
+}

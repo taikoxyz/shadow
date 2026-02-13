@@ -1,0 +1,9 @@
+[package]
+name = "shadow_claim_guest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+risc0-zkvm = { workspace = true, default-features = false }
+shadow-proof-core = { path = "../../crates/shadow-proof-core" }

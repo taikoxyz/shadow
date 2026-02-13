@@ -1,0 +1,16 @@
+{
+  "network": "mock",
+  "description": "Intentionally malformed proof (wrong state root)",
+  "blockNumber": 1,
+  "address": "0x0000000000000000000000000000000000000001",
+  "proof": {
+    "stateRoot": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "accountProof": [
+      "0xf84c820001a020202020202020202020202020202020202020202020202020202020202020a030303030303030303030303030303030303030303030303030303030303030"
+    ],
+    "balance": "0x02",
+    "nonce": "0x01",
+    "codeHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "storageHash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  }
+}

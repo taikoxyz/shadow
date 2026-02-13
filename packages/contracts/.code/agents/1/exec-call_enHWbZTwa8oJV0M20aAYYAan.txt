@@ -1,0 +1,200 @@
+README.md:10:- `src/lib/` – Shared helpers (public input parsing)
+README.md:17:- **`Shadow`**: Claim contract with immutable dependencies (verifier, minter, nullifier).
+README.md:18:- **`ShadowVerifier`**: Wrapper that checks state roots before dispatching to the circuit verifier.
+README.md:19:- **`Nullifier`**: Registry that tracks and burns nullifiers to prevent replayed claims.
+test/Shadow.t.sol:18:    MockCircuitVerifier internal circuitVerifier;
+test/Shadow.t.sol:21:    Nullifier internal nullifier;
+test/Shadow.t.sol:26:        circuitVerifier = new MockCircuitVerifier();
+test/Shadow.t.sol:27:        shadowVerifier = new ShadowVerifier(address(checkpointStore), address(circuitVerifier));
+test/Shadow.t.sol:31:        // nonce: current + 4 (nullifierImpl, nullifierProxy, shadowImpl, shadowProxy)
+test/Shadow.t.sol:35:        Nullifier nullifierImpl = new Nullifier(shadowProxyAddr);
+test/Shadow.t.sol:36:        ERC1967Proxy nullifierProxy = new ERC1967Proxy(
+test/Shadow.t.sol:37:            address(nullifierImpl),
+test/Shadow.t.sol:40:        nullifier = Nullifier(address(nullifierProxy));
+test/Shadow.t.sol:42:        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier));
+test/Shadow.t.sol:54:        new Shadow(address(0), address(etherMinter), address(nullifier));
+test/Shadow.t.sol:59:        new Shadow(address(shadowVerifier), address(0), address(nullifier));
+test/Shadow.t.sol:69:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:70:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:73:        bytes32 nullifierValue = keccak256("nullifier");
+test/Shadow.t.sol:75:        bytes32 powDigest = bytes32(uint256(1) << 24);
+test/Shadow.t.sol:79:            stateRoot: stateRoot,
+test/Shadow.t.sol:81:            noteIndex: 1,
+test/Shadow.t.sol:84:            nullifier: nullifierValue,
+test/Shadow.t.sol:85:            powDigest: powDigest
+test/Shadow.t.sol:91:        assertTrue(nullifier.isConsumed(nullifierValue));
+test/Shadow.t.sol:96:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:97:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:101:            stateRoot: stateRoot,
+test/Shadow.t.sol:103:            noteIndex: 1,
+test/Shadow.t.sol:106:            nullifier: keccak256("nullifier"),
+test/Shadow.t.sol:107:            powDigest: bytes32(uint256(1) << 24)
+test/Shadow.t.sol:116:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:117:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:121:            stateRoot: stateRoot,
+test/Shadow.t.sol:123:            noteIndex: 1,
+test/Shadow.t.sol:126:            nullifier: keccak256("nullifier"),
+test/Shadow.t.sol:127:            powDigest: bytes32(uint256(1))
+test/Shadow.t.sol:136:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:137:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:138:        circuitVerifier.setShouldVerify(false);
+test/Shadow.t.sol:142:            stateRoot: stateRoot,
+test/Shadow.t.sol:144:            noteIndex: 1,
+test/Shadow.t.sol:147:            nullifier: keccak256("nullifier"),
+test/Shadow.t.sol:148:            powDigest: bytes32(uint256(1) << 24)
+test/Shadow.t.sol:157:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:158:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:160:        bytes32 nullifierValue = keccak256("nullifier");
+test/Shadow.t.sol:163:            stateRoot: stateRoot,
+test/Shadow.t.sol:165:            noteIndex: 1,
+test/Shadow.t.sol:168:            nullifier: nullifierValue,
+test/Shadow.t.sol:169:            powDigest: bytes32(uint256(1) << 24)
+test/Shadow.t.sol:173:        vm.expectRevert(abi.encodeWithSelector(INullifier.NullifierAlreadyConsumed.selector, nullifierValue));
+test/Shadow.t.sol:179:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:180:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:184:            stateRoot: stateRoot,
+test/Shadow.t.sol:186:            noteIndex: 1,
+test/Shadow.t.sol:189:            nullifier: keccak256("nullifier"),
+test/Shadow.t.sol:190:            powDigest: bytes32(uint256(1) << 24)
+test/Shadow.t.sol:199:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:200:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:204:            stateRoot: stateRoot,
+test/Shadow.t.sol:206:            noteIndex: 1,
+test/Shadow.t.sol:209:            nullifier: keccak256("nullifier"),
+test/Shadow.t.sol:210:            powDigest: bytes32(uint256(1) << 24)
+claudedocs/nullifier-security-review.md:12:The current `Nullifier.sol` implementation has a **CRITICAL security vulnerability**: the `consume()` function lacks access control, allowing anyone to consume arbitrary nullifiers and perform denial-of-service attacks against legitimate users.
+claudedocs/nullifier-security-review.md:25:function consume(bytes32 _nullifier) external {
+claudedocs/nullifier-security-review.md:26:    require(!_consumed[_nullifier], NullifierAlreadyConsumed(_nullifier));
+claudedocs/nullifier-security-review.md:27:    _consumed[_nullifier] = true;
+claudedocs/nullifier-security-review.md:28:    emit NullifierConsumed(_nullifier);
+claudedocs/nullifier-security-review.md:34:**Problem**: Anyone can call `consume()` with any `bytes32` value, including legitimate nullifiers derived from user secrets.
+claudedocs/nullifier-security-review.md:38:2. Attacker extracts `nullifierValue` from public inputs (index 6)
+claudedocs/nullifier-security-review.md:39:3. Attacker front-runs with direct `Nullifier.consume(nullifierValue)` call
+claudedocs/nullifier-security-review.md:43:**Cost to Attacker**: Minimal gas cost (~5,000 gas per nullifier consumed)
+claudedocs/nullifier-security-review.md:55:    mapping(bytes32 _nullifier => bool _consumed) private _consumed;
+claudedocs/nullifier-security-review.md:62:    function isConsumed(bytes32 _nullifier) external view returns (bool) {
+claudedocs/nullifier-security-review.md:63:        return _consumed[_nullifier];
+claudedocs/nullifier-security-review.md:66:    function consume(bytes32 _nullifier) external {
+claudedocs/nullifier-security-review.md:68:        require(!_consumed[_nullifier], NullifierAlreadyConsumed(_nullifier));
+claudedocs/nullifier-security-review.md:69:        _consumed[_nullifier] = true;
+claudedocs/nullifier-security-review.md:70:        emit NullifierConsumed(_nullifier);
+claudedocs/nullifier-security-review.md:80:2. Deploy `Shadow(verifier, etherMinter, nullifierAddress)`
+claudedocs/nullifier-security-review.md:90:4. Deploy Shadow with (verifier, minter, nullifier)
+claudedocs/nullifier-security-review.md:117:    function consume(bytes32 _nullifier) external {
+claudedocs/nullifier-security-review.md:119:        require(!_consumed[_nullifier], NullifierAlreadyConsumed(_nullifier));
+claudedocs/nullifier-security-review.md:120:        _consumed[_nullifier] = true;
+claudedocs/nullifier-security-review.md:121:        emit NullifierConsumed(_nullifier);
+claudedocs/nullifier-security-review.md:133:2. Deploy `Shadow(verifier, etherMinter, nullifier)`
+claudedocs/nullifier-security-review.md:160:**Attack**: Attacker generates valid nullifiers by brute-forcing the formula:
+claudedocs/nullifier-security-review.md:161:`nullifier = sha256(MAGIC_NULLIFIER || chainId || secret || index)`
+claudedocs/nullifier-security-review.md:165:- ✅ Even if attacker guesses a nullifier, they cannot generate a valid ZK proof without the secret
+claudedocs/nullifier-security-review.md:166:- ⚠️ **Privacy concern**: Public nullifiers in events could enable linkability analysis
+claudedocs/nullifier-security-review.md:170:event NullifierConsumed(bytes32 indexed nullifier);
+claudedocs/nullifier-security-review.md:172:Indexing enables efficient queries but also creates public record of all consumed nullifiers.
+claudedocs/nullifier-security-review.md:205:1. ✅ Check: `require(!_consumed[_nullifier])`
+claudedocs/nullifier-security-review.md:206:2. ✅ Effect: `_consumed[_nullifier] = true`
+claudedocs/nullifier-security-review.md:216:- ✅ **Already mitigated** - `Shadow.claim()` validates proof BEFORE calling `nullifier.consume()` (Shadow.sol:42-44)
+claudedocs/nullifier-security-review.md:217:- Order of operations: `verifyProof() → consume() → mintEther()`
+claudedocs/nullifier-security-review.md:229:**Attack**: Attacker consumes millions of random nullifiers to bloat state
+claudedocs/nullifier-security-review.md:239:function consume(bytes32 _nullifier) external {
+claudedocs/nullifier-security-review.md:241:    require(!_consumed[_nullifier], NullifierAlreadyConsumed(_nullifier));
+claudedocs/nullifier-security-review.md:243:    _consumed[_nullifier] = true;
+claudedocs/nullifier-security-review.md:245:    emit NullifierConsumed(_nullifier);
+claudedocs/nullifier-security-review.md:263:Nullifier nullifier = new Nullifier(predictedShadow);
+claudedocs/nullifier-security-review.md:264:Shadow shadow = new Shadow{salt: salt}(verifier, minter, address(nullifier));
+claudedocs/nullifier-security-review.md:272:        address verifier,
+claudedocs/nullifier-security-review.md:274:    ) external returns (Shadow shadow, Nullifier nullifier) {
+claudedocs/nullifier-security-review.md:276:        nullifier = new Nullifier(address(shadow));
+claudedocs/nullifier-security-review.md:277:        shadow.initialize(verifier, etherMinter, address(nullifier));
+claudedocs/nullifier-security-review.md:285:Nullifier nullifier = new Nullifier(); // No constructor param yet
+claudedocs/nullifier-security-review.md:286:Shadow shadow = new Shadow(verifier, minter, address(nullifier));
+claudedocs/nullifier-security-review.md:289:nullifier.setAuthorizedCaller(address(shadow)); // One-time setter
+claudedocs/nullifier-security-review.md:300:// Add verification step in deployment script
+claudedocs/nullifier-security-review.md:301:require(nullifier.authorizedCaller() == address(shadow), "Misconfigured");
+claudedocs/nullifier-security-review.md:302:require(shadow.nullifier() == address(nullifier), "Misconfigured");
+claudedocs/nullifier-security-review.md:309:    assertEq(address(shadow.nullifier()), address(nullifier));
+claudedocs/nullifier-security-review.md:310:    assertEq(nullifier.authorizedCaller(), address(shadow));
+claudedocs/nullifier-security-review.md:314:    nullifier.consume(keccak256("test"));
+claudedocs/nullifier-security-review.md:315:    assertTrue(nullifier.isConsumed(keccak256("test")));
+claudedocs/nullifier-security-review.md:319:    nullifier.consume(keccak256("test2"));
+claudedocs/nullifier-security-review.md:330:function consume(bytes32 _nullifier) external {
+claudedocs/nullifier-security-review.md:348:    bytes32 nullifierValue = keccak256("test");
+claudedocs/nullifier-security-review.md:351:    nullifier.consume(nullifierValue);
+claudedocs/nullifier-security-review.md:356:    bytes32 nullifierValue = keccak256("test");
+claudedocs/nullifier-security-review.md:359:    nullifier.consume(nullifierValue);
+claudedocs/nullifier-security-review.md:361:    assertTrue(nullifier.isConsumed(nullifierValue));
+claudedocs/nullifier-security-review.md:368:    bytes32 stateRoot = keccak256("root");
+claudedocs/nullifier-security-review.md:369:    provider.setStateRoot(blockNumber, stateRoot);
+claudedocs/nullifier-security-review.md:370:    bytes32 nullifierValue = keccak256("nullifier");
+claudedocs/nullifier-security-review.md:373:        blockNumber, stateRoot, block.chainid, 1, 1 ether,
+claudedocs/nullifier-security-review.md:374:        address(0xBEEF), nullifierValue, bytes32(uint256(1) << 24)
+claudedocs/nullifier-security-review.md:377:    // Attacker tries to front-run by consuming nullifier directly
+claudedocs/nullifier-security-review.md:380:    nullifier.consume(nullifierValue);
+claudedocs/nullifier-security-review.md:384:    assertTrue(nullifier.isConsumed(nullifierValue));
+claudedocs/nullifier-security-review.md:395:    nullifier.setAuthorizedCaller(address(shadow));
+claudedocs/nullifier-security-review.md:398:    nullifier.setAuthorizedCaller(address(0xBEEF));
+claudedocs/nullifier-security-review.md:405:    nullifier.setAuthorizedCaller(address(shadow));
+claudedocs/nullifier-security-review.md:411:    Nullifier nullifier = new Nullifier();
+claudedocs/nullifier-security-review.md:412:    Shadow shadow = new Shadow(address(verifier), address(minter), address(nullifier));
+claudedocs/nullifier-security-review.md:413:    nullifier.setAuthorizedCaller(address(shadow));
+claudedocs/nullifier-security-review.md:416:    assertEq(nullifier.authorizedCaller(), address(shadow));
+claudedocs/nullifier-security-review.md:417:    assertEq(address(shadow.nullifier()), address(nullifier));
+claudedocs/nullifier-security-review.md:424:    assertTrue(nullifier.isConsumed(extractNullifier(inputs)));
+claudedocs/nullifier-security-review.md:432:// Test 8: Multiple nullifiers don't interfere
+claudedocs/nullifier-security-review.md:438:    nullifier.consume(n1);
+claudedocs/nullifier-security-review.md:439:    assertTrue(nullifier.isConsumed(n1));
+claudedocs/nullifier-security-review.md:440:    assertFalse(nullifier.isConsumed(n2));
+claudedocs/nullifier-security-review.md:442:    nullifier.consume(n2);
+claudedocs/nullifier-security-review.md:443:    assertTrue(nullifier.isConsumed(n2));
+claudedocs/nullifier-security-review.md:449:    bytes32 nullifierValue = keccak256("test");
+claudedocs/nullifier-security-review.md:452:    emit NullifierConsumed(nullifierValue);
+claudedocs/nullifier-security-review.md:455:    nullifier.consume(nullifierValue);
+claudedocs/nullifier-security-review.md:460:    bytes32 nullifierValue = keccak256("test");
+claudedocs/nullifier-security-review.md:464:    nullifier.consume(nullifierValue);
+claudedocs/nullifier-security-review.md:476:    nullifier.consume(n1);
+claudedocs/nullifier-security-review.md:478:    assertFalse(nullifier.isConsumed(n2));
+claudedocs/nullifier-security-review.md:490:    (Shadow shadow, Nullifier nullifier) = script.run();
+claudedocs/nullifier-security-review.md:493:    assertEq(nullifier.authorizedCaller(), address(shadow));
+claudedocs/nullifier-security-review.md:494:    assertEq(address(shadow.nullifier()), address(nullifier));
+claudedocs/nullifier-security-review.md:495:    assertNotEq(address(shadow.verifier()), address(0));
+claudedocs/nullifier-security-review.md:517:    function consume(bytes32 _nullifier) external onlyRole(CONSUMER_ROLE) {
+claudedocs/nullifier-security-review.md:544:        bytes32 _nullifier,
+claudedocs/nullifier-security-review.md:547:        bytes32 digest = keccak256(abi.encodePacked(_nullifier, msg.sender));
+claudedocs/nullifier-security-review.md:580:        require(!_consumed[nullifierValue], NullifierAlreadyConsumed());
+claudedocs/nullifier-security-review.md:581:        _consumed[nullifierValue] = true;
+claudedocs/nullifier-security-review.md:595:- ❌ Cannot reuse nullifier registry across multiple Shadow versions
+claudedocs/nullifier-security-review.md:596:- ❌ Harder to audit nullifier state independently
+claudedocs/nullifier-security-review.md:598:**Verdict**: ⚠️ CONSIDER for simplicity, but **breaks PRD architecture** (line 109: "Nullifier: registry keyed by the circuit's nullifier")
+claudedocs/nullifier-security-review.md:635:- [ ] Add post-deployment verification
+claudedocs/nullifier-security-review.md:703:**Alternative**: Redesign to inline nullifier tracking within Shadow (eliminates issue entirely but breaks PRD architecture).
+claudedocs/nullifier-security-review.md:708:3. Deployment script verified on testnet
+claudedocs/nullifier-security-review.md:716:- Shadow.sol: Line 44 (nullifier.consume call)
+test/Nullifier.t.sol:11:    Nullifier internal nullifier;
+test/Nullifier.t.sol:21:        nullifier = Nullifier(address(proxy));
+test/Nullifier.t.sol:32:        nullifier.consume(value);
+test/Nullifier.t.sol:33:        assertTrue(nullifier.isConsumed(value));
+test/Nullifier.t.sol:39:        nullifier.consume(value);
+test/Nullifier.t.sol:42:        nullifier.consume(value);
+test/Nullifier.t.sol:49:        nullifier.consume(value);
+test/Nullifier.t.sol:53:        assertFalse(nullifier.isConsumed(keccak256("unused")));
+test/Nullifier.t.sol:58:        nullifier.transferOwnership(newOwner);
+test/Nullifier.t.sol:59:        assertEq(nullifier.pendingOwner(), newOwner);
+test/Nullifier.t.sol:62:        nullifier.acceptOwnership();
+test/Nullifier.t.sol:63:        assertEq(nullifier.owner(), newOwner);
+test/Nullifier.t.sol:69:        nullifier.transferOwnership(address(0x1234));
+src/lib/ShadowPublicInputs.sol:21:    /// @notice Converts a PublicInput struct to a uint256 array for circuit verification.
+src/lib/ShadowPublicInputs.sol:27:        _writeBytes32(inputs_, _IDX_STATE_ROOT, _input.stateRoot);
+src/lib/ShadowPublicInputs.sol:30:        inputs_[_IDX_NOTE_INDEX] = _input.noteIndex;
+src/lib/ShadowPublicInputs.sol:34:        _writeBytes32(inputs_, _IDX_NULLIFIER, _input.nullifier);
+src/lib/ShadowPublicInputs.sol:35:        _writeBytes32(inputs_, _IDX_POW_DIGEST, _input.powDigest);
+src/lib/ShadowPublicInputs.sol:39:    function powDigestIsValid(bytes32 _powDigest) internal pure returns (bool) {
+src/lib/ShadowPublicInputs.sol:40:        return (uint256(_powDigest) & _POW_MASK) == 0;
+src/impl/Shadow.sol:15:    IShadowVerifier public immutable verifier;
+src/impl/Shadow.sol:19:    INullifier public immutable nullifier;
+src/impl/Shadow.sol:22:    constructor(address _verifier, address _etherMinter, address _nullifier) {
+src/impl/Shadow.sol:23:        require(_verifier != address(0), ZeroAddress());
+src/impl/Shadow.sol:25:        require(_nullifier != address(0), ZeroAddress());
+src/impl/Shadow.sol:26:        verifier = IShadowVerifier(_verifier);
+src/impl/Shadow.sol:28:        nullifier = INullifier(_nullifier);
+src/impl/Shadow.sol:36:    /// @notice Submits a proof and public inputs to mint ETH.
+src/impl/Shadow.sol:41:        require(ShadowPublicInputs.powDigestIsValid(_input.powDigest), InvalidPowDigest(_input.powDigest));

@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {Script, console2} from "forge-std/Script.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
+import {Nullifier} from "../src/impl/Nullifier.sol";
+import {Shadow} from "../src/impl/Shadow.sol";
+import {DummyEtherMinter} from "../src/impl/DummyEtherMinter.sol";
+import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
+import {Risc0CircuitVerifier} from "../src/impl/Risc0CircuitVerifier.sol";
+
+contract DeployTaiko is Script {
+    // Deployer: 0xe36C0F16d5fB473CC5181f5fb86b6Eb3299aD9cb
+    address internal constant MAINNET_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xA5Da6507E6Ab8832EA3fDeB43bA6B7390952D8dA;
+
+    address internal constant HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
+    address internal constant HOODI_CHECKPOINT_STORE = 0x1670130000000000000000000000000000000005;
+
+    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x924fe3521927419a1f555ded0ed87883a170c21474e2a577cf8b124751f026c5;
+    uint64 internal constant _SHADOW_PROXY_NONCE_OFFSET = 5;
+
+    error UnexpectedShadowProxy(address expected, address actual);
+
+    struct Deployment {
+        address nullifier;
+        address etherMinter;
+        address risc0CircuitVerifier;
+        address shadowVerifier;
+        address shadowImplementation;
+        address shadowProxy;
+    }
+
+    function run() external returns (Deployment memory deployed_) {
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+
+        address owner = vm.envOr("OWNER", deployer);
+        address checkpointStore = vm.envOr("CHECKPOINT_STORE", HOODI_CHECKPOINT_STORE);
+        address risc0Verifier = vm.envOr("RISC0_VERIFIER", HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI);
+        bytes32 imageId = vm.envOr("IMAGE_ID", HOODI_SHADOW_CLAIM_GUEST_ID);
+        uint64 deployerNonce = vm.getNonce(deployer);
+        address predictedShadowProxy = vm.computeCreateAddress(deployer, deployerNonce + _SHADOW_PROXY_NONCE_OFFSET);
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        deployed_.nullifier = address(new Nullifier(predictedShadowProxy));
+        deployed_.etherMinter = address(new DummyEtherMinter());
+
+        deployed_.risc0CircuitVerifier = address(new Risc0CircuitVerifier(risc0Verifier, imageId));
+        deployed_.shadowVerifier = address(new ShadowVerifier(checkpointStore, deployed_.risc0CircuitVerifier));
+        deployed_.shadowImplementation =
+            address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, deployed_.nullifier));
+
+        bytes memory initData = abi.encodeCall(Shadow.initialize, (owner));
+        deployed_.shadowProxy = address(new ERC1967Proxy(deployed_.shadowImplementation, initData));
+
+        vm.stopBroadcast();
+
+        if (deployed_.shadowProxy != predictedShadowProxy) {
+            revert UnexpectedShadowProxy(predictedShadowProxy, deployed_.shadowProxy);
+        }
+
+        _logConfig(deployer, owner, checkpointStore, risc0Verifier, imageId);
+        _logDeployment(deployed_);
+    }
+
+    function _logConfig(
+        address deployer,
+        address owner,
+        address checkpointStore,
+        address risc0Verifier,
+        bytes32 imageId
+    ) private view {
+        console2.log("=== Deploy Config ===");
+        console2.log("chainId", block.chainid);
+        console2.log("deployer", deployer);
+        console2.log("owner", owner);
+        console2.log("checkpointStore", checkpointStore);
+        console2.log("risc0Verifier", risc0Verifier);
+        console2.logBytes32(imageId);
+        console2.log("=====================");
+    }
+
+    function _logDeployment(Deployment memory deployed_) private pure {
+        console2.log("=== Deployed Contracts ===");
+        console2.log("Nullifier", deployed_.nullifier);
+        console2.log("DummyEtherMinter", deployed_.etherMinter);
+        console2.log("Risc0CircuitVerifier", deployed_.risc0CircuitVerifier);
+        console2.log("ShadowVerifier", deployed_.shadowVerifier);
+        console2.log("Shadow implementation", deployed_.shadowImplementation);
+        console2.log("Shadow proxy", deployed_.shadowProxy);
+        console2.log("==========================");
+    }
+}

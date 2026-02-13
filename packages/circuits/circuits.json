@@ -1,0 +1,57 @@
+{
+  "shadow": {
+    "file": "shadow/Shadow",
+    "template": "Shadow",
+    "params": [10, 9],
+    "publicSignals": [
+      "blockNumber",
+      "stateRoot",
+      "chainId",
+      "noteIndex",
+      "amount",
+      "recipient",
+      "nullifier",
+      "powDigest"
+    ]
+  },
+  "sha256_test": {
+    "file": "test/Sha256Test",
+    "template": "Sha256Test",
+    "params": []
+  },
+  "note_validator_test": {
+    "file": "test/NoteValidatorTest",
+    "template": "NoteValidatorTest",
+    "params": [10]
+  },
+  "vendor_utils_test": {
+    "file": "test/VendorUtilsTest",
+    "template": "VendorUtilsTest",
+    "params": []
+  },
+  "keccak_test": {
+    "file": "test/KeccakTest",
+    "template": "KeccakTest",
+    "params": []
+  },
+  "rlp_vendor_test": {
+    "file": "test/RlpVendorTest",
+    "template": "RlpVendorTest",
+    "params": []
+  },
+  "array_selector_test": {
+    "file": "test/ArraySelectorTest",
+    "template": "ArraySelectorTest",
+    "params": []
+  },
+  "rlp_test": {
+    "file": "test/RlpTest",
+    "template": "RlpTest",
+    "params": [64, 96]
+  },
+  "mpt_test": {
+    "file": "test/MptTest",
+    "template": "MptTest",
+    "params": [2, 128, 2]
+  }
+}

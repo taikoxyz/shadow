@@ -1,0 +1,15 @@
+{
+  "name": "shadow-contracts",
+  "private": true,
+  "scripts": {
+    "compile": "forge build",
+    "test": "forge test -vvv",
+    "fmt": "forge fmt",
+    "coverage": "forge coverage"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "4.9.6",
+    "@openzeppelin/contracts-upgradeable": "4.9.6",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.5"
+  }
+}

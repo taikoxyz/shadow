@@ -1,0 +1,1089 @@
+[2026-01-22T13:27:32] OpenAI Codex v0.0.0 (research preview)
+[2026-01-22T13:27:32] binary: /Users/d/Library/Caches/just-every/code/0.6.49/code-aarch64-apple-darwin
+--------
+workdir: /Users/d/Projects/taiko/shadow/packages/contracts
+model: gpt-5.2
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: auto
+--------
+[2026-01-22T13:27:32] User instructions:
+Context: Repo appears to be Solidity contracts package for Shadow. Likely circuit-related files: src/iface/ICircuitVerifier.sol, src/iface/IShadowVerifier.sol, src/impl/ShadowVerifier.sol, src/lib/ShadowPublicInputs.sol, plus tests (test/ShadowVerifier.t.sol, test/Shadow.t.sol, test/mocks/MockCircuitVerifier.sol). There is also claudedocs/nullifier-security-review.md. Read README.md and CLAUDE.md for context. Only produce a plan; no code changes. If you find useful pointers about circuit handling, include them.
+
+Agent: Review all circuit-related code for soundness, correctness, and completeness in /Users/d/Projects/taiko/shadow/packages/contracts. Focus on circuit verification flows, public input handling, verifier interfaces/implementations, and any docs or tests describing circuits. Identify potential issues, missing checks, or mismatches between circuits and contracts. Provide a plan for conducting the review and documenting findings in a new REVIEW_RESULT.md file (do not modify other files).
+
+Files to consider: /Users/d/Projects/taiko/shadow/packages/contracts/README.md, /Users/d/Projects/taiko/shadow/packages/contracts/CLAUDE.md
+
+[Running in read-only mode - no modifications allowed]
+
+[2026-01-22T13:27:40] thinking
+
+**Considering plan creation**
+
+I need to open SKILL.md at a specific path for guidance on creating a plan. I'll read just enough from that document. There seems to be an 'update_plan' tool mentioned, but I don't see it listed in my current environment. I might have to assume it isn't available. The user's request is straightforward: just produce a plan.  I’ll focus on necessary file operations without saving, using commands like ls, rg, and cat to parse the information I need.
+**Executing parallel tool calls**
+
+I plan to run multiple tool calls in parallel to gather information. I’ll start by listing the directory tree and then read the README and CLAUDE files, along with the circuit documents. Using the multi_tool_use.parallel should help streamline this process with functions.shell commands. I’m looking to ensure I pull relevant details from these files efficiently to support whatever task is at hand.
+
+[2026-01-22T13:27:46] exec sh -lc 'ls -la' in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:47] sh -lc 'ls -la' succeeded in 20ms:
+total 48
+drwxr-xr-x@ 13 d  staff   416 Jan 22 18:18 .
+drwxr-xr-x@  5 d  staff   160 Jan 20 20:48 ..
+-rw-r--r--@  1 d  staff  4599 Jan 20 20:39 CLAUDE.md
+-rw-r--r--@  1 d  staff  1239 Jan 22 15:59 README.md
+drwxr-xr-x@  3 d  staff    96 Jan 22 14:07 cache
+drwxr-xr-x@  3 d  staff    96 Jan 22 17:53 claudedocs
+-rw-r--r--@  1 d  staff   416 Jan 20 20:39 foundry.lock
+-rw-r--r--@  1 d  staff   480 Jan 22 16:08 foundry.toml
+drwxr-xr-x@  4 d  staff   128 Jan 22 14:06 node_modules
+drwxr-xr-x@ 66 d  staff  2112 Jan 22 18:07 out
+-rw-r--r--@  1 d  staff   361 Jan 22 18:18 package.json
+drwxr-xr-x@  5 d  staff   160 Jan 22 15:57 src
+drwxr-xr-x   6 d  staff   192 Jan 22 18:20 test
+[2026-01-22T13:27:47] exec sh -lc 'ls -la src src/iface src/impl src/lib test test/mocks 2>/dev/null || true' in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:47] sh -lc 'ls -la src src/iface src/impl src/lib test test/mocks 2>/dev/null || true' succeeded in 22ms:
+src:
+total 0
+drwxr-xr-x@  5 d  staff  160 Jan 22 15:57 .
+drwxr-xr-x@ 13 d  staff  416 Jan 22 18:18 ..
+drwxr-xr-x@  8 d  staff  256 Jan 22 18:17 iface
+drwxr-xr-x   5 d  staff  160 Jan 22 18:12 impl
+drwxr-xr-x   4 d  staff  128 Jan 22 18:24 lib
+
+src/iface:
+total 48
+drwxr-xr-x@ 8 d  staff  256 Jan 22 18:17 .
+drwxr-xr-x@ 5 d  staff  160 Jan 22 15:57 ..
+-rw-r--r--@ 1 d  staff  871 Jan 22 18:08 ICheckpointStore.sol
+-rw-r--r--  1 d  staff  340 Jan 22 15:57 ICircuitVerifier.sol
+-rw-r--r--@ 1 d  staff  268 Jan 22 18:10 IEtherMinter.sol
+-rw-r--r--@ 1 d  staff  398 Jan 22 18:18 INullifier.sol
+-rw-r--r--@ 1 d  staff  841 Jan 22 18:17 IShadow.sol
+-rw-r--r--@ 1 d  staff  508 Jan 22 18:17 IShadowVerifier.sol
+
+src/impl:
+[2026-01-22T13:27:47] exec sh -lc "sed -n '1,200p' README.md 2>/dev/null || true" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:47] sh -lc "sed -n '1,200p' README.md 2>/dev/null || true" succeeded in 12ms:
+# Shadow Contracts
+
+## Commands
+- `pnpm contracts:test` – runs `forge test -vvv` using pnpm-managed dependencies
+- `pnpm contracts:fmt` – formats Solidity sources via `forge fmt`
+
+## Directory Structure
+- `src/iface/` – Interface contracts (IShadow, IShadowVerifier, INullifier, etc.)
+- `src/impl/` – Implementation contracts (Shadow, ShadowVerifier, Nullifier)
+- `src/lib/` – Shared helpers (public input parsing)
+- `test/` – Test files
+- `test/mocks/` – Mock implementations for hermetic testing
+
+## Components
+
+### Core Implementations (`src/impl/`)
+- **`Shadow`**: Claim contract with immutable dependencies (verifier, minter, nullifier).
+- **`ShadowVerifier`**: Wrapper that checks state roots before dispatching to the circuit verifier.
+- **`Nullifier`**: Registry that tracks and burns nullifiers to prevent replayed claims.
+
+[2026-01-22T13:27:47] exec sh -lc "sed -n '1,200p' CLAUDE.md 2>/dev/null || true" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:47] sh -lc "sed -n '1,200p' CLAUDE.md 2>/dev/null || true" succeeded in 12ms:
+# Protocol Development Guide
+
+This guide provides specific instructions for working with Taiko's smart contracts in the `packages/protocol` directory.
+
+## 🎨 Solidity Coding Standards
+
+### Import Conventions
+
+- Use named imports
+  - ✅ `import {Contract} from "./contract.sol"`
+  - ❌ `import "./contract.sol"`
+
+### Naming Conventions
+
+- Private state variables and private/internal functions: prefix with underscore `_`
+- Event names: use past tense (e.g., `BlockProposed`, `ProofVerified`)
+- Function parameters: always start with `_`
+- Return values: always end with `_`
+- Use named parameters on mapping definitions
+
+[2026-01-22T13:27:47] exec sh -lc "ls -la claudedocs 2>/dev/null || true && sed -n '1,200p' claudedocs/nullifier-security-review.md 2>/dev/null || true" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:47] sh -lc "ls -la claudedocs 2>/dev/null || true && sed -n '1,200p' claudedocs/nullifier-security-review.md 2>/dev/null || true" succeeded in 16ms:
+total 48
+drwxr-xr-x@  3 d  staff     96 Jan 22 17:53 .
+drwxr-xr-x@ 13 d  staff    416 Jan 22 18:18 ..
+-rw-r--r--@  1 d  staff  23267 Jan 22 17:53 nullifier-security-review.md
+# Nullifier Access Control Security Review
+
+**Date**: 2026-01-22
+**Reviewer**: Claude Sonnet 4.5
+**Scope**: Nullifier.sol access control fix for Shadow privacy claim system
+**Branch**: code-claude-sonnet-4-5-review-access-control-fix
+
+---
+
+## Executive Summary
+
+The current `Nullifier.sol` implementation has a **CRITICAL security vulnerability**: the `consume()` function lacks access control, allowing anyone to consume arbitrary nullifiers and perform denial-of-service attacks against legitimate users.
+
+**Severity**: 🔴 CRITICAL
+**Attack Vector**: Front-running / DoS
+**Impact**: Complete system compromise - attackers can prevent all legitimate claims
+[2026-01-22T13:27:47] tokens used: 2,526
+
+[2026-01-22T13:27:53] thinking
+
+**Reviewing circuit components**
+
+I’m looking at the nullifier review document. For the circuit review, I need to examine ICircuitVerifier, IShadowVerifier, ShadowVerifier, ShadowPublicInputs, and related tests. It might be necessary to check Shadow.sol to see how it claims and uses the verifier and nullifier. I’ll open those specific files to conduct a thorough inspection and use sed for any text processing. This should help ensure everything is in order.
+[2026-01-22T13:27:55] exec sh -lc "sed -n '1,200p' src/iface/ICircuitVerifier.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:55] sh -lc "sed -n '1,200p' src/iface/ICircuitVerifier.sol" succeeded in 14ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+/// @custom:security-contact security@taiko.xyz
+
+interface ICircuitVerifier {
+    /// @notice Verifies a proof against public inputs.
+    function verifyProof(bytes calldata _proof, uint256[] calldata _publicInputs)
+        external
+        view
+        returns (bool _isValid_);
+}
+[2026-01-22T13:27:55] exec sh -lc "sed -n '1,200p' src/iface/IShadowVerifier.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:55] sh -lc "sed -n '1,200p' src/iface/IShadowVerifier.sol" succeeded in 13ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {IShadow} from "./IShadow.sol";
+
+/// @custom:security-contact security@taiko.xyz
+
+interface IShadowVerifier {
+    error ProofVerificationFailed();
+    error StateRootMismatch(bytes32 expected, bytes32 actual);
+    error ZeroAddress();
+
+    /// @notice Verifies a proof and its public inputs.
+    function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input)
+        external
+        view
+        returns (bool _isValid_);
+}
+[2026-01-22T13:27:55] exec sh -lc "sed -n '1,220p' src/impl/ShadowVerifier.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:55] sh -lc "sed -n '1,220p' src/impl/ShadowVerifier.sol" succeeded in 12ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {ICheckpointStore} from "../iface/ICheckpointStore.sol";
+import {ICircuitVerifier} from "../iface/ICircuitVerifier.sol";
+import {IShadow} from "../iface/IShadow.sol";
+import {IShadowVerifier} from "../iface/IShadowVerifier.sol";
+import {ShadowPublicInputs} from "../lib/ShadowPublicInputs.sol";
+
+/// @custom:security-contact security@taiko.xyz
+
+contract ShadowVerifier is IShadowVerifier {
+    ICircuitVerifier public immutable circuitVerifier;
+    ICheckpointStore public immutable checkpointStore;
+
+    constructor(address _checkpointStore, address _circuitVerifier) {
+        require(_checkpointStore != address(0), ZeroAddress());
+        require(_circuitVerifier != address(0), ZeroAddress());
+        checkpointStore = ICheckpointStore(_checkpointStore);
+        circuitVerifier = ICircuitVerifier(_circuitVerifier);
+[2026-01-22T13:27:55] exec sh -lc "sed -n '1,260p' src/lib/ShadowPublicInputs.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:55] sh -lc "sed -n '1,260p' src/lib/ShadowPublicInputs.sol" succeeded in 14ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {IShadow} from "../iface/IShadow.sol";
+
+/// @custom:security-contact security@taiko.xyz
+
+library ShadowPublicInputs {
+    uint256 private constant _PUBLIC_INPUTS_LEN = 120;
+    uint256 private constant _IDX_BLOCK_NUMBER = 0;
+    uint256 private constant _IDX_STATE_ROOT = 1;
+    uint256 private constant _IDX_CHAIN_ID = 33;
+    uint256 private constant _IDX_NOTE_INDEX = 34;
+    uint256 private constant _IDX_AMOUNT = 35;
+    uint256 private constant _IDX_RECIPIENT = 36;
+    uint256 private constant _IDX_NULLIFIER = 56;
+    uint256 private constant _IDX_POW_DIGEST = 88;
+    uint256 private constant _POW_ZERO_BITS = 24;
+    uint256 private constant _POW_MASK = (1 << _POW_ZERO_BITS) - 1;
+
+[2026-01-22T13:27:56] exec sh -lc "sed -n '1,260p' src/impl/Shadow.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:56] sh -lc "sed -n '1,260p' src/impl/Shadow.sol" succeeded in 15ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {IEtherMinter} from "../iface/IEtherMinter.sol";
+import {INullifier} from "../iface/INullifier.sol";
+import {IShadow} from "../iface/IShadow.sol";
+import {IShadowVerifier} from "../iface/IShadowVerifier.sol";
+import {OwnableUpgradeable} from "../lib/OwnableUpgradeable.sol";
+import {ShadowPublicInputs} from "../lib/ShadowPublicInputs.sol";
+
+/// @custom:security-contact security@taiko.xyz
+
+contract Shadow is IShadow, OwnableUpgradeable {
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
+    IShadowVerifier public immutable verifier;
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
+    IEtherMinter public immutable etherMinter;
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
+    INullifier public immutable nullifier;
+
+[2026-01-22T13:27:56] tokens used: 3,784
+[2026-01-22T13:27:59] exec sh -lc "sed -n '1,260p' src/iface/IShadow.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:27:59] sh -lc "sed -n '1,260p' src/iface/IShadow.sol" succeeded in 12ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+/// @custom:security-contact security@taiko.xyz
+
+interface IShadow {
+    struct PublicInput {
+        uint64 blockNumber;
+        bytes32 stateRoot;
+        uint256 chainId;
+        uint256 noteIndex;
+        uint256 amount;
+        address recipient;
+        bytes32 nullifier;
+        bytes32 powDigest;
+    }
+
+    event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount);
+
+    error ChainIdMismatch(uint256 expected, uint256 actual);
+[2026-01-22T13:27:59] tokens used: 6,951
+[2026-01-22T13:28:10] exec sh -lc "sed -n '1,220p' src/iface/ICheckpointStore.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:28:10] sh -lc "sed -n '1,220p' src/iface/ICheckpointStore.sol" succeeded in 20ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+/// @title ICheckpointStore
+/// @notice Interface for storing and retrieving checkpoints
+/// @custom:security-contact security@taiko.xyz
+interface ICheckpointStore {
+    /// @notice Represents a synced checkpoint
+    struct Checkpoint {
+        /// @notice The block number associated with the checkpoint.
+        uint48 blockNumber;
+        /// @notice The block hash for the end (last) L2 block in this proposal.
+        bytes32 blockHash;
+        /// @notice The state root for the end (last) L2 block in this proposal.
+        bytes32 stateRoot;
+    }
+
+    /// @notice Gets a checkpoint by its block number
+    /// @param _blockNumber The block number associated with the checkpoint
+    /// @return _ The checkpoint
+[2026-01-22T13:28:10] tokens used: 8,717
+[2026-01-22T13:28:22] exec sh -lc "sed -n '1,260p' test/mocks/MockCircuitVerifier.sol && echo '---' && sed -n '1,260p' test/ShadowVerifier.t.sol && echo '---' && sed -n '1,260p' test/Shadow.t.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:28:22] sh -lc "sed -n '1,260p' test/mocks/MockCircuitVerifier.sol && echo '---' && sed -n '1,260p' test/ShadowVerifier.t.sol && echo '---' && sed -n '1,260p' test/Shadow.t.sol" succeeded in 25ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {ICircuitVerifier} from "../../src/iface/ICircuitVerifier.sol";
+
+contract MockCircuitVerifier is ICircuitVerifier {
+    bool public shouldVerify = true;
+
+    function setShouldVerify(bool _shouldVerify) external {
+        shouldVerify = _shouldVerify;
+    }
+
+    function verifyProof(bytes calldata, uint256[] calldata) external view returns (bool _isValid_) {
+        _isValid_ = shouldVerify;
+    }
+}
+---
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+[2026-01-22T13:28:22] tokens used: 10,197
+[2026-01-22T13:28:27] exec sh -lc "sed -n '1,220p' test/Shadow.t.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:28:27] sh -lc "sed -n '1,220p' test/Shadow.t.sol" succeeded in 13ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {Test} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {OwnableUpgradeable} from "../src/lib/OwnableUpgradeable.sol";
+import {Shadow} from "../src/impl/Shadow.sol";
+import {IShadow} from "../src/iface/IShadow.sol";
+import {INullifier} from "../src/iface/INullifier.sol";
+import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
+import {Nullifier} from "../src/impl/Nullifier.sol";
+import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
+import {MockEtherMinter} from "./mocks/MockEtherMinter.sol";
+import {MockCheckpointStore} from "./mocks/MockCheckpointStore.sol";
+
+contract ShadowTest is Test {
+    MockCheckpointStore internal checkpointStore;
+    MockCircuitVerifier internal circuitVerifier;
+    ShadowVerifier internal shadowVerifier;
+    MockEtherMinter internal etherMinter;
+[2026-01-22T13:28:27] tokens used: 13,150
+[2026-01-22T13:28:31] exec sh -lc "sed -n '220,480p' test/Shadow.t.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:28:31] sh -lc "sed -n '220,480p' test/Shadow.t.sol" succeeded in 13ms:
+        assertEq(shadow.pendingOwner(), newOwner);
+
+        vm.prank(newOwner);
+        shadow.acceptOwnership();
+        assertEq(shadow.owner(), newOwner);
+    }
+}
+[2026-01-22T13:28:31] tokens used: 15,599
+
+[2026-01-22T13:28:37] thinking
+
+**Examining powDigest and zero bits**
+
+I'm looking into how `shadow.t.sol` sets the `powDigest` with the 24th bit. It actually needs the low 24 bits to be zero, which they are for the value (1<<24), confirming the digest is valid. That means they want 24 trailing zero bits, not leading ones. The comment might just be misleading about that. I'll also need to check `Nullifier.sol` to see if it interacts with specific public inputs. Let's open that up for more insights!
+[2026-01-22T13:28:40] exec sh -lc "sed -n '1,240p' src/impl/Nullifier.sol && echo '---' && sed -n '1,220p' src/iface/INullifier.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:28:41] sh -lc "sed -n '1,240p' src/impl/Nullifier.sol && echo '---' && sed -n '1,220p' src/iface/INullifier.sol" succeeded in 25ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {INullifier} from "../iface/INullifier.sol";
+import {OwnableUpgradeable} from "../lib/OwnableUpgradeable.sol";
+
+/// @custom:security-contact security@taiko.xyz
+
+contract Nullifier is INullifier, OwnableUpgradeable {
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
+    address public immutable shadow;
+    mapping(bytes32 _nullifier => bool _consumed) private _consumed;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor(address _shadow) {
+        require(_shadow != address(0), ZeroAddress());
+        shadow = _shadow;
+    }
+
+    /// @notice Initializes the contract.
+[2026-01-22T13:28:41] tokens used: 16,051
+
+[2026-01-22T13:28:45] thinking
+
+**Reviewing access control**
+
+I’m considering the nullifier consume that has access control through an immutable shadow. That's good to note! I think it would be helpful to review additional documentation, maybe looking at circuits. I plan to use ripgrep to search for terms like "circuit," "public input," "pow," "state root," and "nullifier." It seems scanning through these could provide valuable insights, so I'll get on that right away!
+[2026-01-22T13:28:47] exec sh -lc 'rg -n "circuit|verif|public input|publicInputs|powDigest|stateRoot|noteIndex|nullifier" -S src test claudedocs README.md  | head -n 200' in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:28:47] sh -lc 'rg -n "circuit|verif|public input|publicInputs|powDigest|stateRoot|noteIndex|nullifier" -S src test claudedocs README.md  | head -n 200' succeeded in 22ms:
+README.md:10:- `src/lib/` – Shared helpers (public input parsing)
+README.md:17:- **`Shadow`**: Claim contract with immutable dependencies (verifier, minter, nullifier).
+README.md:18:- **`ShadowVerifier`**: Wrapper that checks state roots before dispatching to the circuit verifier.
+README.md:19:- **`Nullifier`**: Registry that tracks and burns nullifiers to prevent replayed claims.
+test/Shadow.t.sol:18:    MockCircuitVerifier internal circuitVerifier;
+test/Shadow.t.sol:21:    Nullifier internal nullifier;
+test/Shadow.t.sol:26:        circuitVerifier = new MockCircuitVerifier();
+test/Shadow.t.sol:27:        shadowVerifier = new ShadowVerifier(address(checkpointStore), address(circuitVerifier));
+test/Shadow.t.sol:31:        // nonce: current + 4 (nullifierImpl, nullifierProxy, shadowImpl, shadowProxy)
+test/Shadow.t.sol:35:        Nullifier nullifierImpl = new Nullifier(shadowProxyAddr);
+test/Shadow.t.sol:36:        ERC1967Proxy nullifierProxy = new ERC1967Proxy(
+test/Shadow.t.sol:37:            address(nullifierImpl),
+test/Shadow.t.sol:40:        nullifier = Nullifier(address(nullifierProxy));
+test/Shadow.t.sol:42:        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier));
+test/Shadow.t.sol:54:        new Shadow(address(0), address(etherMinter), address(nullifier));
+test/Shadow.t.sol:59:        new Shadow(address(shadowVerifier), address(0), address(nullifier));
+test/Shadow.t.sol:69:        bytes32 stateRoot = keccak256("root");
+test/Shadow.t.sol:70:        checkpointStore.setCheckpoint(uint48(blockNumber), bytes32(0), stateRoot);
+test/Shadow.t.sol:73:        bytes32 nullifierValue = keccak256("nullifier");
+test/Shadow.t.sol:75:        bytes32 powDigest = bytes32(uint256(1) << 24);
+[2026-01-22T13:28:47] tokens used: 16,838
+
+[2026-01-22T13:28:51] thinking
+
+**Considering code completeness**
+
+I’m thinking about Nullifier.t.sol—not circuit-related, but I need to ensure full completeness. I should focus on "circuit-related" code and whether I need a checkpoint store. That leads me to consider creating a mock checkpoint store. Okay, let’s open the MockCheckpointStore and see what it has to offer. It's important that I check all necessary components for clarity and efficiency.
+[2026-01-22T13:28:53] exec sh -lc "sed -n '1,200p' test/mocks/MockCheckpointStore.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:28:53] sh -lc "sed -n '1,200p' test/mocks/MockCheckpointStore.sol" succeeded in 13ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {ICheckpointStore} from "../../src/iface/ICheckpointStore.sol";
+
+contract MockCheckpointStore is ICheckpointStore {
+    mapping(uint48 _blockNumber => Checkpoint _checkpoint) private _checkpoints;
+
+    function setCheckpoint(uint48 _blockNumber, bytes32 _blockHash, bytes32 _stateRoot) external {
+        _checkpoints[_blockNumber] = Checkpoint({
+            blockNumber: _blockNumber,
+            blockHash: _blockHash,
+            stateRoot: _stateRoot
+        });
+    }
+
+    function getCheckpoint(uint48 _blockNumber) external view returns (Checkpoint memory) {
+        return _checkpoints[_blockNumber];
+    }
+}
+[2026-01-22T13:28:53] tokens used: 19,863
+
+[2026-01-22T13:28:58] thinking
+
+**Planning for review documentation**
+
+I need to devise a plan for reviewing and documenting findings in the new REVIEW_RESULT.md. Since I'm in read-only mode, I can’t create the document yet, but I should focus on detailing the structure and what content to include. I’ll also look for compiled verifier artifacts or circuits in the out/ directory, which might contain the necessary information. I want to search for terms like "Verifier" or "Groth16" using `rg` in both the src and out directories. I'll streamline this by using a quick command for specific searches.
+[2026-01-22T13:29:01] exec sh -lc 'rg -n "Groth16|PLONK|Plonk|verifier key|vk_|vkey|proof" -S src test out 2>/dev/null | head -n 120' in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:29:01] sh -lc 'rg -n "Groth16|PLONK|Plonk|verifier key|vk_|vkey|proof" -S src test out 2>/dev/null | head -n 120' succeeded in 20ms:
+src/iface/IShadow.sol:26:    /// @notice Submits a proof and public inputs to mint ETH.
+src/iface/IShadow.sol:27:    function claim(bytes calldata _proof, PublicInput calldata _input) external;
+src/iface/IShadowVerifier.sol:13:    /// @notice Verifies a proof and its public inputs.
+src/iface/IShadowVerifier.sol:14:    function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input)
+src/iface/ICircuitVerifier.sol:7:    /// @notice Verifies a proof against public inputs.
+src/iface/ICircuitVerifier.sol:8:    function verifyProof(bytes calldata _proof, uint256[] calldata _publicInputs)
+src/impl/Shadow.sol:36:    /// @notice Submits a proof and public inputs to mint ETH.
+src/impl/Shadow.sol:37:    function claim(bytes calldata _proof, PublicInput calldata _input) external {
+src/impl/Shadow.sol:43:        require(verifier.verifyProof(_proof, _input), ProofVerificationFailed());
+src/impl/ShadowVerifier.sol:23:    /// @notice Verifies a proof and its public inputs.
+src/impl/ShadowVerifier.sol:24:    function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input)
+src/impl/ShadowVerifier.sol:33:        bool ok = circuitVerifier.verifyProof(_proof, publicInputs);
+out/ICircuitVerifier.sol/ICircuitVerifier.json:1:{"abi":[{"type":"function","name":"verifyProof","inputs":[{"name":"_proof","type":"bytes","internalType":"bytes"},{"name":"_publicInputs","type":"uint256[]","internalType":"uint256[]"}],"outputs":[{"name":"_isValid_","type":"bool","internalType":"bool"}],"stateMutability":"view"}],"bytecode":{"object":"0x","sourceMap":"","linkReferences":{}},"deployedBytecode":{"object":"0x","sourceMap":"","linkReferences":{}},"methodIdentifiers":{"verifyProof(bytes,uint256[])":"1e8e1e13"},"rawMetadata":"{\"compiler\":{\"version\":\"0.8.33+commit.64118f21\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_proof\",\"type\":\"bytes\"},{\"internalType\":\"uint256[]\",\"name\":\"_publicInputs\",\"type\":\"uint256[]\"}],\"name\":\"verifyProof\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"_isValid_\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"custom:security-contact\":\"security@taiko.xyz\",\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"verifyProof(bytes,uint256[])\":{\"notice\":\"Verifies a proof against public inputs.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/iface/ICircuitVerifier.sol\":\"ICircuitVerifier\"},\"evmVersion\":\"prague\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":forge-std/=node_modules/forge-std/src/\"],\"viaIR\":true},\"sources\":{\"src/iface/ICircuitVerifier.sol\":{\"keccak256\":\"0x4b6f644b28aa8200d1c02fb258cc6c74d8c4b739d341f419605da613c14a0ce3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://11f0718e700640768a8dca57656e60f8045d770cc3bb4c488b69b5c8e3387d39\",\"dweb:/ipfs/QmXjF41dm9pZhKsj7vFERjT7NYSHhS66ymjDXgcdWbsT7T\"]}},\"version\":1}","metadata":{"compiler":{"version":"0.8.33+commit.64118f21"},"language":"Solidity","output":{"abi":[{"inputs":[{"internalType":"bytes","name":"_proof","type":"bytes"},{"internalType":"uint256[]","name":"_publicInputs","type":"uint256[]"}],"stateMutability":"view","type":"function","name":"verifyProof","outputs":[{"internalType":"bool","name":"_isValid_","type":"bool"}]}],"devdoc":{"kind":"dev","methods":{},"version":1},"userdoc":{"kind":"user","methods":{"verifyProof(bytes,uint256[])":{"notice":"Verifies a proof against public inputs."}},"version":1}},"settings":{"remappings":["@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/","@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/","forge-std/=node_modules/forge-std/src/"],"optimizer":{"enabled":true,"runs":200},"metadata":{"bytecodeHash":"ipfs"},"compilationTarget":{"src/iface/ICircuitVerifier.sol":"ICircuitVerifier"},"evmVersion":"prague","libraries":{},"viaIR":true},"sources":{"src/iface/ICircuitVerifier.sol":{"keccak256":"0x4b6f644b28aa8200d1c02fb258cc6c74d8c4b739d341f419605da613c14a0ce3","urls":["bzz-raw://11f0718e700640768a8dca57656e60f8045d770cc3bb4c488b69b5c8e3387d39","dweb:/ipfs/QmXjF41dm9pZhKsj7vFERjT7NYSHhS66ymjDXgcdWbsT7T"],"license":"MIT"}},"version":1},"id":24}
+out/ShadowVerifier.sol/ShadowVerifier.json:1:{"abi":[{"type":"constructor","inputs":[{"name":"_checkpointStore","type":"address","internalType":"address"},{"name":"_circuitVerifier","type":"address","internalType":"address"}],"stateMutability":"nonpayable"},{"type":"function","name":"checkpointStore","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract ICheckpointStore"}],"stateMutability":"view"},{"type":"function","name":"circuitVerifier","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract ICircuitVerifier"}],"stateMutability":"view"},{"type":"function","name":"verifyProof","inputs":[{"name":"_proof","type":"bytes","internalType":"bytes"},{"name":"_input","type":"tuple","internalType":"struct IShadow.PublicInput","components":[{"name":"blockNumber","type":"uint64","internalType":"uint64"},{"name":"stateRoot","type":"bytes32","internalType":"bytes32"},{"name":"chainId","type":"uint256","internalType":"uint256"},{"name":"noteIndex","type":"uint256","internalType":"uint256"},{"name":"amount","type":"uint256","internalType":"uint256"},{"name":"recipient","type":"address","internalType":"address"},{"name":"nullifier","type":"bytes32","internalType":"bytes32"},{"name":"powDigest","type":"bytes32","internalType":"bytes32"}]}],"outputs":[{"name":"_isValid_","type":"bool","internalType":"bool"}],"stateMutability":"view"},{"type":"error","name":"ProofVerificationFailed","inputs":[]},{"type":"error","name":"StateRootMismatch","inputs":[{"name":"expected","type":"bytes32","internalType":"bytes32"},{"name":"actual","type":"bytes32","internalType":"bytes32"}]},{"type":"error","name":"ZeroAddress","inputs":[]}],"bytecode":{"object":"0x60c0346100b657601f61064338819003918201601f19168301916001600160401b038311848410176100ba5780849260409485528339810103126100b657610052602061004b836100ce565b92016100ce565b6001600160a01b039091169081156100a7576001600160a01b03169081156100a75760a05260805260405161056090816100e38239608051818181605201526102d1015260a051818181609a015261014e0152f35b63d92e233d60e01b5f5260045ffd5b5f80fd5b634e487b7160e01b5f52604160045260245ffd5b51906001600160a01b03821682036100b65756fe6080806040526004361015610012575f80fd5b5f3560e01c9081634ad70470146100c957508063955a7244146100855763d0ea9ff01461003d575f80fd5b34610081575f366003190112610081576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b5f80fd5b34610081575f366003190112610081576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b3461008157610120366003190112610081576004359067ffffffffffffffff821161008157366023830112156100815781600401359067ffffffffffffffff8211610081573660248385010111610081576101003660231901126100815765ffffffffffff6101366104dd565b638026b92160e01b83521660048201526060816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa8015610364575f90610455575b6040015160443591508181036104405750610f2091604051916101a884846104f4565b607883526020830193601f190136853767ffffffffffffffff6101c96104dd565b168351156104085784525f5b6020811061041c57505081516021101561040857606435610440830152815160221015610408576084356104608301528151602310156104085760a43561048083015260c4356001600160a01b03811681036100815760601b6bffffffffffffffffffffffff19165f5b601481106103e457505060e4355f5b602081106103c0575050610104355f5b6020811061038857602486868660848780604051968796631e8e1e1360e01b8852604060048901528260448901520160648701375f60648287010152601f801991011684016064810192600319606487840301016024870152518093520191905f5b81811061036f5784602081808703817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115610364575f91610329575b501561031a57602060405160018152f35b631ac2386360e31b5f5260045ffd5b90506020813d60201161035c575b81610344602093836104f4565b81010312610081575180151581036100815781610309565b3d9150610337565b6040513d5f823e3d90fd5b82518452859450602093840193909201916001016102c0565b8060580190816058116103ac576001916103a584831a9187610516565b520161025e565b634e487b7160e01b5f52601160045260245ffd5b8060380190816038116103ac576001916103dd84831a9187610516565b520161024e565b8060240190816024116103ac5760019161040184831a9187610516565b520161023f565b634e487b7160e01b5f52603260045260245ffd5b8060010190816001116103ac5760019161043984831a9187610516565b52016101d5565b6337f04d4160e01b5f5260045260245260445ffd5b506060813d6060116104d5575b8161046f606093836104f4565b81010312610081576040516060810181811067ffffffffffffffff8211176104c157604052815165ffffffffffff81168103610081576040928391835260208101516020840152015182820152610185565b634e487b7160e01b5f52604160045260245ffd5b3d9150610462565b60243567ffffffffffffffff811681036100815790565b90601f8019910116810190811067ffffffffffffffff8211176104c157604052565b80518210156104085760209160051b01019056fea2646970667358221220fd67727207f09c54d0e74ec534b92aa8bffec22aa961a72ea415789608f186c664736f6c63430008210033","sourceMap":"410:1139:50:-:0;;;;;;;;;;;;;-1:-1:-1;;410:1139:50;;;;-1:-1:-1;;;;;410:1139:50;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;-1:-1:-1;;;;;410:1139:50;;;;652:30;;410:1139;;-1:-1:-1;;;;;410:1139:50;;716:30;;410:1139;;772:52;;834;;410:1139;;;;;;;;834:52;410:1139;;;;;;;;;;772:52;410:1139;;;;;;;;;;;;;;;-1:-1:-1;410:1139:50;;-1:-1:-1;410:1139:50;;-1:-1:-1;410:1139:50;;;;;;-1:-1:-1;410:1139:50;;;;;-1:-1:-1;410:1139:50;;;;-1:-1:-1;;;;;410:1139:50;;;;;;:::o","linkReferences":{}},"deployedBytecode":{"object":"0x6080806040526004361015610012575f80fd5b5f3560e01c9081634ad70470146100c957508063955a7244146100855763d0ea9ff01461003d575f80fd5b34610081575f366003190112610081576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b5f80fd5b34610081575f366003190112610081576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b3461008157610120366003190112610081576004359067ffffffffffffffff821161008157366023830112156100815781600401359067ffffffffffffffff8211610081573660248385010111610081576101003660231901126100815765ffffffffffff6101366104dd565b638026b92160e01b83521660048201526060816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa8015610364575f90610455575b6040015160443591508181036104405750610f2091604051916101a884846104f4565b607883526020830193601f190136853767ffffffffffffffff6101c96104dd565b168351156104085784525f5b6020811061041c57505081516021101561040857606435610440830152815160221015610408576084356104608301528151602310156104085760a43561048083015260c4356001600160a01b03811681036100815760601b6bffffffffffffffffffffffff19165f5b601481106103e457505060e4355f5b602081106103c0575050610104355f5b6020811061038857602486868660848780604051968796631e8e1e1360e01b8852604060048901528260448901520160648701375f60648287010152601f801991011684016064810192600319606487840301016024870152518093520191905f5b81811061036f5784602081808703817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115610364575f91610329575b501561031a57602060405160018152f35b631ac2386360e31b5f5260045ffd5b90506020813d60201161035c575b81610344602093836104f4565b81010312610081575180151581036100815781610309565b3d9150610337565b6040513d5f823e3d90fd5b82518452859450602093840193909201916001016102c0565b8060580190816058116103ac576001916103a584831a9187610516565b520161025e565b634e487b7160e01b5f52601160045260245ffd5b8060380190816038116103ac576001916103dd84831a9187610516565b520161024e565b8060240190816024116103ac5760019161040184831a9187610516565b520161023f565b634e487b7160e01b5f52603260045260245ffd5b8060010190816001116103ac5760019161043984831a9187610516565b52016101d5565b6337f04d4160e01b5f5260045260245260445ffd5b506060813d6060116104d5575b8161046f606093836104f4565b81010312610081576040516060810181811067ffffffffffffffff8211176104c157604052815165ffffffffffff81168103610081576040928391835260208101516020840152015182820152610185565b634e487b7160e01b5f52604160045260245ffd5b3d9150610462565b60243567ffffffffffffffff811681036100815790565b90601f8019910116810190811067ffffffffffffffff8211176104c157604052565b80518210156104085760209160051b01019056fea2646970667358221220fd67727207f09c54d0e74ec534b92aa8bffec22aa961a72ea415789608f186c664736f6c63430008210033","sourceMap":"410:1139:50:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;410:1139:50;;;;;;459:49;-1:-1:-1;;;;;410:1139:50;;;;;;;;;;;;;;;;-1:-1:-1;;410:1139:50;;;;;;514:49;-1:-1:-1;;;;;410:1139:50;;;;;;;;;;;;-1:-1:-1;;410:1139:50;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;410:1139:50;;;;;1178:18;;:::i;:::-;-1:-1:-1;;;1141:57:50;;410:1139;;1141:57;;410:1139;1141:57;;410:1139;1141:57;:15;-1:-1:-1;;;;;410:1139:50;1141:57;;;;;;410:1139;1141:57;;;410:1139;;1141:67;410:1139;1247:16;410:1139;;-1:-1:-1;1226:37:50;;;410:1139;;233:3:52;;410:1139:50;;;;;;;;:::i;:::-;233:3:52;;;410:1139:50;233:3:52;;;-1:-1:-1;;233:3:52;410:1139:50;233:3:52;;410:1139:50;1048:18:52;;:::i;:::-;410:1139:50;;;287:1:52;;;;;410:1139:50;1857:6:52;410:1139:50;1857:6:52;;;;1145:39;;410:1139:50;;385:2:52;287:1;;;;1170:14;337:1;287;;;;410:1139:50;;436:2:52;287:1;;;;1221:16;337:1;287;;;;410:1139:50;;;287:1:52;;;;1270:13;337:1;287;;;;1333:16;533:2;-1:-1:-1;;;;;410:1139:50;;533:2:52;;;;1141:57:50;410:1139;-1:-1:-1;;410:1139:50;;2135:6:52;2139:2;2135:6;;;;410:1139:50;;1399:16:52;410:1139:50;;1857:6:52;410:1139:50;1857:6:52;;;;410:1139:50;;1466:16:52;410:1139:50;;1857:6:52;410:1139:50;1857:6:52;;;;410:1139:50;;;;1221:16:52;410:1139:50;;;;;;;;;;1417:49;;410:1139;;1417:49;;410:1139;;1247:16;410:1139;;;;1170:14:52;410:1139:50;;;;1170:14:52;410:1139:50;;;;;;233:3:52;;410:1139:50;;;;;1170:14:52;410:1139:50;;;;;1170:14:52;410:1139:50;;;;;;;;;;;;;;;;;;;;;;;1417:49;410:1139;1417:49;;;;;:15;-1:-1:-1;;;;;410:1139:50;1417:49;;;;;;;410:1139;1417:49;;;410:1139;;;;;;;;;;;;;;;;;;;;;1417:49;;;410:1139;1417:49;;410:1139;1417:49;;;;;;410:1139;1417:49;;;:::i;:::-;;;410:1139;;;;;;;;;;;;1417:49;;;;;;-1:-1:-1;1417:49:50;;;410:1139;;;;;;;;;;;;;;;;-1:-1:-1;410:1139:50;;;;;;;;;;;;;1842:13:52;410:1139:50;634:2:52;410:1139:50;;;634:2:52;410:1139:50;;;;1917:9:52;1880:48;1917:9;;;1880:48;;;:::i;:::-;287:1;410:1139:50;1842:13:52;;410:1139:50;;;;;;;;;;;;1842:13:52;410:1139:50;583:2:52;410:1139:50;;;583:2:52;410:1139:50;;;;1917:9:52;1880:48;1917:9;;;1880:48;;;:::i;:::-;287:1;410:1139:50;1842:13:52;;2120;410:1139:50;;;;;;;;;;2195:18:52;2158:57;2195:18;;;2158:57;;;:::i;:::-;287:1;410:1139:50;2120:13:52;;287:1;410:1139:50;;;;287:1:52;;410:1139:50;287:1:52;410:1139:50;;287:1:52;1842:13;410:1139:50;;;;;;;;;;1917:9:52;1880:48;1917:9;;;1880:48;;;:::i;:::-;287:1;410:1139:50;1842:13:52;;410:1139:50;;;;;;;;;;1247:16;410:1139;;1141:57;;;;;;;;;;;;;;;;:::i;:::-;;;410:1139;;;;;;1141:57;410:1139;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1141:57;;410:1139;;;;;;;;;;;;1141:57;;;-1:-1:-1;1141:57:50;;410:1139;;;;;;;;;;;:::o;:::-;;;233:3:52;;410:1139:50;;;;;;;;;;;;;;;;:::o;287:1:52:-;410:1139:50;;287:1:52;;;;;;;;;;;;:::o","linkReferences":{},"immutableReferences":{"43181":[{"start":82,"length":32},{"start":721,"length":32}],"43184":[{"start":154,"length":32},{"start":334,"length":32}]}},"methodIdentifiers":{"checkpointStore()":"955a7244","circuitVerifier()":"d0ea9ff0","verifyProof(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":"4ad70470"},"rawMetadata":"{\"compiler\":{\"version\":\"0.8.33+commit.64118f21\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_checkpointStore\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_circuitVerifier\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"ProofVerificationFailed\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"expected\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"actual\",\"type\":\"bytes32\"}],\"name\":\"StateRootMismatch\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ZeroAddress\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"checkpointStore\",\"outputs\":[{\"internalType\":\"contract ICheckpointStore\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"circuitVerifier\",\"outputs\":[{\"internalType\":\"contract ICircuitVerifier\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_proof\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"stateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"chainId\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"noteIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"nullifier\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"powDigest\",\"type\":\"bytes32\"}],\"internalType\":\"struct IShadow.PublicInput\",\"name\":\"_input\",\"type\":\"tuple\"}],\"name\":\"verifyProof\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"_isValid_\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"custom:security-contact\":\"security@taiko.xyz\",\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"verifyProof(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))\":{\"notice\":\"Verifies a proof and its public inputs.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/impl/ShadowVerifier.sol\":\"ShadowVerifier\"},\"evmVersion\":\"prague\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":forge-std/=node_modules/forge-std/src/\"],\"viaIR\":true},\"sources\":{\"src/iface/ICheckpointStore.sol\":{\"keccak256\":\"0xa2eb06c9d96c140d5d39085d686e311e93597ce8bd04ad0788b90a3144e91d7c\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://37c2f6f7297472514907085180ac9d68679d319348626c77c44e8155477a0fd8\",\"dweb:/ipfs/QmSrXRzsvYmrmZ6Zv4iX1Spm75fTwoYaMsCMvf5YBW48rZ\"]},\"src/iface/ICircuitVerifier.sol\":{\"keccak256\":\"0x4b6f644b28aa8200d1c02fb258cc6c74d8c4b739d341f419605da613c14a0ce3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://11f0718e700640768a8dca57656e60f8045d770cc3bb4c488b69b5c8e3387d39\",\"dweb:/ipfs/QmXjF41dm9pZhKsj7vFERjT7NYSHhS66ymjDXgcdWbsT7T\"]},\"src/iface/IShadow.sol\":{\"keccak256\":\"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd\",\"dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6\"]},\"src/iface/IShadowVerifier.sol\":{\"keccak256\":\"0x1c95b4d0a7c9ee9c437e3c9025376580ec979dfeabd490e92aed5805db85c238\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://cc40e22474c4dc0bab92f9fbdf729bad8c67542e1607e9e18baa3a48d6cebc66\",\"dweb:/ipfs/Qmb3R4aGT6EQZUP11kbV7hFo8w8i6dedNCKZxyajCuDr6h\"]},\"src/impl/ShadowVerifier.sol\":{\"keccak256\":\"0xec89e7e1237d8a11f71da71d4fe10ca13b62c0ba9051c9fc046a7162087570be\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://54c1406b401b0381d95199d3acd553736a5ce2ffcc0bf44f222c000b51e7f1ea\",\"dweb:/ipfs/QmXU5iTc8YVwBGS99Z9oKpvvzy7mNj17qbA8ac6bF1XXdy\"]},\"src/lib/ShadowPublicInputs.sol\":{\"keccak256\":\"0x24d070fd5dcc8e748be31f8ef256511534946a67d3cfa418bce8578efa0f5079\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://1ecd7a43c442a20f614a9477bae7d81d9c1ac985a6468a25eea6342656319960\",\"dweb:/ipfs/QmWNGPBNX8Yd1hY41d55zEUaJzzoh14hQUJGBHLy6Rmsmz\"]}},\"version\":1}","metadata":{"compiler":{"version":"0.8.33+commit.64118f21"},"language":"Solidity","output":{"abi":[{"inputs":[{"internalType":"address","name":"_checkpointStore","type":"address"},{"internalType":"address","name":"_circuitVerifier","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"type":"error","name":"ProofVerificationFailed"},{"inputs":[{"internalType":"bytes32","name":"expected","type":"bytes32"},{"internalType":"bytes32","name":"actual","type":"bytes32"}],"type":"error","name":"StateRootMismatch"},{"inputs":[],"type":"error","name":"ZeroAddress"},{"inputs":[],"stateMutability":"view","type":"function","name":"checkpointStore","outputs":[{"internalType":"contract ICheckpointStore","name":"","type":"address"}]},{"inputs":[],"stateMutability":"view","type":"function","name":"circuitVerifier","outputs":[{"internalType":"contract ICircuitVerifier","name":"","type":"address"}]},{"inputs":[{"internalType":"bytes","name":"_proof","type":"bytes"},{"internalType":"struct IShadow.PublicInput","name":"_input","type":"tuple","components":[{"internalType":"uint64","name":"blockNumber","type":"uint64"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"uint256","name":"noteIndex","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"address","name":"recipient","type":"address"},{"internalType":"bytes32","name":"nullifier","type":"bytes32"},{"internalType":"bytes32","name":"powDigest","type":"bytes32"}]}],"stateMutability":"view","type":"function","name":"verifyProof","outputs":[{"internalType":"bool","name":"_isValid_","type":"bool"}]}],"devdoc":{"kind":"dev","methods":{},"version":1},"userdoc":{"kind":"user","methods":{"verifyProof(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":{"notice":"Verifies a proof and its public inputs."}},"version":1}},"settings":{"remappings":["@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/","@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/","forge-std/=node_modules/forge-std/src/"],"optimizer":{"enabled":true,"runs":200},"metadata":{"bytecodeHash":"ipfs"},"compilationTarget":{"src/impl/ShadowVerifier.sol":"ShadowVerifier"},"evmVersion":"prague","libraries":{},"viaIR":true},"sources":{"src/iface/ICheckpointStore.sol":{"keccak256":"0xa2eb06c9d96c140d5d39085d686e311e93597ce8bd04ad0788b90a3144e91d7c","urls":["bzz-raw://37c2f6f7297472514907085180ac9d68679d319348626c77c44e8155477a0fd8","dweb:/ipfs/QmSrXRzsvYmrmZ6Zv4iX1Spm75fTwoYaMsCMvf5YBW48rZ"],"license":"MIT"},"src/iface/ICircuitVerifier.sol":{"keccak256":"0x4b6f644b28aa8200d1c02fb258cc6c74d8c4b739d341f419605da613c14a0ce3","urls":["bzz-raw://11f0718e700640768a8dca57656e60f8045d770cc3bb4c488b69b5c8e3387d39","dweb:/ipfs/QmXjF41dm9pZhKsj7vFERjT7NYSHhS66ymjDXgcdWbsT7T"],"license":"MIT"},"src/iface/IShadow.sol":{"keccak256":"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a","urls":["bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd","dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6"],"license":"MIT"},"src/iface/IShadowVerifier.sol":{"keccak256":"0x1c95b4d0a7c9ee9c437e3c9025376580ec979dfeabd490e92aed5805db85c238","urls":["bzz-raw://cc40e22474c4dc0bab92f9fbdf729bad8c67542e1607e9e18baa3a48d6cebc66","dweb:/ipfs/Qmb3R4aGT6EQZUP11kbV7hFo8w8i6dedNCKZxyajCuDr6h"],"license":"MIT"},"src/impl/ShadowVerifier.sol":{"keccak256":"0xec89e7e1237d8a11f71da71d4fe10ca13b62c0ba9051c9fc046a7162087570be","urls":["bzz-raw://54c1406b401b0381d95199d3acd553736a5ce2ffcc0bf44f222c000b51e7f1ea","dweb:/ipfs/QmXU5iTc8YVwBGS99Z9oKpvvzy7mNj17qbA8ac6bF1XXdy"],"license":"MIT"},"src/lib/ShadowPublicInputs.sol":{"keccak256":"0x24d070fd5dcc8e748be31f8ef256511534946a67d3cfa418bce8578efa0f5079","urls":["bzz-raw://1ecd7a43c442a20f614a9477bae7d81d9c1ac985a6468a25eea6342656319960","dweb:/ipfs/QmWNGPBNX8Yd1hY41d55zEUaJzzoh14hQUJGBHLy6Rmsmz"],"license":"MIT"}},"version":1},"id":50}
+out/IShadow.sol/IShadow.json:1:{"abi":[{"type":"function","name":"claim","inputs":[{"name":"_proof","type":"bytes","internalType":"bytes"},{"name":"_input","type":"tuple","internalType":"struct IShadow.PublicInput","components":[{"name":"blockNumber","type":"uint64","internalType":"uint64"},{"name":"stateRoot","type":"bytes32","internalType":"bytes32"},{"name":"chainId","type":"uint256","internalType":"uint256"},{"name":"noteIndex","type":"uint256","internalType":"uint256"},{"name":"amount","type":"uint256","internalType":"uint256"},{"name":"recipient","type":"address","internalType":"address"},{"name":"nullifier","type":"bytes32","internalType":"bytes32"},{"name":"powDigest","type":"bytes32","internalType":"bytes32"}]}],"outputs":[],"stateMutability":"nonpayable"},{"type":"event","name":"Claimed","inputs":[{"name":"nullifier","type":"bytes32","indexed":true,"internalType":"bytes32"},{"name":"recipient","type":"address","indexed":true,"internalType":"address"},{"name":"amount","type":"uint256","indexed":false,"internalType":"uint256"}],"anonymous":false},{"type":"error","name":"ChainIdMismatch","inputs":[{"name":"expected","type":"uint256","internalType":"uint256"},{"name":"actual","type":"uint256","internalType":"uint256"}]},{"type":"error","name":"InvalidAmount","inputs":[{"name":"amount","type":"uint256","internalType":"uint256"}]},{"type":"error","name":"InvalidPowDigest","inputs":[{"name":"powDigest","type":"bytes32","internalType":"bytes32"}]},{"type":"error","name":"InvalidRecipient","inputs":[{"name":"recipient","type":"address","internalType":"address"}]},{"type":"error","name":"ProofVerificationFailed","inputs":[]}],"bytecode":{"object":"0x","sourceMap":"","linkReferences":{}},"deployedBytecode":{"object":"0x","sourceMap":"","linkReferences":{}},"methodIdentifiers":{"claim(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":"d8bee23a"},"rawMetadata":"{\"compiler\":{\"version\":\"0.8.33+commit.64118f21\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"expected\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"actual\",\"type\":\"uint256\"}],\"name\":\"ChainIdMismatch\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"InvalidAmount\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"powDigest\",\"type\":\"bytes32\"}],\"name\":\"InvalidPowDigest\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"}],\"name\":\"InvalidRecipient\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ProofVerificationFailed\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"nullifier\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Claimed\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_proof\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"stateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"chainId\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"noteIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"nullifier\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"powDigest\",\"type\":\"bytes32\"}],\"internalType\":\"struct IShadow.PublicInput\",\"name\":\"_input\",\"type\":\"tuple\"}],\"name\":\"claim\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"custom:security-contact\":\"security@taiko.xyz\",\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"claim(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))\":{\"notice\":\"Submits a proof and public inputs to mint ETH.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/iface/IShadow.sol\":\"IShadow\"},\"evmVersion\":\"prague\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":forge-std/=node_modules/forge-std/src/\"],\"viaIR\":true},\"sources\":{\"src/iface/IShadow.sol\":{\"keccak256\":\"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd\",\"dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6\"]}},\"version\":1}","metadata":{"compiler":{"version":"0.8.33+commit.64118f21"},"language":"Solidity","output":{"abi":[{"inputs":[{"internalType":"uint256","name":"expected","type":"uint256"},{"internalType":"uint256","name":"actual","type":"uint256"}],"type":"error","name":"ChainIdMismatch"},{"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"type":"error","name":"InvalidAmount"},{"inputs":[{"internalType":"bytes32","name":"powDigest","type":"bytes32"}],"type":"error","name":"InvalidPowDigest"},{"inputs":[{"internalType":"address","name":"recipient","type":"address"}],"type":"error","name":"InvalidRecipient"},{"inputs":[],"type":"error","name":"ProofVerificationFailed"},{"inputs":[{"internalType":"bytes32","name":"nullifier","type":"bytes32","indexed":true},{"internalType":"address","name":"recipient","type":"address","indexed":true},{"internalType":"uint256","name":"amount","type":"uint256","indexed":false}],"type":"event","name":"Claimed","anonymous":false},{"inputs":[{"internalType":"bytes","name":"_proof","type":"bytes"},{"internalType":"struct IShadow.PublicInput","name":"_input","type":"tuple","components":[{"internalType":"uint64","name":"blockNumber","type":"uint64"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"uint256","name":"noteIndex","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"address","name":"recipient","type":"address"},{"internalType":"bytes32","name":"nullifier","type":"bytes32"},{"internalType":"bytes32","name":"powDigest","type":"bytes32"}]}],"stateMutability":"nonpayable","type":"function","name":"claim"}],"devdoc":{"kind":"dev","methods":{},"version":1},"userdoc":{"kind":"user","methods":{"claim(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":{"notice":"Submits a proof and public inputs to mint ETH."}},"version":1}},"settings":{"remappings":["@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/","@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/","forge-std/=node_modules/forge-std/src/"],"optimizer":{"enabled":true,"runs":200},"metadata":{"bytecodeHash":"ipfs"},"compilationTarget":{"src/iface/IShadow.sol":"IShadow"},"evmVersion":"prague","libraries":{},"viaIR":true},"sources":{"src/iface/IShadow.sol":{"keccak256":"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a","urls":["bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd","dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6"],"license":"MIT"}},"version":1},"id":46}
+out/IShadowVerifier.sol/IShadowVerifier.json:1:{"abi":[{"type":"function","name":"verifyProof","inputs":[{"name":"_proof","type":"bytes","internalType":"bytes"},{"name":"_input","type":"tuple","internalType":"struct IShadow.PublicInput","components":[{"name":"blockNumber","type":"uint64","internalType":"uint64"},{"name":"stateRoot","type":"bytes32","internalType":"bytes32"},{"name":"chainId","type":"uint256","internalType":"uint256"},{"name":"noteIndex","type":"uint256","internalType":"uint256"},{"name":"amount","type":"uint256","internalType":"uint256"},{"name":"recipient","type":"address","internalType":"address"},{"name":"nullifier","type":"bytes32","internalType":"bytes32"},{"name":"powDigest","type":"bytes32","internalType":"bytes32"}]}],"outputs":[{"name":"_isValid_","type":"bool","internalType":"bool"}],"stateMutability":"view"},{"type":"error","name":"ProofVerificationFailed","inputs":[]},{"type":"error","name":"StateRootMismatch","inputs":[{"name":"expected","type":"bytes32","internalType":"bytes32"},{"name":"actual","type":"bytes32","internalType":"bytes32"}]},{"type":"error","name":"ZeroAddress","inputs":[]}],"bytecode":{"object":"0x","sourceMap":"","linkReferences":{}},"deployedBytecode":{"object":"0x","sourceMap":"","linkReferences":{}},"methodIdentifiers":{"verifyProof(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":"4ad70470"},"rawMetadata":"{\"compiler\":{\"version\":\"0.8.33+commit.64118f21\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"ProofVerificationFailed\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"expected\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"actual\",\"type\":\"bytes32\"}],\"name\":\"StateRootMismatch\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ZeroAddress\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_proof\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"stateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"chainId\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"noteIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"nullifier\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"powDigest\",\"type\":\"bytes32\"}],\"internalType\":\"struct IShadow.PublicInput\",\"name\":\"_input\",\"type\":\"tuple\"}],\"name\":\"verifyProof\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"_isValid_\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"custom:security-contact\":\"security@taiko.xyz\",\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"verifyProof(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))\":{\"notice\":\"Verifies a proof and its public inputs.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/iface/IShadowVerifier.sol\":\"IShadowVerifier\"},\"evmVersion\":\"prague\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":forge-std/=node_modules/forge-std/src/\"],\"viaIR\":true},\"sources\":{\"src/iface/IShadow.sol\":{\"keccak256\":\"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd\",\"dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6\"]},\"src/iface/IShadowVerifier.sol\":{\"keccak256\":\"0x1c95b4d0a7c9ee9c437e3c9025376580ec979dfeabd490e92aed5805db85c238\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://cc40e22474c4dc0bab92f9fbdf729bad8c67542e1607e9e18baa3a48d6cebc66\",\"dweb:/ipfs/Qmb3R4aGT6EQZUP11kbV7hFo8w8i6dedNCKZxyajCuDr6h\"]}},\"version\":1}","metadata":{"compiler":{"version":"0.8.33+commit.64118f21"},"language":"Solidity","output":{"abi":[{"inputs":[],"type":"error","name":"ProofVerificationFailed"},{"inputs":[{"internalType":"bytes32","name":"expected","type":"bytes32"},{"internalType":"bytes32","name":"actual","type":"bytes32"}],"type":"error","name":"StateRootMismatch"},{"inputs":[],"type":"error","name":"ZeroAddress"},{"inputs":[{"internalType":"bytes","name":"_proof","type":"bytes"},{"internalType":"struct IShadow.PublicInput","name":"_input","type":"tuple","components":[{"internalType":"uint64","name":"blockNumber","type":"uint64"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"uint256","name":"noteIndex","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"address","name":"recipient","type":"address"},{"internalType":"bytes32","name":"nullifier","type":"bytes32"},{"internalType":"bytes32","name":"powDigest","type":"bytes32"}]}],"stateMutability":"view","type":"function","name":"verifyProof","outputs":[{"internalType":"bool","name":"_isValid_","type":"bool"}]}],"devdoc":{"kind":"dev","methods":{},"version":1},"userdoc":{"kind":"user","methods":{"verifyProof(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":{"notice":"Verifies a proof and its public inputs."}},"version":1}},"settings":{"remappings":["@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/","@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/","forge-std/=node_modules/forge-std/src/"],"optimizer":{"enabled":true,"runs":200},"metadata":{"bytecodeHash":"ipfs"},"compilationTarget":{"src/iface/IShadowVerifier.sol":"IShadowVerifier"},"evmVersion":"prague","libraries":{},"viaIR":true},"sources":{"src/iface/IShadow.sol":{"keccak256":"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a","urls":["bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd","dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6"],"license":"MIT"},"src/iface/IShadowVerifier.sol":{"keccak256":"0x1c95b4d0a7c9ee9c437e3c9025376580ec979dfeabd490e92aed5805db85c238","urls":["bzz-raw://cc40e22474c4dc0bab92f9fbdf729bad8c67542e1607e9e18baa3a48d6cebc66","dweb:/ipfs/Qmb3R4aGT6EQZUP11kbV7hFo8w8i6dedNCKZxyajCuDr6h"],"license":"MIT"}},"version":1},"id":47}
+out/Shadow.sol/Shadow.json:1:{"abi":[{"type":"constructor","inputs":[{"name":"_verifier","type":"address","internalType":"address"},{"name":"_etherMinter","type":"address","internalType":"address"},{"name":"_nullifier","type":"address","internalType":"address"}],"stateMutability":"nonpayable"},{"type":"function","name":"acceptOwnership","inputs":[],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"claim","inputs":[{"name":"_proof","type":"bytes","internalType":"bytes"},{"name":"_input","type":"tuple","internalType":"struct IShadow.PublicInput","components":[{"name":"blockNumber","type":"uint64","internalType":"uint64"},{"name":"stateRoot","type":"bytes32","internalType":"bytes32"},{"name":"chainId","type":"uint256","internalType":"uint256"},{"name":"noteIndex","type":"uint256","internalType":"uint256"},{"name":"amount","type":"uint256","internalType":"uint256"},{"name":"recipient","type":"address","internalType":"address"},{"name":"nullifier","type":"bytes32","internalType":"bytes32"},{"name":"powDigest","type":"bytes32","internalType":"bytes32"}]}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"etherMinter","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract IEtherMinter"}],"stateMutability":"view"},{"type":"function","name":"initialize","inputs":[{"name":"_owner","type":"address","internalType":"address"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"nullifier","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract INullifier"}],"stateMutability":"view"},{"type":"function","name":"owner","inputs":[],"outputs":[{"name":"","type":"address","internalType":"address"}],"stateMutability":"view"},{"type":"function","name":"pendingOwner","inputs":[],"outputs":[{"name":"","type":"address","internalType":"address"}],"stateMutability":"view"},{"type":"function","name":"proxiableUUID","inputs":[],"outputs":[{"name":"","type":"bytes32","internalType":"bytes32"}],"stateMutability":"view"},{"type":"function","name":"renounceOwnership","inputs":[],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"transferOwnership","inputs":[{"name":"newOwner","type":"address","internalType":"address"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"upgradeTo","inputs":[{"name":"newImplementation","type":"address","internalType":"address"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"function","name":"upgradeToAndCall","inputs":[{"name":"newImplementation","type":"address","internalType":"address"},{"name":"data","type":"bytes","internalType":"bytes"}],"outputs":[],"stateMutability":"payable"},{"type":"function","name":"verifier","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract IShadowVerifier"}],"stateMutability":"view"},{"type":"event","name":"AdminChanged","inputs":[{"name":"previousAdmin","type":"address","indexed":false,"internalType":"address"},{"name":"newAdmin","type":"address","indexed":false,"internalType":"address"}],"anonymous":false},{"type":"event","name":"BeaconUpgraded","inputs":[{"name":"beacon","type":"address","indexed":true,"internalType":"address"}],"anonymous":false},{"type":"event","name":"Claimed","inputs":[{"name":"nullifier","type":"bytes32","indexed":true,"internalType":"bytes32"},{"name":"recipient","type":"address","indexed":true,"internalType":"address"},{"name":"amount","type":"uint256","indexed":false,"internalType":"uint256"}],"anonymous":false},{"type":"event","name":"Initialized","inputs":[{"name":"version","type":"uint8","indexed":false,"internalType":"uint8"}],"anonymous":false},{"type":"event","name":"OwnershipTransferStarted","inputs":[{"name":"previousOwner","type":"address","indexed":true,"internalType":"address"},{"name":"newOwner","type":"address","indexed":true,"internalType":"address"}],"anonymous":false},{"type":"event","name":"OwnershipTransferred","inputs":[{"name":"previousOwner","type":"address","indexed":true,"internalType":"address"},{"name":"newOwner","type":"address","indexed":true,"internalType":"address"}],"anonymous":false},{"type":"event","name":"Upgraded","inputs":[{"name":"implementation","type":"address","indexed":true,"internalType":"address"}],"anonymous":false},{"type":"error","name":"ChainIdMismatch","inputs":[{"name":"expected","type":"uint256","internalType":"uint256"},{"name":"actual","type":"uint256","internalType":"uint256"}]},{"type":"error","name":"InvalidAmount","inputs":[{"name":"amount","type":"uint256","internalType":"uint256"}]},{"type":"error","name":"InvalidPowDigest","inputs":[{"name":"powDigest","type":"bytes32","internalType":"bytes32"}]},{"type":"error","name":"InvalidRecipient","inputs":[{"name":"recipient","type":"address","internalType":"address"}]},{"type":"error","name":"ProofVerificationFailed","inputs":[]},{"type":"error","name":"ZeroAddress","inputs":[]}],"bytecode":{"object":"0x610100346101ab57601f61144a38819003918201601f19168301916001600160401b038311848410176101af578084926060946040528339810103126101ab57610048816101c3565b6100606040610059602085016101c3565b93016101c3565b90306080525f5460ff8160081c166101565760ff8082160361011c575b506001600160a01b031691821561010d576001600160a01b031690811561010d576001600160a01b031691821561010d5760a05260c05260e05260405161127290816101d88239608051818181610794015281816108ba0152610ba5015260a0518181816102900152610e52015260c05181818161032c0152610640015260e0518181816102d00152610b580152f35b63d92e233d60e01b5f5260045ffd5b60ff90811916175f557f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498602060405160ff8152a15f61007d565b60405162461bcd60e51b815260206004820152602760248201527f496e697469616c697a61626c653a20636f6e747261637420697320696e697469604482015266616c697a696e6760c81b6064820152608490fd5b5f80fd5b634e487b7160e01b5f52604160045260245ffd5b51906001600160a01b03821682036101ab5756fe6080806040526004361015610012575f80fd5b5f905f3560e01c9081632b7ac3f314610e40575080633659cfe614610b8757806343bf6cf014610b435780634f1ef2861461084457806352d1902d14610782578063715018a61461071d57806379ba5097146106975780638da5cb5b1461066f578063b655b1b71461062b578063c4d66de8146104d1578063d8bee23a14610146578063e30c39781461011d5763f2fde38b146100ad575f80fd5b3461011a57602036600319011261011a576100c6610e81565b6100ce610fc1565b606580546001600160a01b0319166001600160a01b039283169081179091556033549091167f38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e227008380a380f35b80fd5b503461011a578060031936011261011a576065546040516001600160a01b039091168152602090f35b5034610426576101203660031901126104265760043567ffffffffffffffff811161042657366023820112156104265780600401359067ffffffffffffffff82116104265736602483830101116104265761010036602319011261042657606435904682036104ba5760a4359283156104a7576001600160a01b036101c9610fab565b16156101d3610fab565b906104875750610104359262ffffff841661047457816024604051946304ad704760e41b8652610120600487015282610124870152016101448501375f610144838501015260243567ffffffffffffffff81168091036104265760248401526044356044840152606483015260843560848301528360a483015260c43560018060a01b0381168091036104265760c483015260e480359083018190526101048301939093526020908290601f01601f1916810181900361014401817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa90811561041b575f91610439575b501561042a577f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316803b15610426575f809160246040518094819363af6f8c1b60e01b83528760048401525af1801561041b57610406575b50827f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031661035c610fab565b813b156103f75760405163bb598fa360e01b81526001600160a01b039091166004820152602481018590529082908290604490829084905af180156103fb576103e2575b507f0508a8b4117d9a7b3d8f5895f6413e61b4f9a2df35afbfb41e78d0ecfff1843f905060206001600160a01b036103d6610fab565b1693604051908152a380f35b816103ec91610e97565b6103f757825f6103a0565b8280fd5b6040513d84823e3d90fd5b6104139193505f90610e97565b5f915f610328565b6040513d5f823e3d90fd5b5f80fd5b631ac2386360e31b5f5260045ffd5b90506020813d60201161046c575b8161045460209383610e97565b8101031261042657518015158103610426575f6102c8565b3d9150610447565b836304494e4560e21b5f5260045260245ffd5b630bc2c5df60e11b5f9081526001600160a01b0391909116600452602490fd5b83633728b83d60e01b5f5260045260245ffd5b50630432cec160e31b5f526004524660245260445ffd5b34610426576020366003190112610426576104ea610e81565b5f5460ff8160081c16159182809361061e575b8015610607575b156105ab5760ff1982166001175f5561055e918361059a575b5061054060ff5f5460081c166105328161106c565b61053b8161106c565b61106c565b61054933611019565b61055960ff5f5460081c1661106c565b611019565b61056457005b61ff00195f54165f557f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498602060405160018152a1005b61ffff1916610101175f558361051d565b60405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201526d191e481a5b9a5d1a585b1a5e995960921b6064820152608490fd5b50303b1580156105045750600160ff831614610504565b50600160ff8316106104fd565b34610426575f366003190112610426576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b34610426575f366003190112610426576033546040516001600160a01b039091168152602090f35b34610426575f36600319011261042657606554336001600160a01b03909116036106c6576106c433611019565b005b60405162461bcd60e51b815260206004820152602960248201527f4f776e61626c6532537465703a2063616c6c6572206973206e6f7420746865206044820152683732bb9037bbb732b960b91b6064820152608490fd5b34610426575f36600319011261042657610735610fc1565b606580546001600160a01b03199081169091556033805491821690555f906001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a3005b34610426575f366003190112610426577f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031630036107d95760206040515f51602061121d5f395f51905f528152f35b60405162461bcd60e51b815260206004820152603860248201527f555550535570677261646561626c653a206d757374206e6f742062652063616c60448201527f6c6564207468726f7567682064656c656761746563616c6c00000000000000006064820152608490fd5b604036600319011261042657610858610e81565b6024359067ffffffffffffffff8211610426573660238301121561042657816004013561088481610ecd565b906108926040519283610e97565b8082526020820193366024838301011161042657815f9260246020930187378301015261090c7f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03166108ee30821415610ee9565b5f51602061121d5f395f51905f52546001600160a01b031614610f4a565b610914610fc1565b7f4910fdfa16fed3260ed0e7147f7cc6da11a60208b5b9406d12a635614ffd91435460ff161561094957506106c491506110cc565b6040516352d1902d60e01b81529091906001600160a01b03821690602081600481855afa5f9181610b0f575b506109d65760405162461bcd60e51b815260206004820152602e60248201527f45524331393637557067726164653a206e657720696d706c656d656e7461746960448201526d6f6e206973206e6f74205555505360901b6064820152608490fd5b5f51602061121d5f395f51905f5203610ab8576109f2826110cc565b7fbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b5f80a2815115801590610ab0575b610a2757005b5f806106c49460405194610a3c606087610e97565b602786527f416464726573733a206c6f772d6c6576656c2064656c65676174652063616c6c6020870152660819985a5b195960ca1b60408701525190845af43d15610aa8573d91610a8c83610ecd565b92610a9a6040519485610e97565b83523d5f602085013e611168565b606091611168565b506001610a21565b60405162461bcd60e51b815260206004820152602960248201527f45524331393637557067726164653a20756e737570706f727465642070726f786044820152681a58589b195555525160ba1b6064820152608490fd5b9091506020813d602011610b3b575b81610b2b60209383610e97565b8101031261042657519086610975565b3d9150610b1e565b34610426575f366003190112610426576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b3461042657602036600319011261042657610ba0610e81565b610bd97f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03166108ee30821415610ee9565b610be1610fc1565b604051906020610bf18184610e97565b5f835280830192601f1982013685377f4910fdfa16fed3260ed0e7147f7cc6da11a60208b5b9406d12a635614ffd91435460ff1615610c365750506106c491506110cc565b6040516352d1902d60e01b8152919290916001600160a01b038216908481600481855afa5f9181610e11575b50610cc35760405162461bcd60e51b815260048101869052602e60248201527f45524331393637557067726164653a206e657720696d706c656d656e7461746960448201526d6f6e206973206e6f74205555505360901b6064820152608490fd5b9293927fc9f76b5ec45e5cdef99837d7b6d2467235c1df8933c8ca56df5c35afa2c7d44401610dba57610cf5826110cc565b7fbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b5f80a2825115801590610db3575b610d2a57005b5f806106c49560405195610d3f606088610e97565b602787527f416464726573733a206c6f772d6c6576656c2064656c65676174652063616c6c86880152660819985a5b195960ca1b60408801525190845af4903d15610daa573d610d8e81610ecd565b90610d9c6040519283610e97565b81525f81943d92013e611168565b60609250611168565b505f610d24565b60405162461bcd60e51b815260048101849052602960248201527f45524331393637557067726164653a20756e737570706f727465642070726f786044820152681a58589b195555525160ba1b6064820152608490fd5b9091508581813d8311610e39575b610e298183610e97565b8101031261042657519087610c62565b503d610e1f565b34610426575f366003190112610426577f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b600435906001600160a01b038216820361042657565b90601f8019910116810190811067ffffffffffffffff821117610eb957604052565b634e487b7160e01b5f52604160045260245ffd5b67ffffffffffffffff8111610eb957601f01601f191660200190565b15610ef057565b60405162461bcd60e51b815260206004820152602c60248201527f46756e6374696f6e206d7573742062652063616c6c6564207468726f7567682060448201526b19195b1959d85d1958d85b1b60a21b6064820152608490fd5b15610f5157565b60405162461bcd60e51b815260206004820152602c60248201527f46756e6374696f6e206d7573742062652063616c6c6564207468726f7567682060448201526b6163746976652070726f787960a01b6064820152608490fd5b60c4356001600160a01b03811681036104265790565b6033546001600160a01b03163303610fd557565b606460405162461bcd60e51b815260206004820152602060248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152fd5b606580546001600160a01b0319908116909155603380549182166001600160a01b0393841690811790915591167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a3565b1561107357565b60405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201526a6e697469616c697a696e6760a81b6064820152608490fd5b803b1561110d5760018060a01b03166bffffffffffffffffffffffff60a01b5f51602061121d5f395f51905f525416175f51602061121d5f395f51905f5255565b60405162461bcd60e51b815260206004820152602d60248201527f455243313936373a206e657720696d706c656d656e746174696f6e206973206e60448201526c1bdd08184818dbdb9d1c9858dd609a1b6064820152608490fd5b919290156111ca575081511561117c575090565b3b156111855790565b60405162461bcd60e51b815260206004820152601d60248201527f416464726573733a2063616c6c20746f206e6f6e2d636f6e74726163740000006044820152606490fd5b8251909150156111dd5750805190602001fd5b604460209160405192839162461bcd60e51b83528160048401528051918291826024860152018484015e5f828201840152601f01601f19168101030190fdfe360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbca264697066735822122008ca6c489bae19fa35c1dd255911ed23bf4ba5b00535f3ca93c92d3240ae64df64736f6c63430008210033","sourceMap":"456:1771:49:-:0;;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;:::i;:::-;;;;:::i;:::-;1198:4:7;;1190:13;;-1:-1:-1;456:1771:49;;;;;;;;;;;;6078:31:6;6074:139;;-1:-1:-1;;;;;;;456:1771:49;;989:23;;456:1771;;-1:-1:-1;;;;;456:1771:49;;1046:26;;456:1771;;-1:-1:-1;;;;;456:1771:49;;1106:24;;456:1771;;1156:37;;1203:40;;1253:34;;456:1771;;;;;;;;1190:13:7;456:1771:49;;;;;;;;;;;;;;;1156:37;456:1771;;;;;;;;;;1203:40;456:1771;;;;;;;;;;1253:34;456:1771;;;;;;;;;;;;;;;-1:-1:-1;456:1771:49;;-1:-1:-1;456:1771:49;6074:139:6;456:1771:49;;;;;;-1:-1:-1;456:1771:49;6174:28:6;456:1771:49;;;;;;6174:28:6;6074:139;;;456:1771:49;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;;-1:-1:-1;456:1771:49;;;;;;-1:-1:-1;456:1771:49;;;;;-1:-1:-1;456:1771:49;;;;-1:-1:-1;;;;;456:1771:49;;;;;;:::o","linkReferences":{}},"deployedBytecode":{"object":"0x6080806040526004361015610012575f80fd5b5f905f3560e01c9081632b7ac3f314610e40575080633659cfe614610b8757806343bf6cf014610b435780634f1ef2861461084457806352d1902d14610782578063715018a61461071d57806379ba5097146106975780638da5cb5b1461066f578063b655b1b71461062b578063c4d66de8146104d1578063d8bee23a14610146578063e30c39781461011d5763f2fde38b146100ad575f80fd5b3461011a57602036600319011261011a576100c6610e81565b6100ce610fc1565b606580546001600160a01b0319166001600160a01b039283169081179091556033549091167f38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e227008380a380f35b80fd5b503461011a578060031936011261011a576065546040516001600160a01b039091168152602090f35b5034610426576101203660031901126104265760043567ffffffffffffffff811161042657366023820112156104265780600401359067ffffffffffffffff82116104265736602483830101116104265761010036602319011261042657606435904682036104ba5760a4359283156104a7576001600160a01b036101c9610fab565b16156101d3610fab565b906104875750610104359262ffffff841661047457816024604051946304ad704760e41b8652610120600487015282610124870152016101448501375f610144838501015260243567ffffffffffffffff81168091036104265760248401526044356044840152606483015260843560848301528360a483015260c43560018060a01b0381168091036104265760c483015260e480359083018190526101048301939093526020908290601f01601f1916810181900361014401817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa90811561041b575f91610439575b501561042a577f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316803b15610426575f809160246040518094819363af6f8c1b60e01b83528760048401525af1801561041b57610406575b50827f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031661035c610fab565b813b156103f75760405163bb598fa360e01b81526001600160a01b039091166004820152602481018590529082908290604490829084905af180156103fb576103e2575b507f0508a8b4117d9a7b3d8f5895f6413e61b4f9a2df35afbfb41e78d0ecfff1843f905060206001600160a01b036103d6610fab565b1693604051908152a380f35b816103ec91610e97565b6103f757825f6103a0565b8280fd5b6040513d84823e3d90fd5b6104139193505f90610e97565b5f915f610328565b6040513d5f823e3d90fd5b5f80fd5b631ac2386360e31b5f5260045ffd5b90506020813d60201161046c575b8161045460209383610e97565b8101031261042657518015158103610426575f6102c8565b3d9150610447565b836304494e4560e21b5f5260045260245ffd5b630bc2c5df60e11b5f9081526001600160a01b0391909116600452602490fd5b83633728b83d60e01b5f5260045260245ffd5b50630432cec160e31b5f526004524660245260445ffd5b34610426576020366003190112610426576104ea610e81565b5f5460ff8160081c16159182809361061e575b8015610607575b156105ab5760ff1982166001175f5561055e918361059a575b5061054060ff5f5460081c166105328161106c565b61053b8161106c565b61106c565b61054933611019565b61055960ff5f5460081c1661106c565b611019565b61056457005b61ff00195f54165f557f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498602060405160018152a1005b61ffff1916610101175f558361051d565b60405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201526d191e481a5b9a5d1a585b1a5e995960921b6064820152608490fd5b50303b1580156105045750600160ff831614610504565b50600160ff8316106104fd565b34610426575f366003190112610426576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b34610426575f366003190112610426576033546040516001600160a01b039091168152602090f35b34610426575f36600319011261042657606554336001600160a01b03909116036106c6576106c433611019565b005b60405162461bcd60e51b815260206004820152602960248201527f4f776e61626c6532537465703a2063616c6c6572206973206e6f7420746865206044820152683732bb9037bbb732b960b91b6064820152608490fd5b34610426575f36600319011261042657610735610fc1565b606580546001600160a01b03199081169091556033805491821690555f906001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a3005b34610426575f366003190112610426577f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031630036107d95760206040515f51602061121d5f395f51905f528152f35b60405162461bcd60e51b815260206004820152603860248201527f555550535570677261646561626c653a206d757374206e6f742062652063616c60448201527f6c6564207468726f7567682064656c656761746563616c6c00000000000000006064820152608490fd5b604036600319011261042657610858610e81565b6024359067ffffffffffffffff8211610426573660238301121561042657816004013561088481610ecd565b906108926040519283610e97565b8082526020820193366024838301011161042657815f9260246020930187378301015261090c7f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03166108ee30821415610ee9565b5f51602061121d5f395f51905f52546001600160a01b031614610f4a565b610914610fc1565b7f4910fdfa16fed3260ed0e7147f7cc6da11a60208b5b9406d12a635614ffd91435460ff161561094957506106c491506110cc565b6040516352d1902d60e01b81529091906001600160a01b03821690602081600481855afa5f9181610b0f575b506109d65760405162461bcd60e51b815260206004820152602e60248201527f45524331393637557067726164653a206e657720696d706c656d656e7461746960448201526d6f6e206973206e6f74205555505360901b6064820152608490fd5b5f51602061121d5f395f51905f5203610ab8576109f2826110cc565b7fbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b5f80a2815115801590610ab0575b610a2757005b5f806106c49460405194610a3c606087610e97565b602786527f416464726573733a206c6f772d6c6576656c2064656c65676174652063616c6c6020870152660819985a5b195960ca1b60408701525190845af43d15610aa8573d91610a8c83610ecd565b92610a9a6040519485610e97565b83523d5f602085013e611168565b606091611168565b506001610a21565b60405162461bcd60e51b815260206004820152602960248201527f45524331393637557067726164653a20756e737570706f727465642070726f786044820152681a58589b195555525160ba1b6064820152608490fd5b9091506020813d602011610b3b575b81610b2b60209383610e97565b8101031261042657519086610975565b3d9150610b1e565b34610426575f366003190112610426576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b3461042657602036600319011261042657610ba0610e81565b610bd97f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03166108ee30821415610ee9565b610be1610fc1565b604051906020610bf18184610e97565b5f835280830192601f1982013685377f4910fdfa16fed3260ed0e7147f7cc6da11a60208b5b9406d12a635614ffd91435460ff1615610c365750506106c491506110cc565b6040516352d1902d60e01b8152919290916001600160a01b038216908481600481855afa5f9181610e11575b50610cc35760405162461bcd60e51b815260048101869052602e60248201527f45524331393637557067726164653a206e657720696d706c656d656e7461746960448201526d6f6e206973206e6f74205555505360901b6064820152608490fd5b9293927fc9f76b5ec45e5cdef99837d7b6d2467235c1df8933c8ca56df5c35afa2c7d44401610dba57610cf5826110cc565b7fbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b5f80a2825115801590610db3575b610d2a57005b5f806106c49560405195610d3f606088610e97565b602787527f416464726573733a206c6f772d6c6576656c2064656c65676174652063616c6c86880152660819985a5b195960ca1b60408801525190845af4903d15610daa573d610d8e81610ecd565b90610d9c6040519283610e97565b81525f81943d92013e611168565b60609250611168565b505f610d24565b60405162461bcd60e51b815260048101849052602960248201527f45524331393637557067726164653a20756e737570706f727465642070726f786044820152681a58589b195555525160ba1b6064820152608490fd5b9091508581813d8311610e39575b610e298183610e97565b8101031261042657519087610c62565b503d610e1f565b34610426575f366003190112610426577f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b600435906001600160a01b038216820361042657565b90601f8019910116810190811067ffffffffffffffff821117610eb957604052565b634e487b7160e01b5f52604160045260245ffd5b67ffffffffffffffff8111610eb957601f01601f191660200190565b15610ef057565b60405162461bcd60e51b815260206004820152602c60248201527f46756e6374696f6e206d7573742062652063616c6c6564207468726f7567682060448201526b19195b1959d85d1958d85b1b60a21b6064820152608490fd5b15610f5157565b60405162461bcd60e51b815260206004820152602c60248201527f46756e6374696f6e206d7573742062652063616c6c6564207468726f7567682060448201526b6163746976652070726f787960a01b6064820152608490fd5b60c4356001600160a01b03811681036104265790565b6033546001600160a01b03163303610fd557565b606460405162461bcd60e51b815260206004820152602060248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152fd5b606580546001600160a01b0319908116909155603380549182166001600160a01b0393841690811790915591167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a3565b1561107357565b60405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201526a6e697469616c697a696e6760a81b6064820152608490fd5b803b1561110d5760018060a01b03166bffffffffffffffffffffffff60a01b5f51602061121d5f395f51905f525416175f51602061121d5f395f51905f5255565b60405162461bcd60e51b815260206004820152602d60248201527f455243313936373a206e657720696d706c656d656e746174696f6e206973206e60448201526c1bdd08184818dbdb9d1c9858dd609a1b6064820152608490fd5b919290156111ca575081511561117c575090565b3b156111855790565b60405162461bcd60e51b815260206004820152601d60248201527f416464726573733a2063616c6c20746f206e6f6e2d636f6e74726163740000006044820152606490fd5b8251909150156111dd5750805190602001fd5b604460209160405192839162461bcd60e51b83528160048401528051918291826024860152018484015e5f828201840152601f01601f19168101030190fdfe360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbca264697066735822122008ca6c489bae19fa35c1dd255911ed23bf4ba5b00535f3ca93c92d3240ae64df64736f6c63430008210033","sourceMap":"456:1771:49:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;;;:::i;:::-;1324:62:1;;:::i;:::-;1525:24:0;456:1771:49;;-1:-1:-1;;;;;;456:1771:49;-1:-1:-1;;;;;456:1771:49;;;;;;;;;1534:6:1;456:1771:49;;;;1564:43:0;;;;456:1771:49;;;;;;;;;;;;;;;;;;1223:13:0;456:1771:49;;;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;1612:14;456:1771;1630:13;;1612:31;;456:1771;;1710:13;456:1771;1710:17;;;456:1771;;-1:-1:-1;;;;;1776:16:49;;:::i;:::-;456:1771;1776:30;1825:16;;:::i;:::-;456:1771;;;;1897:16;456:1771;1682:31:52;684:2;1682:31;;456:1771:49;;;;;;;;;;1970:36;;456:1771;;1970:36;;456:1771;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1612:14;456:1771;;;;;;;;;;1710:13;456:1771;;;1776:16;456:1771;;;;;;;;;;;;;1776:16;456:1771;;;;;;;;;;;;1897:16;456:1771;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;1970:36;;;456:1771;1970:36;456:1771;1970:8;-1:-1:-1;;;;;456:1771:49;1970:36;;;;;;;456:1771;1970:36;;;456:1771;;;;;2045:9;-1:-1:-1;;;;;456:1771:49;2045:35;;;;;456:1771;;;;;;;;;;;;;2045:35;;;456:1771;2045:35;;456:1771;2045:35;;;;;;;;456:1771;-1:-1:-1;456:1771:49;2090:11;-1:-1:-1;;;;;456:1771:49;2112:16;;:::i;:::-;2090:54;;;;;456:1771;;-1:-1:-1;;;2090:54:49;;-1:-1:-1;;;;;456:1771:49;;;;2090:54;;456:1771;;;;;;;;;;;;;;;;;;2090:54;;;;;;;;456:1771;-1:-1:-1;2160:58:49;;-1:-1:-1;456:1771:49;-1:-1:-1;;;;;2186:16:49;;:::i;:::-;456:1771;;;;;;;2160:58;456:1771;;2090:54;;;;;:::i;:::-;456:1771;;2090:54;;;;456:1771;;;;2090:54;456:1771;;;;;;;;;2045:35;;;;;456:1771;2045:35;;:::i;:::-;456:1771;2045:35;;;;;456:1771;;;;;;;;;2045:35;456:1771;;;;;;;;;;;;1970:36;;;456:1771;1970:36;;456:1771;1970:36;;;;;;456:1771;1970:36;;;:::i;:::-;;;456:1771;;;;;;;;;;;;1970:36;;;;;;-1:-1:-1;1970:36:49;;456:1771;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1630:13;456:1771;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;;;:::i;:::-;;;;;;;;3301:14:6;;;;3347:34;;;456:1771:49;3346:108:6;;;;456:1771:49;;;;-1:-1:-1;;456:1771:49;;3551:1:6;456:1771:49;;;759:6:51;;456:1771:49;3562:65:6;;456:1771:49;;5366:69:6;456:1771:49;;;;;;5366:69:6;;;:::i;:::-;;;;:::i;:::-;;:::i;:::-;1216:12:1;965:10:9;1216:12:1;:::i;:::-;5366:69:6;456:1771:49;;;;;;5366:69:6;:::i;:::-;759:6:51;:::i;:::-;3647:99:6;;456:1771:49;3647:99:6;456:1771:49;;;;;;;3721:14:6;456:1771:49;;;3551:1:6;456:1771:49;;3721:14:6;456:1771:49;3562:65:6;-1:-1:-1;;456:1771:49;;;;;3562:65:6;;;456:1771:49;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;3346:108:6;3426:4;;1713:19:8;:23;3387:66:6;;3346:108;3387:66;456:1771:49;3452:1:6;456:1771:49;;;3436:17:6;3346:108;;3347:34;456:1771:49;3380:1:6;456:1771:49;;;3365:16:6;3347:34;;456:1771:49;;;;;;-1:-1:-1;;456:1771:49;;;;;;688:41;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;1534:6:1;456:1771:49;;;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;1223:13:0;456:1771:49;965:10:9;-1:-1:-1;;;;;456:1771:49;;;2130:24:0;456:1771:49;;2229:6:0;965:10:9;2229:6:0;:::i;:::-;456:1771:49;;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;1324:62:1;;:::i;:::-;1880:20:0;456:1771:49;;-1:-1:-1;;;;;;456:1771:49;;;;;;2779:6:1;456:1771:49;;;;;;;-1:-1:-1;;;;;;;456:1771:49;2827:40:1;-1:-1:-1;;2827:40:1;456:1771:49;;;;;;;-1:-1:-1;;456:1771:49;;;;2199:6:7;-1:-1:-1;;;;;456:1771:49;2190:4:7;2182:23;456:1771:49;;;;;-1:-1:-1;;;;;;;;;;;456:1771:49;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1829:87:7;1764:6;-1:-1:-1;;;;;456:1771:49;1739:80:7;1755:4;1747:23;;;1739:80;:::i;:::-;-1:-1:-1;;;;;;;;;;;456:1771:49;-1:-1:-1;;;;;456:1771:49;1837:30:7;1829:87;:::i;:::-;1324:62:1;;:::i;:::-;839:66:4;;456:1771:49;;;;;3351:17:4;;;;;:::i;3253:526::-;456:1771:49;;-1:-1:-1;;;3404:63:4;;456:1771:49;;;-1:-1:-1;;;;;456:1771:49;;;;;;;;3404:63:4;;456:1771:49;;3404:63:4;;;3253:526;-1:-1:-1;3400:302:4;;456:1771:49;;-1:-1:-1;;;3631:56:4;;456:1771:49;;3631:56:4;;839:66;;456:1771:49;839:66:4;;456:1771:49;839:66:4;456:1771:49;;;839:66:4;-1:-1:-1;;;839:66:4;;;;3631:56;;;3400:302;-1:-1:-1;;;;;;;;;;;3517:28:4;839:66;;2192:17;;;:::i;:::-;2225:27;456:1771:49;2225:27:4;;456:1771:49;;2544:15:4;;;:28;;;3400:302;2540:123;;456:1771:49;2540:123:4;456:1771:49;;7318:69:8;456:1771:49;;;;;;;;:::i;:::-;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;7276:25:8;;;;;456:1771:49;;;;;;;;;:::i;:::-;;;;;;;;:::i;:::-;;;;;;;;;7318:69:8;:::i;456:1771:49:-;;;7318:69:8;:::i;2544:28:4:-;;4130:4:7;2544:28:4;;839:66;456:1771:49;;-1:-1:-1;;;839:66:4;;456:1771:49;;839:66:4;;;;456:1771:49;839:66:4;;456:1771:49;839:66:4;456:1771:49;;;839:66:4;-1:-1:-1;;;839:66:4;;;;;;;3404:63;;;;456:1771:49;3404:63:4;;456:1771:49;3404:63:4;;;;;;456:1771:49;3404:63:4;;;:::i;:::-;;;839:66;;;;;3404:63;;;;;;;-1:-1:-1;3404:63:4;;456:1771:49;;;;;;-1:-1:-1;;456:1771:49;;;;;;801:37;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;;;-1:-1:-1;;456:1771:49;;;;;;:::i;:::-;1829:87:7;1764:6;-1:-1:-1;;;;;456:1771:49;1739:80:7;1755:4;1747:23;;;1739:80;:::i;1829:87::-;1324:62:1;;:::i;:::-;456:1771:49;;;;;;;;:::i;:::-;;;;;;;;-1:-1:-1;;456:1771:49;;;;;839:66:4;;456:1771:49;;;;;3351:17:4;;;;;;:::i;3253:526::-;456:1771:49;;-1:-1:-1;;;3404:63:4;;456:1771:49;;;;-1:-1:-1;;;;;456:1771:49;;;;;;;;3404:63:4;;456:1771:49;;3404:63:4;;;3253:526;-1:-1:-1;3400:302:4;;456:1771:49;;-1:-1:-1;;;3631:56:4;;456:1771:49;3631:56:4;;839:66;;;;;;;456:1771:49;839:66:4;456:1771:49;;;839:66:4;-1:-1:-1;;;839:66:4;;;;3631:56;;;3400:302;3517:28;;;;;839:66;;2192:17;;;:::i;:::-;2225:27;456:1771:49;2225:27:4;;456:1771:49;;2544:15:4;;;:28;;;3400:302;2540:123;;456:1771:49;2540:123:4;456:1771:49;;7318:69:8;456:1771:49;;;;;;;;:::i;:::-;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;7276:25:8;;;;;;456:1771:49;;;;;;;;:::i;:::-;;;;;;;;:::i;:::-;;;;;;;;;;7318:69:8;:::i;456:1771:49:-;;;-1:-1:-1;7318:69:8;:::i;2544:28:4:-;;456:1771:49;2544:28:4;;839:66;456:1771:49;;-1:-1:-1;;;839:66:4;;456:1771:49;839:66:4;;;;;;;;;456:1771:49;839:66:4;456:1771:49;;;839:66:4;-1:-1:-1;;;839:66:4;;;;;;;3404:63;;;;;;;;;;;;;;;;;:::i;:::-;;;839:66;;;;;3404:63;;;;;;;;;456:1771:49;;;;;;-1:-1:-1;;456:1771:49;;;;575:41;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;-1:-1:-1;;;;;456:1771:49;;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;;;:::o;:::-;;;;-1:-1:-1;456:1771:49;;;;;-1:-1:-1;456:1771:49;;;;;;;;;-1:-1:-1;;456:1771:49;;;;:::o;:::-;;;;:::o;:::-;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;:::o;:::-;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;;1776:16;456:1771;-1:-1:-1;;;;;456:1771:49;;;;;;;:::o;1620:130:1:-;1534:6;456:1771:49;-1:-1:-1;;;;;456:1771:49;965:10:9;1683:23:1;456:1771:49;;1620:130:1:o;456:1771:49:-;;;;839:66:4;;;456:1771:49;;;;;;;;;;;;;;;;;;1798:153:0;1880:20;456:1771:49;;-1:-1:-1;;;;;;456:1771:49;;;;;;2779:6:1;456:1771:49;;;;;-1:-1:-1;;;;;456:1771:49;;;;;;;;;;;2827:40:1;-1:-1:-1;;2827:40:1;1798:153:0:o;456:1771:49:-;;;;:::o;:::-;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;1720:281:4;1713:19:8;;:23;456:1771:49;;;;;;;;;;;-1:-1:-1;;;;;;;;;;;456:1771:49;;;-1:-1:-1;;;;;;;;;;;456:1771:49;1720:281:4:o;456:1771:49:-;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;-1:-1:-1;;;456:1771:49;;;;;;;7682:628:8;;;;7886:418;;;456:1771:49;;;7917:22:8;7913:286;;8212:17;;:::o;7913:286::-;1713:19;:23;456:1771:49;;8212:17:8;:::o;456:1771:49:-;;;-1:-1:-1;;;456:1771:49;;;;;;;;;;;;;;;;;;;;7886:418:8;456:1771:49;;;;-1:-1:-1;8991:21:8;:17;;9163:142;;;;;;;8987:379;456:1771:49;;;;;839:66:4;;;;;;9335:20:8;;;;;;456:1771:49;;;;;;;;;;;;;;;;9011:1:8;456:1771:49;;;;;;;;-1:-1:-1;;456:1771:49;;;9335:20:8;;;","linkReferences":{},"immutableReferences":{"42983":[{"start":656,"length":32},{"start":3666,"length":32}],"42987":[{"start":812,"length":32},{"start":1600,"length":32}],"42991":[{"start":720,"length":32},{"start":2904,"length":32}],"794":[{"start":1940,"length":32},{"start":2234,"length":32},{"start":2981,"length":32}]}},"methodIdentifiers":{"acceptOwnership()":"79ba5097","claim(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":"d8bee23a","etherMinter()":"b655b1b7","initialize(address)":"c4d66de8","nullifier()":"43bf6cf0","owner()":"8da5cb5b","pendingOwner()":"e30c3978","proxiableUUID()":"52d1902d","renounceOwnership()":"715018a6","transferOwnership(address)":"f2fde38b","upgradeTo(address)":"3659cfe6","upgradeToAndCall(address,bytes)":"4f1ef286","verifier()":"2b7ac3f3"},"rawMetadata":"{\"compiler\":{\"version\":\"0.8.33+commit.64118f21\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_verifier\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_etherMinter\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_nullifier\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"expected\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"actual\",\"type\":\"uint256\"}],\"name\":\"ChainIdMismatch\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"InvalidAmount\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"powDigest\",\"type\":\"bytes32\"}],\"name\":\"InvalidPowDigest\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"}],\"name\":\"InvalidRecipient\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ProofVerificationFailed\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ZeroAddress\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"previousAdmin\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"newAdmin\",\"type\":\"address\"}],\"name\":\"AdminChanged\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"beacon\",\"type\":\"address\"}],\"name\":\"BeaconUpgraded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"nullifier\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Claimed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferStarted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"implementation\",\"type\":\"address\"}],\"name\":\"Upgraded\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"acceptOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_proof\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"stateRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"chainId\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"noteIndex\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"nullifier\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"powDigest\",\"type\":\"bytes32\"}],\"internalType\":\"struct IShadow.PublicInput\",\"name\":\"_input\",\"type\":\"tuple\"}],\"name\":\"claim\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"etherMinter\",\"outputs\":[{\"internalType\":\"contract IEtherMinter\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nullifier\",\"outputs\":[{\"internalType\":\"contract INullifier\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"pendingOwner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"proxiableUUID\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"}],\"name\":\"upgradeTo\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"upgradeToAndCall\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"verifier\",\"outputs\":[{\"internalType\":\"contract IShadowVerifier\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"custom:security-contact\":\"security@taiko.xyz\",\"events\":{\"AdminChanged(address,address)\":{\"details\":\"Emitted when the admin account has changed.\"},\"BeaconUpgraded(address)\":{\"details\":\"Emitted when the beacon is changed.\"},\"Initialized(uint8)\":{\"details\":\"Triggered when the contract has been initialized or reinitialized.\"},\"Upgraded(address)\":{\"details\":\"Emitted when the implementation is upgraded.\"}},\"kind\":\"dev\",\"methods\":{\"acceptOwnership()\":{\"details\":\"The new owner accepts the ownership transfer.\"},\"constructor\":{\"custom:oz-upgrades-unsafe-allow\":\"constructor\"},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"pendingOwner()\":{\"details\":\"Returns the address of the pending owner.\"},\"proxiableUUID()\":{\"details\":\"Implementation of the ERC1822 {proxiableUUID} function. This returns the storage slot used by the implementation. It is used to validate the implementation's compatibility when performing an upgrade. IMPORTANT: A proxy pointing at a proxiable contract should not be considered proxiable itself, because this risks bricking a proxy that upgrades to it, by delegating to itself until out of gas. Thus it is critical that this function revert if invoked through a proxy. This is guaranteed by the `notDelegated` modifier.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one. Can only be called by the current owner.\"},\"upgradeTo(address)\":{\"custom:oz-upgrades-unsafe-allow-reachable\":\"delegatecall\",\"details\":\"Upgrade the implementation of the proxy to `newImplementation`. Calls {_authorizeUpgrade}. Emits an {Upgraded} event.\"},\"upgradeToAndCall(address,bytes)\":{\"custom:oz-upgrades-unsafe-allow-reachable\":\"delegatecall\",\"details\":\"Upgrade the implementation of the proxy to `newImplementation`, and subsequently execute the function call encoded in `data`. Calls {_authorizeUpgrade}. Emits an {Upgraded} event.\"}},\"stateVariables\":{\"etherMinter\":{\"custom:oz-upgrades-unsafe-allow\":\"state-variable-immutable\"},\"nullifier\":{\"custom:oz-upgrades-unsafe-allow\":\"state-variable-immutable\"},\"verifier\":{\"custom:oz-upgrades-unsafe-allow\":\"state-variable-immutable\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"claim(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))\":{\"notice\":\"Submits a proof and public inputs to mint ETH.\"},\"initialize(address)\":{\"notice\":\"Initializes the contract.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/impl/Shadow.sol\":\"Shadow\"},\"evmVersion\":\"prague\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":forge-std/=node_modules/forge-std/src/\"],\"viaIR\":true},\"sources\":{\"node_modules/@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol\":{\"keccak256\":\"0x9140dabc466abab21b48b72dbda26736b1183a310d0e677d3719d201df026510\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://75267b14b60dc216d01d596a4008189a6c44d3314e53eded0edb1e757d95be16\",\"dweb:/ipfs/QmQoMaxTRT6V7uQj9USfdQH9jh1crywB9auVjThzUSAbG2\"]},\"node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol\":{\"keccak256\":\"0x359a1ab89b46b9aba7bcad3fb651924baf4893d15153049b9976b0fc9be1358e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://e89863421b4014b96a4b62be76eb3b9f0a8afe9684664a6f389124c0964bfe5c\",\"dweb:/ipfs/Qmbk7xr1irpDuU1WdxXgxELBXxs61rHhCgod7heVcvFx16\"]},\"node_modules/@openzeppelin/contracts-upgradeable/interfaces/IERC1967Upgradeable.sol\":{\"keccak256\":\"0x47d6e06872b12e72c79d1b5eb55842f860b5fb1207b2317c2358d2766b950a7b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://ac55bf6f92fc7b90c6d79d346163a0a02bd5c648c7fede08b20e5da96d4ae2a0\",\"dweb:/ipfs/QmQoSrHhka35iKDK5iyNt8cuXXS5ANXVPjLhfsJjktB8V9\"]},\"node_modules/@openzeppelin/contracts-upgradeable/interfaces/draft-IERC1822Upgradeable.sol\":{\"keccak256\":\"0x77c89f893e403efc6929ba842b7ccf6534d4ffe03afe31670b4a528c0ad78c0f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://496bd9b3df2455d571018c09f0c6badd29713fdeb907c6aa09d8d28cb603f053\",\"dweb:/ipfs/QmXdJDyYs6WMwMh21dez2BYPxhSUaUYFMDtVNcn2cgFR79\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/ERC1967/ERC1967UpgradeUpgradeable.sol\":{\"keccak256\":\"0x7795808e3899c805254e3ae58074b20f799b466e3f43e057e47bedee5fb771f8\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://319853a2a682f3f72411507242669ef5e76e0ad3457be53102439709ee8948f0\",\"dweb:/ipfs/QmRtm4Ese9u4jfxXyuWPXLwzenwFotuQjAWV7rXtZTB1E9\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/beacon/IBeaconUpgradeable.sol\":{\"keccak256\":\"0x24b86ac8c005b8c654fbf6ac34a5a4f61580d7273541e83e013e89d66fbf0908\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://4dbfe1a3b3b3fb64294ce41fd2ad362e7b7012208117864f42c1a67620a6d5c1\",\"dweb:/ipfs/QmVMU5tWt7zBQMmf5cpMX8UMHV86T3kFeTxBTBjFqVWfoJ\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x89be10e757d242e9b18d5a32c9fbe2019f6d63052bbe46397a430a1d60d7f794\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f103ee2e4aecd37aac6ceefe670709cdd7613dee25fa2d4d9feaf7fc0aaa155e\",\"dweb:/ipfs/QmRiNZLoJk5k3HPMYGPGjZFd2ke1ZxjhJZkM45Ec9GH9hv\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol\":{\"keccak256\":\"0xefb41f5c1a00249b7a99f0782f8c557865605426a3fb6e5fe9ae334293ae4f33\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://90def55e5782595aabc13f57780c02d3613e5226f20ce6c1709503a63fdeb58f\",\"dweb:/ipfs/Qmb5vcymmNEZUJMaHmYxnhvGJDEsGMae4YjcHwkA74jy99\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol\":{\"keccak256\":\"0x9c80f545915582e63fe206c6ce27cbe85a86fc10b9cd2a0e8c9488fb7c2ee422\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://310136ad60820af4177a11a61d77a3686faf5fca4942b600e08fc940db38396b\",\"dweb:/ipfs/QmbCzMNSTL7Zi7M4UCSqBrkHtp4jjxUnGbkneCZKdR1qeq\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol\":{\"keccak256\":\"0x75097e35253e7fb282ee4d7f27a80eaacfa759923185bf17302a89cbc059c5ef\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://8b06267c5f80bad727af3e48b1382333d591dad51376399ef2f6b0ee6d58bf95\",\"dweb:/ipfs/QmdU5La1agcQvghnfMpWZGDPz2TUDTCxUwTLKmuMRXBpAx\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/StorageSlotUpgradeable.sol\":{\"keccak256\":\"0x07ac95acad040f1fb1f6120dd0aa5f702db69446e95f82613721879d30de0908\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://a9df9de7b5da1d1bd3d4b6c073d0174bc4211db60e794a321c8cb5d4eae34685\",\"dweb:/ipfs/QmWe49zj65jayrCe9jZpoWhYUZ1RiwSxyU2s7SBZnMztVy\"]},\"src/iface/IEtherMinter.sol\":{\"keccak256\":\"0xaab1e79680783dfbef9ea65ca0f4182e1976133941d73799ea05ef126847f6b4\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://cfc4b9b5c1eb3fcf2f4de2d361b745cfe0747bc0dfb10a314b4a8aabc90d7cfa\",\"dweb:/ipfs/QmZRJo51WN3rT7Uge3BncEPr1NBVPzA8t78GFevb2XnFDu\"]},\"src/iface/INullifier.sol\":{\"keccak256\":\"0x3ea77332368ac16614f69f8b083d62631e7c41f724d36a3d48dd90f51d126bea\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://cffd9977f6fa8854187e4204291754690cb96c8ace17a3e5767fcd6d7458fdb0\",\"dweb:/ipfs/QmRkTWZUwVa5ih8KPLPxC3ojpgdyPjizdxSPmugNZ5pDQ6\"]},\"src/iface/IShadow.sol\":{\"keccak256\":\"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd\",\"dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6\"]},\"src/iface/IShadowVerifier.sol\":{\"keccak256\":\"0x1c95b4d0a7c9ee9c437e3c9025376580ec979dfeabd490e92aed5805db85c238\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://cc40e22474c4dc0bab92f9fbdf729bad8c67542e1607e9e18baa3a48d6cebc66\",\"dweb:/ipfs/Qmb3R4aGT6EQZUP11kbV7hFo8w8i6dedNCKZxyajCuDr6h\"]},\"src/impl/Shadow.sol\":{\"keccak256\":\"0x56760d8263af85d924ba1341ef8c2b377a79e842d9da1aa1dc2e7b4893c02d72\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f02918daeae32d82a09043c6ab84d0d9e6044b157db0a737ec26938c698228e4\",\"dweb:/ipfs/QmTxfEuHHavyDJrSjYqdTxd8A8DWcGBcAt42WTUMWTANAk\"]},\"src/lib/OwnableUpgradeable.sol\":{\"keccak256\":\"0x5b07738ead7e7b3e77869d5319d758afb7ad4bc50b597ebfe29f019e157d2203\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://b231154e94e8630b936bac9acc1a45b66c101ee829106c5b637000cd850e628a\",\"dweb:/ipfs/QmVRbRDJRjqYSepnw4JGP4C3bnK3h5deHZmxuF77JKZ2ah\"]},\"src/lib/ShadowPublicInputs.sol\":{\"keccak256\":\"0x24d070fd5dcc8e748be31f8ef256511534946a67d3cfa418bce8578efa0f5079\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://1ecd7a43c442a20f614a9477bae7d81d9c1ac985a6468a25eea6342656319960\",\"dweb:/ipfs/QmWNGPBNX8Yd1hY41d55zEUaJzzoh14hQUJGBHLy6Rmsmz\"]}},\"version\":1}","metadata":{"compiler":{"version":"0.8.33+commit.64118f21"},"language":"Solidity","output":{"abi":[{"inputs":[{"internalType":"address","name":"_verifier","type":"address"},{"internalType":"address","name":"_etherMinter","type":"address"},{"internalType":"address","name":"_nullifier","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"uint256","name":"expected","type":"uint256"},{"internalType":"uint256","name":"actual","type":"uint256"}],"type":"error","name":"ChainIdMismatch"},{"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"type":"error","name":"InvalidAmount"},{"inputs":[{"internalType":"bytes32","name":"powDigest","type":"bytes32"}],"type":"error","name":"InvalidPowDigest"},{"inputs":[{"internalType":"address","name":"recipient","type":"address"}],"type":"error","name":"InvalidRecipient"},{"inputs":[],"type":"error","name":"ProofVerificationFailed"},{"inputs":[],"type":"error","name":"ZeroAddress"},{"inputs":[{"internalType":"address","name":"previousAdmin","type":"address","indexed":false},{"internalType":"address","name":"newAdmin","type":"address","indexed":false}],"type":"event","name":"AdminChanged","anonymous":false},{"inputs":[{"internalType":"address","name":"beacon","type":"address","indexed":true}],"type":"event","name":"BeaconUpgraded","anonymous":false},{"inputs":[{"internalType":"bytes32","name":"nullifier","type":"bytes32","indexed":true},{"internalType":"address","name":"recipient","type":"address","indexed":true},{"internalType":"uint256","name":"amount","type":"uint256","indexed":false}],"type":"event","name":"Claimed","anonymous":false},{"inputs":[{"internalType":"uint8","name":"version","type":"uint8","indexed":false}],"type":"event","name":"Initialized","anonymous":false},{"inputs":[{"internalType":"address","name":"previousOwner","type":"address","indexed":true},{"internalType":"address","name":"newOwner","type":"address","indexed":true}],"type":"event","name":"OwnershipTransferStarted","anonymous":false},{"inputs":[{"internalType":"address","name":"previousOwner","type":"address","indexed":true},{"internalType":"address","name":"newOwner","type":"address","indexed":true}],"type":"event","name":"OwnershipTransferred","anonymous":false},{"inputs":[{"internalType":"address","name":"implementation","type":"address","indexed":true}],"type":"event","name":"Upgraded","anonymous":false},{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"acceptOwnership"},{"inputs":[{"internalType":"bytes","name":"_proof","type":"bytes"},{"internalType":"struct IShadow.PublicInput","name":"_input","type":"tuple","components":[{"internalType":"uint64","name":"blockNumber","type":"uint64"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"uint256","name":"noteIndex","type":"uint256"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"address","name":"recipient","type":"address"},{"internalType":"bytes32","name":"nullifier","type":"bytes32"},{"internalType":"bytes32","name":"powDigest","type":"bytes32"}]}],"stateMutability":"nonpayable","type":"function","name":"claim"},{"inputs":[],"stateMutability":"view","type":"function","name":"etherMinter","outputs":[{"internalType":"contract IEtherMinter","name":"","type":"address"}]},{"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"stateMutability":"nonpayable","type":"function","name":"initialize"},{"inputs":[],"stateMutability":"view","type":"function","name":"nullifier","outputs":[{"internalType":"contract INullifier","name":"","type":"address"}]},{"inputs":[],"stateMutability":"view","type":"function","name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}]},{"inputs":[],"stateMutability":"view","type":"function","name":"pendingOwner","outputs":[{"internalType":"address","name":"","type":"address"}]},{"inputs":[],"stateMutability":"view","type":"function","name":"proxiableUUID","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}]},{"inputs":[],"stateMutability":"nonpayable","type":"function","name":"renounceOwnership"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"stateMutability":"nonpayable","type":"function","name":"transferOwnership"},{"inputs":[{"internalType":"address","name":"newImplementation","type":"address"}],"stateMutability":"nonpayable","type":"function","name":"upgradeTo"},{"inputs":[{"internalType":"address","name":"newImplementation","type":"address"},{"internalType":"bytes","name":"data","type":"bytes"}],"stateMutability":"payable","type":"function","name":"upgradeToAndCall"},{"inputs":[],"stateMutability":"view","type":"function","name":"verifier","outputs":[{"internalType":"contract IShadowVerifier","name":"","type":"address"}]}],"devdoc":{"kind":"dev","methods":{"acceptOwnership()":{"details":"The new owner accepts the ownership transfer."},"constructor":{"custom:oz-upgrades-unsafe-allow":"constructor"},"owner()":{"details":"Returns the address of the current owner."},"pendingOwner()":{"details":"Returns the address of the pending owner."},"proxiableUUID()":{"details":"Implementation of the ERC1822 {proxiableUUID} function. This returns the storage slot used by the implementation. It is used to validate the implementation's compatibility when performing an upgrade. IMPORTANT: A proxy pointing at a proxiable contract should not be considered proxiable itself, because this risks bricking a proxy that upgrades to it, by delegating to itself until out of gas. Thus it is critical that this function revert if invoked through a proxy. This is guaranteed by the `notDelegated` modifier."},"renounceOwnership()":{"details":"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner."},"transferOwnership(address)":{"details":"Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one. Can only be called by the current owner."},"upgradeTo(address)":{"custom:oz-upgrades-unsafe-allow-reachable":"delegatecall","details":"Upgrade the implementation of the proxy to `newImplementation`. Calls {_authorizeUpgrade}. Emits an {Upgraded} event."},"upgradeToAndCall(address,bytes)":{"custom:oz-upgrades-unsafe-allow-reachable":"delegatecall","details":"Upgrade the implementation of the proxy to `newImplementation`, and subsequently execute the function call encoded in `data`. Calls {_authorizeUpgrade}. Emits an {Upgraded} event."}},"version":1},"userdoc":{"kind":"user","methods":{"claim(bytes,(uint64,bytes32,uint256,uint256,uint256,address,bytes32,bytes32))":{"notice":"Submits a proof and public inputs to mint ETH."},"initialize(address)":{"notice":"Initializes the contract."}},"version":1}},"settings":{"remappings":["@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/","@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/","forge-std/=node_modules/forge-std/src/"],"optimizer":{"enabled":true,"runs":200},"metadata":{"bytecodeHash":"ipfs"},"compilationTarget":{"src/impl/Shadow.sol":"Shadow"},"evmVersion":"prague","libraries":{},"viaIR":true},"sources":{"node_modules/@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol":{"keccak256":"0x9140dabc466abab21b48b72dbda26736b1183a310d0e677d3719d201df026510","urls":["bzz-raw://75267b14b60dc216d01d596a4008189a6c44d3314e53eded0edb1e757d95be16","dweb:/ipfs/QmQoMaxTRT6V7uQj9USfdQH9jh1crywB9auVjThzUSAbG2"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol":{"keccak256":"0x359a1ab89b46b9aba7bcad3fb651924baf4893d15153049b9976b0fc9be1358e","urls":["bzz-raw://e89863421b4014b96a4b62be76eb3b9f0a8afe9684664a6f389124c0964bfe5c","dweb:/ipfs/Qmbk7xr1irpDuU1WdxXgxELBXxs61rHhCgod7heVcvFx16"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/interfaces/IERC1967Upgradeable.sol":{"keccak256":"0x47d6e06872b12e72c79d1b5eb55842f860b5fb1207b2317c2358d2766b950a7b","urls":["bzz-raw://ac55bf6f92fc7b90c6d79d346163a0a02bd5c648c7fede08b20e5da96d4ae2a0","dweb:/ipfs/QmQoSrHhka35iKDK5iyNt8cuXXS5ANXVPjLhfsJjktB8V9"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/interfaces/draft-IERC1822Upgradeable.sol":{"keccak256":"0x77c89f893e403efc6929ba842b7ccf6534d4ffe03afe31670b4a528c0ad78c0f","urls":["bzz-raw://496bd9b3df2455d571018c09f0c6badd29713fdeb907c6aa09d8d28cb603f053","dweb:/ipfs/QmXdJDyYs6WMwMh21dez2BYPxhSUaUYFMDtVNcn2cgFR79"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/proxy/ERC1967/ERC1967UpgradeUpgradeable.sol":{"keccak256":"0x7795808e3899c805254e3ae58074b20f799b466e3f43e057e47bedee5fb771f8","urls":["bzz-raw://319853a2a682f3f72411507242669ef5e76e0ad3457be53102439709ee8948f0","dweb:/ipfs/QmRtm4Ese9u4jfxXyuWPXLwzenwFotuQjAWV7rXtZTB1E9"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/proxy/beacon/IBeaconUpgradeable.sol":{"keccak256":"0x24b86ac8c005b8c654fbf6ac34a5a4f61580d7273541e83e013e89d66fbf0908","urls":["bzz-raw://4dbfe1a3b3b3fb64294ce41fd2ad362e7b7012208117864f42c1a67620a6d5c1","dweb:/ipfs/QmVMU5tWt7zBQMmf5cpMX8UMHV86T3kFeTxBTBjFqVWfoJ"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol":{"keccak256":"0x89be10e757d242e9b18d5a32c9fbe2019f6d63052bbe46397a430a1d60d7f794","urls":["bzz-raw://f103ee2e4aecd37aac6ceefe670709cdd7613dee25fa2d4d9feaf7fc0aaa155e","dweb:/ipfs/QmRiNZLoJk5k3HPMYGPGjZFd2ke1ZxjhJZkM45Ec9GH9hv"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol":{"keccak256":"0xefb41f5c1a00249b7a99f0782f8c557865605426a3fb6e5fe9ae334293ae4f33","urls":["bzz-raw://90def55e5782595aabc13f57780c02d3613e5226f20ce6c1709503a63fdeb58f","dweb:/ipfs/Qmb5vcymmNEZUJMaHmYxnhvGJDEsGMae4YjcHwkA74jy99"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol":{"keccak256":"0x9c80f545915582e63fe206c6ce27cbe85a86fc10b9cd2a0e8c9488fb7c2ee422","urls":["bzz-raw://310136ad60820af4177a11a61d77a3686faf5fca4942b600e08fc940db38396b","dweb:/ipfs/QmbCzMNSTL7Zi7M4UCSqBrkHtp4jjxUnGbkneCZKdR1qeq"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol":{"keccak256":"0x75097e35253e7fb282ee4d7f27a80eaacfa759923185bf17302a89cbc059c5ef","urls":["bzz-raw://8b06267c5f80bad727af3e48b1382333d591dad51376399ef2f6b0ee6d58bf95","dweb:/ipfs/QmdU5La1agcQvghnfMpWZGDPz2TUDTCxUwTLKmuMRXBpAx"],"license":"MIT"},"node_modules/@openzeppelin/contracts-upgradeable/utils/StorageSlotUpgradeable.sol":{"keccak256":"0x07ac95acad040f1fb1f6120dd0aa5f702db69446e95f82613721879d30de0908","urls":["bzz-raw://a9df9de7b5da1d1bd3d4b6c073d0174bc4211db60e794a321c8cb5d4eae34685","dweb:/ipfs/QmWe49zj65jayrCe9jZpoWhYUZ1RiwSxyU2s7SBZnMztVy"],"license":"MIT"},"src/iface/IEtherMinter.sol":{"keccak256":"0xaab1e79680783dfbef9ea65ca0f4182e1976133941d73799ea05ef126847f6b4","urls":["bzz-raw://cfc4b9b5c1eb3fcf2f4de2d361b745cfe0747bc0dfb10a314b4a8aabc90d7cfa","dweb:/ipfs/QmZRJo51WN3rT7Uge3BncEPr1NBVPzA8t78GFevb2XnFDu"],"license":"MIT"},"src/iface/INullifier.sol":{"keccak256":"0x3ea77332368ac16614f69f8b083d62631e7c41f724d36a3d48dd90f51d126bea","urls":["bzz-raw://cffd9977f6fa8854187e4204291754690cb96c8ace17a3e5767fcd6d7458fdb0","dweb:/ipfs/QmRkTWZUwVa5ih8KPLPxC3ojpgdyPjizdxSPmugNZ5pDQ6"],"license":"MIT"},"src/iface/IShadow.sol":{"keccak256":"0x8095d4aeeadebcea4d5f856ae01e1a367a6483c42af979592bf4e331b0257a5a","urls":["bzz-raw://244ec2d3241a96c72d892175e38032f98d71a934462d4f454fd265889babf1bd","dweb:/ipfs/QmZNmhBn5sn259BgyUAfKZMoEZZSverqQxZ1s2fRXQ5Ms6"],"license":"MIT"},"src/iface/IShadowVerifier.sol":{"keccak256":"0x1c95b4d0a7c9ee9c437e3c9025376580ec979dfeabd490e92aed5805db85c238","urls":["bzz-raw://cc40e22474c4dc0bab92f9fbdf729bad8c67542e1607e9e18baa3a48d6cebc66","dweb:/ipfs/Qmb3R4aGT6EQZUP11kbV7hFo8w8i6dedNCKZxyajCuDr6h"],"license":"MIT"},"src/impl/Shadow.sol":{"keccak256":"0x56760d8263af85d924ba1341ef8c2b377a79e842d9da1aa1dc2e7b4893c02d72","urls":["bzz-raw://f02918daeae32d82a09043c6ab84d0d9e6044b157db0a737ec26938c698228e4","dweb:/ipfs/QmTxfEuHHavyDJrSjYqdTxd8A8DWcGBcAt42WTUMWTANAk"],"license":"MIT"},"src/lib/OwnableUpgradeable.sol":{"keccak256":"0x5b07738ead7e7b3e77869d5319d758afb7ad4bc50b597ebfe29f019e157d2203","urls":["bzz-raw://b231154e94e8630b936bac9acc1a45b66c101ee829106c5b637000cd850e628a","dweb:/ipfs/QmVRbRDJRjqYSepnw4JGP4C3bnK3h5deHZmxuF77JKZ2ah"],"license":"MIT"},"src/lib/ShadowPublicInputs.sol":{"keccak256":"0x24d070fd5dcc8e748be31f8ef256511534946a67d3cfa418bce8578efa0f5079","urls":["bzz-raw://1ecd7a43c442a20f614a9477bae7d81d9c1ac985a6468a25eea6342656319960","dweb:/ipfs/QmWNGPBNX8Yd1hY41d55zEUaJzzoh14hQUJGBHLy6Rmsmz"],"license":"MIT"}},"version":1},"id":49}
+[2026-01-22T13:29:01] tokens used: 20,483
+
+[2026-01-22T13:29:05] thinking
+
+**Considering circuit verifier contract**
+
+There's not much else to consider. I realize that the actual circuit verifier contract is external and not in the source. So, my review will focus mainly on the wrapper and how to format public inputs. I think I need to check the compiled output of ShadowPublicInputs for any offsets, but maybe it’s not necessary. I could also take a look at the foundry configuration, though it seems that’s not needed right now. I’ll dive into the plan skill file next.
+[2026-01-22T13:29:07] exec sh -lc "sed -n '1,200p' /Users/d/.code/skills/.system/plan/SKILL.md" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:29:07] sh -lc "sed -n '1,200p' /Users/d/.code/skills/.system/plan/SKILL.md" succeeded in 16ms:
+---
+name: plan
+description: Generate a plan for how an agent should accomplish a complex coding task. Use when a user asks for a plan, and optionally when they want to save, find, read, update, or delete plan files in $CODEX_HOME/plans (default ~/.codex/plans).
+metadata:
+  short-description: Generate a plan for a complex task
+---
+
+# Plan
+
+## Overview
+
+Draft structured plans that clarify intent, scope, requirements, action items, testing/validation, and risks.
+
+Optionally, save plans to disk as markdown files with YAML frontmatter and free-form content. When drafting in chat, output only the plan body without frontmatter; add frontmatter only when saving to disk. Only write to the plans folder; do not modify the repository codebase.
+
+This skill can also be used to draft codebase or system overviews.
+
+## Core rules
+
+- Resolve the plans directory as `$CODEX_HOME/plans` or `~/.codex/plans` when `CODEX_HOME` is not set.
+[2026-01-22T13:29:07] tokens used: 22,474
+
+[2026-01-22T13:29:37] thinking
+
+**Searching for contract implementation**
+
+I'm getting ready to look for the contract that implements ICircuitVerifier. The next step is to start the search process. I want to ensure I'm thorough, so I'll focus on finding all relevant information. I’ll make sure to check multiple sources to get the best understanding. Okay, let's see what I can uncover about this contract and its implementation!
+[2026-01-22T13:29:39] exec sh -lc "rg -n \"contract\\s+\\w+\\s+is\\s+ICircuitVerifier|verifyProof\\(bytes calldata, uint256\\[] calldata\\)\" -S .. | head -n 200" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:29:39] sh -lc "rg -n \"contract\\s+\\w+\\s+is\\s+ICircuitVerifier|verifyProof\\(bytes calldata, uint256\\[] calldata\\)\" -S .. | head -n 200" succeeded in 25ms:
+../contracts/test/mocks/MockCircuitVerifier.sol:6:contract MockCircuitVerifier is ICircuitVerifier {
+../contracts/test/mocks/MockCircuitVerifier.sol:13:    function verifyProof(bytes calldata, uint256[] calldata) external view returns (bool _isValid_) {
+[2026-01-22T13:29:39] tokens used: 25,608
+
+[2026-01-22T13:29:45] thinking
+
+**Planning circuit verification**
+
+I'm trying to figure out the actual verifier location since it seems to be separate from the monorepo. I need a plan to consult the circuit repo, especially about verifying the key. Since I'm in a sandbox without network access, I might need to search packages more upward. It looks like I've only found results in the contracts directory, but I have to dig deeper. The plan should include identifying the actual circuit verifier implementation and its assumptions, so I’ll start looking for "circuitVerifier" usage.
+[2026-01-22T13:29:48] exec sh -lc 'rg -n "circuitVerifier|ShadowPublicInputs|PUBLIC_INPUTS_LEN|powDigest" -S .. | head -n 200' in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:29:48] sh -lc 'rg -n "circuitVerifier|ShadowPublicInputs|PUBLIC_INPUTS_LEN|powDigest" -S .. | head -n 200' succeeded in 24ms:
+../docs/plans/2026-01-19-shadow-redesign-design.md:38:`nullifier`, `powDigest` (or equivalent bits).
+../docs/plans/2026-01-19-shadow-redesign-design.md:49:8. `powDigest`
+../docs/PRD.md:77:`nullifier`, `powDigest` (or equivalent bits).
+../docs/PRD.md:88:8. `powDigest`
+../contracts/src/lib/ShadowPublicInputs.sol:8:library ShadowPublicInputs {
+../contracts/src/lib/ShadowPublicInputs.sol:9:    uint256 private constant _PUBLIC_INPUTS_LEN = 120;
+../contracts/src/lib/ShadowPublicInputs.sol:23:        inputs_ = new uint256[](_PUBLIC_INPUTS_LEN);
+../contracts/src/lib/ShadowPublicInputs.sol:35:        _writeBytes32(inputs_, _IDX_POW_DIGEST, _input.powDigest);
+../contracts/src/lib/ShadowPublicInputs.sol:39:    function powDigestIsValid(bytes32 _powDigest) internal pure returns (bool) {
+../contracts/src/lib/ShadowPublicInputs.sol:40:        return (uint256(_powDigest) & _POW_MASK) == 0;
+../contracts/src/iface/IShadow.sol:15:        bytes32 powDigest;
+../contracts/src/iface/IShadow.sol:22:    error InvalidPowDigest(bytes32 powDigest);
+../contracts/src/impl/Shadow.sol:9:import {ShadowPublicInputs} from "../lib/ShadowPublicInputs.sol";
+../contracts/src/impl/Shadow.sol:41:        require(ShadowPublicInputs.powDigestIsValid(_input.powDigest), InvalidPowDigest(_input.powDigest));
+../contracts/src/impl/ShadowVerifier.sol:8:import {ShadowPublicInputs} from "../lib/ShadowPublicInputs.sol";
+../contracts/src/impl/ShadowVerifier.sol:13:    ICircuitVerifier public immutable circuitVerifier;
+../contracts/src/impl/ShadowVerifier.sol:16:    constructor(address _checkpointStore, address _circuitVerifier) {
+../contracts/src/impl/ShadowVerifier.sol:18:        require(_circuitVerifier != address(0), ZeroAddress());
+../contracts/src/impl/ShadowVerifier.sol:20:        circuitVerifier = ICircuitVerifier(_circuitVerifier);
+../contracts/src/impl/ShadowVerifier.sol:32:        uint256[] memory publicInputs = ShadowPublicInputs.toArray(_input);
+[2026-01-22T13:29:48] tokens used: 26,078
+
+[2026-01-22T13:29:51] thinking
+
+**Inspecting circuits directory**
+
+I discovered that there's a circuits directory in the parent folder. Awesome! The path `../circuits/` contains circom files, so I'll take a look at the documentation for public inputs mapping to see if there's a match. First, I plan to examine the README and Shadow.circom files. I'll focus on the mapping and endianness aspects as I open `../circuits/circuits/shadow/README.md` and maybe circuits.json. I'll probably use sed for this.
+[2026-01-22T13:29:54] exec sh -lc "sed -n '1,200p' ../circuits/circuits/shadow/README.md && echo '---' && sed -n '1,220p' ../circuits/circuits/shadow/Shadow.circom && echo '---' && cat ../circuits/circuits.json | head -n 120" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:29:54] sh -lc "sed -n '1,200p' ../circuits/circuits/shadow/README.md && echo '---' && sed -n '1,220p' ../circuits/circuits/shadow/Shadow.circom && echo '---' && cat ../circuits/circuits.json | head -n 120" succeeded in 20ms:
+# Shadow Circuit
+
+This directory contains the Shadow circuit implementation for privacy-preserving ETH claims.
+
+## Circuit Overview
+
+| Property | Value |
+|----------|-------|
+| Constraints | ~81M |
+| Proving System | PLONK (BN128) |
+| Witness Calculator | C++ (native) |
+
+## What the Circuit Proves
+
+1. **Note Validation**: Notes are valid (count 1-10, amounts > 0, sum ≤ 32 ETH)
+2. **Target Address Derivation**: `targetAddress = sha256(MAGIC || chainId || secret || notesHash)[12:]`
+3. **Recipient Binding**: Selected note's recipientHash matches `sha256(MAGIC || recipient)`
+4. **State Root Binding**: Public `stateRoot` matches the provider result for `blockNumber`
+5. **MPT Account Proof**: Verify account proof under stateRoot for targetAddress
+6. **Balance Check**: `accountBalance >= totalNoteSum`
+[2026-01-22T13:29:54] tokens used: 27,710
+[2026-01-22T13:30:02] exec sh -lc "sed -n '1,220p' ../circuits/test/audit.test.ts && echo '---' && rg -n \"function bytesToCircuitInput|bytesToCircuitInput\" -S ../circuits/test ../circuits/src ../circuits | head -n 50" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:30:02] sh -lc "sed -n '1,220p' ../circuits/test/audit.test.ts && echo '---' && rg -n \"function bytesToCircuitInput|bytesToCircuitInput\" -S ../circuits/test ../circuits/src ../circuits | head -n 50" succeeded in 23ms:
+import { describe, it, expect } from "vitest";
+import blockFixture from "../fixtures/mainnet/block-19000000.json" assert { type: "json" };
+import accountFixture from "../fixtures/mainnet/account-vitalik.json" assert { type: "json" };
+import {
+  generateWitnessInput,
+  computeRecipientHash,
+  computeNotesHash,
+  deriveTargetAddress,
+  deriveNullifier,
+  computePowDigest,
+  hexToBytes,
+  bytesToHex,
+  Note,
+} from "../src/witness";
+import { bytesToCircuitInput } from "../src/format";
+import type { StateRootInput } from "../src/witness";
+import type { EthGetProofResponse } from "../src/eth-proof";
+
+const recipient = "0x0000000000000000000000000000000000000001";
+const secretHex = "0x000000000000000000000000000000000000000000000000000000000041b770";
+[2026-01-22T13:30:02] tokens used: 31,845
+[2026-01-22T13:30:07] exec sh -lc "sed -n '1,120p' ../circuits/src/format.ts" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:30:07] sh -lc "sed -n '1,120p' ../circuits/src/format.ts" succeeded in 13ms:
+export function bytesToCircuitInput(bytes: Uint8Array): string[] {
+  return Array.from(bytes, (b) => b.toString());
+}
+
+export function padArray<T>(values: readonly T[], length: number, fill: T | (() => T)): T[] {
+  const result = [...values];
+  const filler = typeof fill === "function" ? (fill as () => T) : () => clone(fill);
+
+  while (result.length < length) {
+    result.push(filler());
+  }
+
+  return result;
+}
+
+function clone<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return [...value] as T;
+  }
+  if (value && typeof value === "object") {
+[2026-01-22T13:30:07] tokens used: 33,673
+[2026-01-22T13:30:18] exec sh -lc "rg -n \"template\\s+PowChecker|PowChecker\\(\" ../circuits/circuits -S | head -n 50" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:30:18] sh -lc "rg -n \"template\\s+PowChecker|PowChecker\\(\" ../circuits/circuits -S | head -n 50" succeeded in 21ms:
+../circuits/circuits/lib/address.circom:122:template PowChecker() {
+../circuits/circuits/shadow/Shadow.circom:114:    component powCheck = PowChecker();
+[2026-01-22T13:30:18] tokens used: 34,468
+[2026-01-22T13:30:21] exec sh -lc "sed -n '90,190p' ../circuits/circuits/lib/address.circom" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:30:21] sh -lc "sed -n '90,190p' ../circuits/circuits/lib/address.circom" succeeded in 21ms:
+
+    var magic[32] = MAGIC_NULLIFIER();
+
+    component chainIdBytes = Uint256ToBytes32();
+    chainIdBytes.in <== chainId;
+
+    component indexBytes = Uint256ToBytes32();
+    indexBytes.in <== noteIndex;
+
+    // Build input: MAGIC (32) || chainId (32) || secret (32) || index (32) = 128 bytes
+    component sha = Sha256BytesToBytes32(128);
+
+    for (var i = 0; i < 32; i++) {
+        sha.in[i] <== magic[i];
+    }
+    for (var i = 0; i < 32; i++) {
+        sha.in[32 + i] <== chainIdBytes.out[i];
+    }
+    for (var i = 0; i < 32; i++) {
+        sha.in[64 + i] <== secret[i];
+[2026-01-22T13:30:21] tokens used: 34,736
+[2026-01-22T13:30:29] exec sh -lc "rg -n \"contract\\s+\\w*Verifier|verifyProof\\(\" ../circuits -S | head -n 80" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:30:29] sh -lc "rg -n \"contract\\s+\\w*Verifier|verifyProof\\(\" ../circuits -S | head -n 80" succeeded in 21ms:
+[2026-01-22T13:30:29] tokens used: 35,897
+
+[2026-01-22T13:30:34] thinking
+
+**Verifying circuit integrity**
+
+I’m realizing there could be issues with circuit solidity—like they might just be generated at build time rather than being fully committed. My plan has to include verifying that the generated verifier uses a matching public signal order and count. I think there might be a `circomkit` output that includes a JSON file, although it may not be in the repo. I also want to check other documents, like docs/PRD.md, for information on circuit public input order and semantics.
+[2026-01-22T13:30:37] exec sh -lc "sed -n '1,200p' ../docs/PRD.md && echo '---' && sed -n '1,120p' ../docs/plans/2026-01-19-shadow-redesign-design.md" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:30:37] sh -lc "sed -n '1,200p' ../docs/PRD.md && echo '---' && sed -n '1,120p' ../docs/plans/2026-01-19-shadow-redesign-design.md" succeeded in 45ms:
+# Shadow Dapp Design (Redesign)
+
+## Overview
+
+- Goal: build a privacy-forward claim system on Taiko that does not rely
+  on burn events. A claim is authorized by proving that a derived target
+  address holds enough ETH in a recent L1 block.
+- Users define a note set up front: 1-10 notes, each with a non-zero wei
+  amount and a recipient binding. Notes are immutable once created.
+- The target address is derived from `(secret, chainId, notes[])` and
+  funded via normal transfers (no burn event).
+- A ZK proof shows the target address balance covers the total note sum
+  and that the claimed note matches the recipient binding. On-chain
+  verification relies on a recent state root from `IStateRootProvider`.
+
+## User & Data Flow
+
+1. Note creation
+
+   - User chooses 1-10 notes. Each note has `amount > 0`, and the total sum
+[2026-01-22T13:30:37] tokens used: 36,208
+
+[2026-01-22T13:30:50] thinking
+
+**Identifying potential issues**
+
+I'm checking the plan for potential issues, like comment mismatches between "leading" and trailing bits. I should look into blockNumber type mismatches, particularly between uint64 and checkpointStore uint48. I also need to verify the stateRoot check—if checkpointStore may return zero and could allow claims. With public inputs, I’m assessing if the circuit verifier expects them differently, and I’ll ensure that contract uses and byte values align correctly. Lastly, I’ll make sure generated verifiers can handle the public inputs.
+**Evaluating contract constraints**
+
+I’m looking at the contract and noticing that it doesn’t enforce an amount limit beyond being greater than zero. The circuit assures that the claimed amount matches a note and that the total is less than or equal to 32 ETH. However, since the contract itself isn’t checking this, if there’s a flaw in the proof, it could lead to a huge overflow issue. I should plan to validate circuit constraints related to amounts and note counts, as well as ensuring the uniqueness of nullifiers to avoid double spending.
+**Assessing nullifier safety**
+
+I'm considering the possible risks if the nullifier isn’t derived correctly—it could allow someone to replay claims. If the nullifier is constant or small, it might cause issues like locking. The proof should ensure safety, and the nullifier gets consumed after verification. But if etherMinter.mintEther is called externally and fails, the nullifier might be consumed unnecessarily. I'll also think about reentrancy risks; it seems low, but if it happens, it could lead to attempts to consume the same nullifier again.
+**Evaluating reentrancy risks**
+
+I’m pondering whether reentrancy could lead to double minting with different nullifiers during the same transaction. It seems possible, but each proof must validate, and the reentrant call could potentially bypass state. Still, it might be okay since each atomic claim for multiple proofs is allowed. I need to ensure the circuit uses the state root provider correctly. The state root needs to match the checkpoint store for the block number, so I plan to inspect the documentation for the checkpoint store further.
+**Verifying expected semantics**
+
+I need to clarify the expected semantics around whether it returns zero for missing values or reverts. I’m particularly interested in whether the state root refers to the last L2 block in the proposal or the L1 state root. The ICheckpointStore mentions the block hash for the end L2 block, suggesting it refers to the L2 state root, but then there's a conflict since the circuits README states it’s L1. I need to check the relevant documentation to ensure I understand the checkpoints correctly and verify if the claims are indeed deployed on L2 as well.
+
+
+
+
+[2026-01-22T13:31:13] exec sh -lc "rg -n \"interface ICheckpointStore|contract .*CheckpointStore|getCheckpoint\\(\" -S ../.. | head -n 120" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:31:13] sh -lc "rg -n \"interface ICheckpointStore|contract .*CheckpointStore|getCheckpoint\\(\" -S ../.. | head -n 120" succeeded in 45ms:
+../../packages/contracts/src/iface/ICheckpointStore.sol:7:interface ICheckpointStore {
+../../packages/contracts/src/iface/ICheckpointStore.sol:21:    function getCheckpoint(uint48 _blockNumber) external view returns (Checkpoint memory);
+../../packages/contracts/src/impl/ShadowVerifier.sol:29:        bytes32 expectedStateRoot = checkpointStore.getCheckpoint(uint48(_input.blockNumber)).stateRoot;
+../../packages/contracts/test/mocks/MockCheckpointStore.sol:6:contract MockCheckpointStore is ICheckpointStore {
+../../packages/contracts/test/mocks/MockCheckpointStore.sol:17:    function getCheckpoint(uint48 _blockNumber) external view returns (Checkpoint memory) {
+[2026-01-22T13:31:13] tokens used: 40,807
+
+[2026-01-22T13:31:31] thinking
+
+**Examining chainId consistency**
+
+I'm noticing that tests in contracts use `chainId: block.chainid`, which defaults to 31337 in Foundry. That makes it inconsistent for the circuits package, where it tests with 1. Next, I need to verify whether the `chainId` in the circuit refers to L1 or L2. The README mentions it’s for replay protection but lacks specifics. I’ll ensure that the offchain witness builder matches the same `chainId` for consistent proof verification. I'll want to check `circuits/src/witness.ts` for how it handles the `chainId` parameter.
+[2026-01-22T13:31:34] exec sh -lc "sed -n '1,220p' ../circuits/src/witness.ts" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:31:34] sh -lc "sed -n '1,220p' ../circuits/src/witness.ts" succeeded in 39ms:
+/**
+ * Shadow Protocol Witness Generation Utilities
+ *
+ * Consumes Ethereum execution data (block headers + `eth_getProof` responses)
+ * and produces circuit-ready witnesses for the Shadow circom circuit.
+ */
+
+import { hexToBytes, bytesToHex, keccak256 } from "./utils";
+import { EthGetProofResponse, parseAccountProof } from "./eth-proof";
+import { MAGIC, CONSTANTS, CIRCUIT_LIMITS } from "./constants";
+import { bytesToCircuitInput, padArray } from "./format";
+import {
+  Note,
+  bigintToBytes32,
+  computeNotesHash,
+  computeRecipientHash,
+  deriveNullifier,
+  deriveTargetAddress,
+  computePowDigest,
+  findValidSecret,
+[2026-01-22T13:31:34] tokens used: 42,723
+
+[2026-01-22T13:31:50] thinking
+
+**Searching repository for references**
+
+I need to search the entire repository for "CheckpointStore." So, I’ll start by using `rg -n "CheckpointStore" ../../../`. It seems like running that command will help me locate all occurrences efficiently. To narrow it down, I’ll use `-S` to include subdirectories and limit the output with `| head` so I can see only the first few results. This should give me a clearer picture of where "CheckpointStore" is being referenced in the code.
+[2026-01-22T13:31:53] exec sh -lc "rg -n \"CheckpointStore|getCheckpoint\\(\" -S ../../../ | head -n 120" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:31:53] sh -lc "rg -n \"CheckpointStore|getCheckpoint\\(\" -S ../../../ | head -n 120" succeeded in 123ms:
+../../../shadow/packages/contracts/src/iface/ICheckpointStore.sol:4:/// @title ICheckpointStore
+../../../shadow/packages/contracts/src/iface/ICheckpointStore.sol:7:interface ICheckpointStore {
+../../../shadow/packages/contracts/src/iface/ICheckpointStore.sol:21:    function getCheckpoint(uint48 _blockNumber) external view returns (Checkpoint memory);
+../../../shadow/packages/contracts/src/impl/ShadowVerifier.sol:4:import {ICheckpointStore} from "../iface/ICheckpointStore.sol";
+../../../shadow/packages/contracts/src/impl/ShadowVerifier.sol:14:    ICheckpointStore public immutable checkpointStore;
+../../../shadow/packages/contracts/src/impl/ShadowVerifier.sol:19:        checkpointStore = ICheckpointStore(_checkpointStore);
+../../../shadow/packages/contracts/src/impl/ShadowVerifier.sol:29:        bytes32 expectedStateRoot = checkpointStore.getCheckpoint(uint48(_input.blockNumber)).stateRoot;
+../../../shadow/packages/contracts/test/Shadow.t.sol:12:import {MockCheckpointStore} from "./mocks/MockCheckpointStore.sol";
+../../../shadow/packages/contracts/test/Shadow.t.sol:15:    MockCheckpointStore internal checkpointStore;
+../../../shadow/packages/contracts/test/Shadow.t.sol:22:        checkpointStore = new MockCheckpointStore();
+../../../shadow/packages/contracts/test/ShadowVerifier.t.sol:9:import {MockCheckpointStore} from "./mocks/MockCheckpointStore.sol";
+../../../shadow/packages/contracts/test/ShadowVerifier.t.sol:12:    MockCheckpointStore internal checkpointStore;
+../../../shadow/packages/contracts/test/ShadowVerifier.t.sol:17:        checkpointStore = new MockCheckpointStore();
+../../../shadow/packages/contracts/test/mocks/MockCheckpointStore.sol:4:import {ICheckpointStore} from "../../src/iface/ICheckpointStore.sol";
+../../../shadow/packages/contracts/test/mocks/MockCheckpointStore.sol:6:contract MockCheckpointStore is ICheckpointStore {
+../../../shadow/packages/contracts/test/mocks/MockCheckpointStore.sol:17:    function getCheckpoint(uint48 _blockNumber) external view returns (Checkpoint memory) {
+../../../taiko-mono/packages/protocol/test/genesis/GenerateGenesis.g.sol:12:import "src/shared/signal/ICheckpointStore.sol";
+../../../taiko-mono/packages/protocol/test/genesis/GenerateGenesis.g.sol:312:            ICheckpointStore.Checkpoint({
+../../../taiko-mono/packages/protocol/test/genesis/GenerateGenesis.g.sol:320:            ICheckpointStore.Checkpoint({
+../../../taiko-mono/packages/taiko-client/bindings/shasta/gen_shasta_anchor.go:38:// ICheckpointStoreCheckpoint is an auto generated low-level Go binding around an user-defined struct.
+[2026-01-22T13:31:53] tokens used: 45,159
+
+[2026-01-22T13:31:59] thinking
+
+**Exploring taiko-mono**
+
+I noticed there's a sibling repo called taiko-mono in the path ../../../taiko-mono, which suggests it’s in the same Projects/taiko directory. Since it's local, I can read it. The relevant contract files I'll check are located in `taiko-mono/packages/protocol/contracts/...` and `src/shared/signal/ICheckpointStore.sol`. These likely define the same interface and semantics, probably concerning "SignalService." I need to open that file to confirm details about checkpoints, state roots, and whether the state root pertains to L1 or L2.
+[2026-01-22T13:32:03] exec sh -lc "sed -n '1,220p' ../../../taiko-mono/packages/protocol/contracts/src/shared/signal/ICheckpointStore.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:32:03] sh -lc "sed -n '1,220p' ../../../taiko-mono/packages/protocol/contracts/src/shared/signal/ICheckpointStore.sol" exited 1 in 40ms:
+ERROR
+sed: ../../../taiko-mono/packages/protocol/contracts/src/shared/signal/ICheckpointStore.sol: No such file or directory
+[2026-01-22T13:32:03] tokens used: 46,991
+
+[2026-01-22T13:32:07] thinking
+
+**Locating file issues**
+
+I'm tracing the path from grep to find an import: it starts at "../../../taiko-mono/packages/protocol/contracts/layer1/core/impl/Inbox.sol", which imports "src/shared/signal/ICheckpointStore.sol". So, I think the actual file should be in `../../../taiko-mono/packages/protocol/contracts/src/shared/signal/ICheckpointStore.sol`. However, my sed command says there's no file. Maybe it’s because the directory structure isn’t what I expect. I need to check with `ls`, and using tools like `rg` or `fd` could help me locate it in taiko-mono.
+[2026-01-22T13:32:13] exec sh -lc 'ls -la ../../../taiko-mono/packages/protocol/contracts/src/shared/signal 2>/dev/null || true; fd -a "ICheckpointStore.sol" ../../../taiko-mono/packages/protocol/contracts | head -n 20' in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:32:13] sh -lc 'ls -la ../../../taiko-mono/packages/protocol/contracts/src/shared/signal 2>/dev/null || true; fd -a "ICheckpointStore.sol" ../../../taiko-mono/packages/protocol/contracts | head -n 20' succeeded in 44ms:
+[2026-01-22T13:32:13] tokens used: 47,401
+[2026-01-22T13:32:18] exec sh -lc "find ../../../taiko-mono -path '*ICheckpointStore.sol' -print | head -n 50" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:32:21] sh -lc "find ../../../taiko-mono -path '*ICheckpointStore.sol' -print | head -n 50" succeeded in 3s:
+../../../taiko-mono/packages/protocol/out/layer1/ICheckpointStore.sol
+../../../taiko-mono/packages/protocol/out/ICheckpointStore.sol
+../../../taiko-mono/packages/protocol/out/shared/ICheckpointStore.sol
+../../../taiko-mono/packages/protocol/out/layer2/ICheckpointStore.sol
+../../../taiko-mono/packages/protocol/contracts/shared/signal/ICheckpointStore.sol
+[2026-01-22T13:32:21] tokens used: 47,647
+[2026-01-22T13:32:25] exec sh -lc "sed -n '1,220p' ../../../taiko-mono/packages/protocol/contracts/shared/signal/ICheckpointStore.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:32:25] sh -lc "sed -n '1,220p' ../../../taiko-mono/packages/protocol/contracts/shared/signal/ICheckpointStore.sol" succeeded in 20ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+/// @title ICheckpointStore
+/// @notice Interface for storing and retrieving checkpoints
+/// @custom:security-contact security@taiko.xyz
+interface ICheckpointStore {
+    // ---------------------------------------------------------------
+    // Structs
+    // ---------------------------------------------------------------
+
+    /// @notice Represents a synced checkpoint
+    struct Checkpoint {
+        /// @notice The block number associated with the checkpoint.
+        uint48 blockNumber;
+        /// @notice The block hash for the end (last) L2 block in this proposal.
+        bytes32 blockHash;
+        /// @notice The state root for the end (last) L2 block in this proposal.
+        bytes32 stateRoot;
+    }
+[2026-01-22T13:32:25] tokens used: 48,953
+
+[2026-01-22T13:32:47] thinking
+
+**Inspecting EtherMinter function**
+
+I’m considering if the target address is on L2 and whether I can fund it through normal transfers before claiming a withdrawal. It seems like claiming could mint ETH to the recipient, indicating it’s not just transferring existing funds but minting from a pool. I’m wondering if EtherMinter can mint “L2 preconfirmed ETH” from the bridge. I’ll need to inspect the `src/iface/IEtherMinter.sol` file to check the comments for clarification.
+[2026-01-22T13:32:50] exec sh -lc "sed -n '1,200p' src/iface/IEtherMinter.sol" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:32:50] sh -lc "sed -n '1,200p' src/iface/IEtherMinter.sol" succeeded in 13ms:
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+/// @custom:security-contact security@taiko.xyz
+
+interface IEtherMinter {
+    /// @notice Mints canonical ETH to the specified recipient.
+    function mintEther(address _recipient, uint256 _amount) external;
+}
+[2026-01-22T13:32:50] tokens used: 50,408
+
+[2026-01-22T13:32:58] thinking
+
+**Evaluating contract checks**
+
+There seems to be an inconsistency in the documentation regarding the claim contract checks against the block hash. The review plan needs to integrate the circuits package for checking and mapping. 
+
+I'll map the on-chain flow, confirm public inputs, identify any checks that may overlap, and clarify checkpoint store semantics. Additionally, I need to validate the proof verification contract to ensure it aligns with expected parameters and deployment details. This is quite a thorough assessment!
+**Planning test review**
+
+I need to review the tests to identify what's covered and what's missing. Right now, it seems there are only mocks and no proof fixture tests. It's important to pinpoint the missing integration tests that involve real proof, public inputs, and ensure the toArray mapping is correct, along with checks for the POW bit aligning with the circuit's last bytes. 
+
+The user just wants a plan, not code, and I’ll need to document my findings in a new REVIEW_RESULT.md with specific sections.
+**Outlining circuit handling pointers**
+
+I should highlight some useful pointers about circuit handling. For instance, public signal flattening will include elements like block number, state root bytes, and others, totaling 120 elements. 
+
+The circuit requires bytes in their natural order, and the contract uses `_value[i]` that matches `bytesToCircuitInput`. Additionally, the PoW check ensures the last three bytes are zero. Each uint256 must fit the bn128 field prime, but since the values are small, that's fine. 
+
+I’ll produce a plan for reviewing and writing REVIEW_RESULT.md, noting that no other files should be modified and potentially including tasks like `pnpm contracts:test`.
+**Planning the review process**
+
+I need to create a plan for conducting the review and documenting findings in a new REVIEW_RESULT.md file, without modifying any other files.
+
+Since the user specifically requested just the plan, I won't include any code changes. I'll start the plan with "# Plan" and provide requirements, scope, file references, and action items with checkboxes. It’s important to include testing, validation, and risks, as this is more of an analysis task rather than implementation. Although we're in sandbox mode and can't create files, I can still outline the process for the review.
+**Drafting the review plan**
+
+I’ll outline the steps for creating the REVIEW_RESULT.md file based on my analysis of circuit handling. First, I’ll emphasize that testing and validation will involve confirming mapping with the witness package and matching public inputs. 
+
+The plan will consist of action items ordered as follows: 1) Establish specifications from circuit docs and code; 2) Map public inputs; 3) Review on-chain checks; 4) Review the interface with the circuit verifier; 5) Review tests; 6) Draft REVIEW_RESULT.md; 7) Validate commands. 
+
+I'll mention necessary files and documentation while keeping my pointers concise.
+
+
+
+
+[2026-01-22T13:33:28] exec sh -lc "cat ../circuits/package.json | jq -r '.name, .scripts'" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:33:28] sh -lc "cat ../circuits/package.json | jq -r '.name, .scripts'" succeeded in 53ms:
+shadow-circuits
+{
+  "compile": "circomkit compile shadow",
+  "compile:test": "circomkit compile keccak_test && circomkit compile mpt_test && circomkit compile rlp_test",
+  "compile:all": "circomkit compile --all",
+  "setup": "circomkit setup shadow",
+  "prove": "circomkit prove shadow",
+  "verify": "circomkit verify shadow",
+  "clean": "circomkit clean shadow && rm -rf build/",
+  "generate-verifier": "node scripts/generate-verifier.js",
+  "export-calldata": "node scripts/export-proof-calldata.js",
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:unit": "vitest run --testPathPattern='(keccak|mpt|rlp|witness|eth-proof|block-header)'",
+  "test:integration": "vitest run --testPathPattern='integration'",
+  "ptau:download": "node scripts/download-ptau.js",
+  "full-build": "pnpm ptau:download && pnpm compile && pnpm setup && pnpm generate-verifier"
+}
+[2026-01-22T13:33:28] tokens used: 52,568
+
+[2026-01-22T13:33:31] thinking
+
+**Inspecting verifier generation**
+
+It seems like the `generate-verifier` function is meant to create a Solidity verifier contract, which could be used by the contracts package. I need to take a look at the `generate-verifier` script to understand the mappings and how it all fits together. I'll quickly read through the `../circuits/scripts/generate-verifier.js` file to gather the necessary information. I'm wondering what insights I'll uncover as I dig into it!
+[2026-01-22T13:33:34] exec sh -lc "sed -n '1,220p' ../circuits/scripts/generate-verifier.js" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:33:34] sh -lc "sed -n '1,220p' ../circuits/scripts/generate-verifier.js" succeeded in 40ms:
+#!/usr/bin/env node
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import snarkjs from 'snarkjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CIRCUITS_ROOT = path.join(__dirname, '..');
+const CONTRACTS_ROOT = path.join(CIRCUITS_ROOT, '..', 'contracts');
+
+const circuitName = process.argv[2] || 'shadow';
+const buildDir = path.join(CIRCUITS_ROOT, 'build', circuitName);
+const zkeyPath = path.join(buildDir, `${circuitName}.zkey`);
+const contractName = `${capitalize(circuitName)}Verifier`;
+const artifactsDir = path.join(CIRCUITS_ROOT, 'artifacts');
+const artifactPath = path.join(artifactsDir, `${contractName}.sol`);
+const contractsPath = path.join(CONTRACTS_ROOT, 'src', `${contractName}.sol`);
+
+async function main() {
+[2026-01-22T13:33:34] tokens used: 53,459
+[2026-01-22T13:34:28] exec sh -lc "sed -n '1,260p' ../circuits/circuits/lib/notes.circom" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:34:28] sh -lc "sed -n '1,260p' ../circuits/circuits/lib/notes.circom" succeeded in 19ms:
+pragma circom 2.1.9;
+
+include "./sha256.circom";
+include "./utils.circom";
+include "./constants.circom";
+include "circomlib/circuits/comparators.circom";
+
+/// @title NoteValidator
+/// @notice Validates note constraints and computes notesHash
+/// @param maxNotes Maximum number of notes (e.g., 10)
+template NoteValidator(maxNotes) {
+    // Inputs
+    signal input noteCount;                     // Actual number of notes [1, maxNotes]
+    signal input amounts[maxNotes];             // Amount for each note in wei
+    signal input recipientHashes[maxNotes][32]; // 32-byte recipientHash for each note
+
+    // Outputs
+    signal output notesHash[32];                // sha256(concat(note_0, ..., note_{n-1}))
+    signal output totalAmount;                  // Sum of all amounts
+
+[2026-01-22T13:34:28] tokens used: 56,888
+[2026-01-22T13:34:34] exec sh -lc "rg -n \"function computeNotesHash\" -S ../circuits/src/derivations.ts && sed -n '1,220p' ../circuits/src/derivations.ts" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:34:34] sh -lc "rg -n \"function computeNotesHash\" -S ../circuits/src/derivations.ts && sed -n '1,220p' ../circuits/src/derivations.ts" succeeded in 35ms:
+42:export function computeNotesHash(notes: Note[]): Uint8Array {
+import { MAGIC, CONSTANTS } from "./constants";
+import { hexToBytes, bytesToHex, sha256 } from "./utils";
+
+const encoder = new TextEncoder();
+
+export function bigintToBytes32(value: bigint): Uint8Array {
+  const hex = value.toString(16).padStart(64, "0");
+  return hexToBytes(hex);
+}
+
+export function bytes32ToBigint(bytes: Uint8Array): bigint {
+  return BigInt(bytesToHex(bytes));
+}
+
+export interface Note {
+  amount: bigint;
+  recipientHash: Uint8Array;
+}
+
+[2026-01-22T13:34:34] tokens used: 60,597
+
+[2026-01-22T13:34:44] thinking
+
+**Reviewing alignment plans**
+
+I think we should include a review plan to check document alignment. Note that the NoteValidator has a line that appears redundant, but it's fine since it handles zero values correctly. The `AssertRangeCheck(8)` for noteCount fits with the maximum number of notes. It seems consistent that `deriveTargetAddress` uses sha256 and returns a specific slice of the hash, and that's normal for addresses. We also need to verify that `ShadowPublicInputs` maintains the correct byte order, and it might be worth inspecting the export-proof code too.
+[2026-01-22T13:34:47] exec sh -lc "sed -n '1,240p' ../circuits/scripts/export-proof-calldata.js" in /Users/d/Projects/taiko/shadow/packages/contracts
+[2026-01-22T13:34:47] sh -lc "sed -n '1,240p' ../circuits/scripts/export-proof-calldata.js" succeeded in 26ms:
+#!/usr/bin/env node
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import snarkjs from 'snarkjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CIRCUITS_ROOT = path.join(__dirname, '..');
+const BUILD_DIR = path.join(CIRCUITS_ROOT, 'build', 'shadow');
+const PROOF_PATH = path.join(BUILD_DIR, 'proof.json');
+const PUBLIC_PATH = path.join(BUILD_DIR, 'public.json');
+const OUTPUT_PATH = path.join(BUILD_DIR, 'calldata.json');
+
+async function main() {
+  if (!fs.existsSync(PROOF_PATH) || !fs.existsSync(PUBLIC_PATH)) {
+    console.error('Proof or public signals not found. Run `pnpm prove` first.');
+    process.exit(1);
+  }
+
+[2026-01-22T13:34:47] tokens used: 62,552
+
+[2026-01-22T13:35:11] thinking
+
+**Reviewing security documentation**
+
+I need to note that the document "claudedocs/nullifier-security-review.md" includes information about a previous security issue that was related to a lack of access control. Thankfully, that issue has been fixed, so I want to use it as a baseline for my current review. It's crucial I ensure that the new review doesn't overlook this previous problem. I'll craft my response around these insights to make sure it's thorough and accurate.
+[2026-01-22T13:35:13] codex
+
+Using skill: `plan` (you asked for a review plan + a new `REVIEW_RESULT.md` write-up plan).
+
+# Plan
+
+Conduct a soundness/correctness/completeness review of the Shadow circuit verification flow across `packages/contracts` and its paired `packages/circuits` implementation, then document findings in a new `REVIEW_RESULT.md` (without modifying any other repo files).
+
+## Requirements
+- Review circuit verification flow end-to-end: contract wrappers, verifier interfaces, public input encoding, state-root binding, and nullifier/PoW usage.
+- Cross-check contracts ↔ circuits ↔ docs for ordering/encoding/semantics.
+- Produce `REVIEW_RESULT.md` containing: scope, assumptions, verified invariants, issues, recommendations, and missing tests/docs.
+- No changes to existing files (read-only review).
+
+## Scope
+- In:
+  - On-chain: `src/iface/ICircuitVerifier.sol`, `src/iface/IShadowVerifier.sol`, `src/impl/ShadowVerifier.sol`, `src/lib/ShadowPublicInputs.sol`, `src/impl/Shadow.sol`, `src/iface/ICheckpointStore.sol`, plus relevant tests/mocks under `test/`.
+  - Circuit side: `../circuits/circuits/shadow/Shadow.circom`, `../circuits/circuits/shadow/README.md`, `../circuits/circuits.json`, and the derivation/format helpers used to generate/flatten public signals.
+  - Docs describing circuit assumptions: `README.md`, `CLAUDE.md`, `../docs/PRD.md`, `../docs/plans/2026-01-19-shadow-redesign-design.md`, `claudedocs/nullifier-security-review.md`.
+- Out:
+  - Refactoring, code fixes, adding tests, or regenerating verifiers (those become follow-up tasks after the review).
+
+## Files And Entry Points
+- Contracts verification path:
+  - `src/impl/Shadow.sol` → `IShadowVerifier.verifyProof` → `src/impl/ShadowVerifier.sol` → `ICircuitVerifier.verifyProof`
+  - Public input flattening: `src/lib/ShadowPublicInputs.sol`
+  - External trust boundary: `src/iface/ICheckpointStore.sol`
+- Circuit source of truth:
+  - Public signal definitions: `../circuits/circuits/shadow/Shadow.circom`
+  - Signal ordering: `../circuits/circuits.json`
+  - Ordering test reference: `../circuits/test/audit.test.ts`
+  - Byte formatting reference: `../circuits/src/format.ts`
+  - PoW semantics: `../circuits/circuits/lib/address.circom` (`PowChecker`) + `../circuits/src/derivations.ts` (`computePowDigest`)
+  - Verifier generation/integration expectations: `../circuits/scripts/generate-verifier.js`, `../circuits/scripts/export-proof-calldata.js`
+
+## Review Approach (What To Verify)
+- Flow correctness (contract-to-circuit):
+  - `Shadow.claim` pre-checks vs what the circuit proves; ensure no missing “must be on-chain enforced” invariants.
+  - `ShadowVerifier.verifyProof` enforces the intended state-root binding (and cannot be bypassed by malformed inputs).
+- Public inputs correctness:
+  - Ordering and lengths match the circuit’s flattened public signals exactly (expect 120 elements).
+  - Byte endianness/order matches the circuit witness format (`bytesToCircuitInput` is the canonical reference).
+- Semantics mismatches:
+  - Confirm what chain the `stateRoot` represents (docs/circuit README mention “L1”, but `ICheckpointStore` comments are “L2 end block state root”).
+  - Confirm what `blockNumber` type/width the provider expects vs what the contract accepts/passes to the circuit (`uint64` in `IShadow.PublicInput`, truncated to `uint48` for checkpoint lookup).
+- Circuit-verifier contract integration:
+  - Identify the actual verifier contract used in production (likely generated by `../circuits/scripts/generate-verifier.js`) and confirm its `verifyProof` signature + expected pubSignals length/field constraints align with `ICircuitVerifier`.
+  - Ensure tooling outputs (`public.json`, calldata) can be deterministically mapped back into `IShadow.PublicInput` fields (struct vs flat array mismatch is an integration footgun).
+- Threat model/trust boundaries:
+  - `checkpointStore` correctness guarantees (does it revert for missing checkpoints, or return zeroed roots?).
+  - Replay protection via nullifier + chainId binding (circuit + on-chain checks).
+
+## Useful Pointers (Circuit Handling Notes To Carry Into The Review)
+- Canonical public signal flattening (per `../circuits/test/audit.test.ts`):  
+  `blockNumber` (1) + `stateRoot[32]` + `chainId` + `noteIndex` + `amount` + `recipient[20]` + `nullifier[32]` + `powDigest[32]` = **120**.
+- `ShadowPublicInputs.toArray` currently matches that layout exactly via offsets in `src/lib/ShadowPublicInputs.sol`.
+- PoW is **last 3 bytes zero**:
+  - Circuit: `PowChecker` checks `sha.out[29]`, `[30]`, `[31]` are zero in `../circuits/circuits/lib/address.circom`.
+  - JS: `computePowDigest` checks `digest[29..31] == 0` in `../circuits/src/derivations.ts`.
+  - Contract: `powDigestIsValid` masks low 24 bits in `src/lib/ShadowPublicInputs.sol` (note the comment says “leading zero bits”, but the logic matches trailing/least-significant bits).
+- Notes hash is **fixed-length padded** (maxNotes * 64) in both circuit (`NoteValidator`) and JS (`computeNotesHash`), which may differ from the PRD’s earlier “variable-length concat(note_0..note_{n-1})” description.
+
+## Action Items
+[ ] Build a “spec sheet” from circuit sources: list each public signal, what constrains it in-circuit, and what (if anything) is redundantly checked on-chain.  
+[ ] Trace on-chain call flow (`Shadow.claim` → `ShadowVerifier.verifyProof` → `ICircuitVerifier.verifyProof`) and annotate trust boundaries (checkpoint store + circuit verifier).  
+[ ] Validate public input mapping by cross-referencing:
+- `src/lib/ShadowPublicInputs.sol`
+- `../circuits/circuits/shadow/Shadow.circom`
+- `../circuits/test/audit.test.ts`
+- `../circuits/src/format.ts`  
+[ ] Investigate semantic consistency of `blockNumber/stateRoot`:
+- confirm whether `checkpointStore.getCheckpoint(uint48(blockNumber)).stateRoot` is the correct root the circuit uses for its MPT proof, and whether any truncation (`uint64`→`uint48`) can cause mismatched interpretation or bypasses.  
+[ ] Review verifier generation/integration path:
+- read `../circuits/scripts/generate-verifier.js` and confirm expected Solidity verifier contract naming/signature matches `ICircuitVerifier` + contract deployment expectations.  
+[ ] Assess “missing checks” risk:
+- identify invariants that are only proven in-circuit (amount bounds, noteIndex bounds, recipient binding, nullifier derivation) and note consequences if the circuit/verifier is misconfigured or replaced.  
+[ ] Evaluate test coverage gaps:
+- current Foundry tests use `MockCircuitVerifier`; identify what’s untested (real proof verification, public-signal encoding, fixture-based end-to-end claim).  
+[ ] Write `REVIEW_RESULT.md` with:
+- Summary + threat model assumptions
+- Verified alignments (public signal order/encoding, PoW semantics)
+- Potential issues / mismatches (docs vs code, type truncation, provider semantics)
+- Recommendations (code/doc/test changes as follow-ups)
+- Concrete “next tests to add” and “integration checks to run”.
+
+## Testing And Validation
+- Contracts baseline: `pnpm contracts:test` (per `README.md`).
+- Circuits baseline: `pnpm -C ../circuits test` and (if artifacts are needed) `pnpm -C ../circuits full-build`.
+- Manual cross-checks:
+  - confirm the circuit’s publicSignals order from `../circuits/circuits.json` matches the contract offsets and the JS `flattenPublicSignals` logic.
+  - confirm PoW byte positions (29–31) match the on-chain mask semantics.
+
+## Risks And Edge Cases
+- **Root/provider semantics risk**: `ICheckpointStore` appears to be a Taiko “L2 checkpoint” interface, while some docs call the root “L1”; a chain mismatch here breaks soundness or makes the system unprovable.  
+- **Block number width mismatch**: `uint64` in `IShadow.PublicInput` vs `uint48` lookup in `ShadowVerifier` can lead to surprising behavior if large values are ever accepted/serialized.  
+- **Integration mismatch**: circuits tooling outputs `publicSignals` as a flat array, but contracts accept a typed struct; missing a canonical adapter risks off-by-one/order/endianness bugs.  
+- **Verifier misconfiguration**: if the deployed circuit verifier doesn’t enforce all 120 signals or uses a different ordering, on-chain checks won’t catch it (beyond stateRoot/chainId/PoW bits).
+
+## Open Questions
+- What exact chain does `checkpointStore` attest to for `stateRoot` (Taiko L2? Ethereum L1? something else), and is `blockNumber` expected to be 48-bit?  
+- Where is the production verifier contract produced by `pnpm -C ../circuits generate-verifier` deployed/selected, and does it strictly enforce the 120 public signals in the intended order?  
+- Is the PRD’s “notesHash variable length” description intentionally outdated relative to the fixed-length padded implementation (circuit + JS)?
+
+If you want, I can also propose a concrete `REVIEW_RESULT.md` outline (headings + checklist of findings to fill in) while staying read-only.
+[2026-01-22T13:35:46] tokens used: 66,378
