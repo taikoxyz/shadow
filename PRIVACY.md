@@ -35,20 +35,16 @@ Claims are public transactions. Observers can see:
 
 In the current implementation, the claim proof payload also includes a **RISC Zero journal** that is sent on-chain and therefore public. This journal contains additional fields including:
 
-- `targetAddress` (the derived/funded address on L1)
-- `totalAmount` (sum of all note amounts in the note set)
-- commitments (e.g. `notesHash`, proof commitment)
+The journal is used only to bind the proof to the already-public claim inputs (e.g. `blockNumber`, `stateRoot`, `chainId`, `noteIndex`, `recipient`, `amount`, `nullifier`, `powDigest`) and does **not** include:
+
+- `targetAddress`
+- total note-set sum (e.g. `totalAmount`)
 
 ## Linkability & Privacy Limitations
 
-### Deposit-to-Claim Link (After a Claim)
+### Deposit-to-Claim Link
 
-Because the claim publishes `targetAddress` (via the proof journal), an observer can link:
-
-1. the L2 claim
-2. to the L1 funding history of that `targetAddress`
-
-This can reveal funding source patterns and timing once a claim occurs.
+Shadow does not publish `targetAddress` on L2 as part of a claim. This reduces passive linkability between an L1 funding address and an L2 claim for third-party observers who do not already know the deposit address.
 
 ### Linking Multiple Claims From the Same Note Set
 
@@ -79,4 +75,3 @@ Reusing the same `secret` across multiple deposit files is strongly discouraged:
 ## Legal / Compliance Notice
 
 Shadow provides privacy features but does not guarantee anonymity. Users are responsible for complying with applicable laws and regulations in their jurisdiction. This document is not legal advice.
-

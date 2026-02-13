@@ -42,17 +42,11 @@ pub struct ClaimJournal {
     pub note_index: u32,
     pub amount: u128,
     pub recipient: [u8; 20],
-    pub total_amount: u128,
     pub nullifier: [u8; 32],
     pub pow_digest: [u8; 32],
-    pub target_address: [u8; 20],
-    pub target_address_hash: [u8; 32],
-    pub notes_hash: [u8; 32],
-    pub proof_depth: u32,
-    pub proof_commitment: [u8; 32],
 }
 
-pub const PACKED_JOURNAL_LEN: usize = 288;
+pub const PACKED_JOURNAL_LEN: usize = 152;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PackedJournalError {
@@ -88,14 +82,8 @@ pub fn pack_journal(journal: &ClaimJournal) -> [u8; PACKED_JOURNAL_LEN] {
     out[48..52].copy_from_slice(&journal.note_index.to_le_bytes());
     out[52..68].copy_from_slice(&journal.amount.to_le_bytes());
     out[68..88].copy_from_slice(&journal.recipient);
-    out[88..104].copy_from_slice(&journal.total_amount.to_le_bytes());
-    out[104..136].copy_from_slice(&journal.nullifier);
-    out[136..168].copy_from_slice(&journal.pow_digest);
-    out[168..188].copy_from_slice(&journal.target_address);
-    out[188..220].copy_from_slice(&journal.target_address_hash);
-    out[220..252].copy_from_slice(&journal.notes_hash);
-    out[252..256].copy_from_slice(&journal.proof_depth.to_le_bytes());
-    out[256..288].copy_from_slice(&journal.proof_commitment);
+    out[88..120].copy_from_slice(&journal.nullifier);
+    out[120..152].copy_from_slice(&journal.pow_digest);
 
     out
 }
@@ -111,14 +99,8 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
     let note_index = u32::from_le_bytes(copy_array::<4>(&bytes[48..52]));
     let amount = u128::from_le_bytes(copy_array::<16>(&bytes[52..68]));
     let recipient = copy_array::<20>(&bytes[68..88]);
-    let total_amount = u128::from_le_bytes(copy_array::<16>(&bytes[88..104]));
-    let nullifier = copy_array::<32>(&bytes[104..136]);
-    let pow_digest = copy_array::<32>(&bytes[136..168]);
-    let target_address = copy_array::<20>(&bytes[168..188]);
-    let target_address_hash = copy_array::<32>(&bytes[188..220]);
-    let notes_hash = copy_array::<32>(&bytes[220..252]);
-    let proof_depth = u32::from_le_bytes(copy_array::<4>(&bytes[252..256]));
-    let proof_commitment = copy_array::<32>(&bytes[256..288]);
+    let nullifier = copy_array::<32>(&bytes[88..120]);
+    let pow_digest = copy_array::<32>(&bytes[120..152]);
 
     Ok(ClaimJournal {
         block_number,
@@ -127,14 +109,8 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
         note_index,
         amount,
         recipient,
-        total_amount,
         nullifier,
         pow_digest,
-        target_address,
-        target_address_hash,
-        notes_hash,
-        proof_depth,
-        proof_commitment,
     })
 }
 
@@ -249,7 +225,6 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
 
     let notes_hash = compute_notes_hash(note_count, &input.amounts, &input.recipient_hashes)?;
     let target_address = derive_target_address(&input.secret, input.chain_id, &notes_hash);
-    let target_address_hash = keccak256(&target_address);
     let account_balance =
         verify_account_proof_and_get_balance(&input.state_root, &target_address, &input.proof_nodes)?;
     if !balance_gte_total(&account_balance, total_amount) {
@@ -262,8 +237,6 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::InvalidPowDigest);
     }
 
-    let proof_commitment = compute_proof_commitment(&input.proof_nodes);
-
     Ok(ClaimJournal {
         block_number: input.block_number,
         state_root: input.state_root,
@@ -271,14 +244,8 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         note_index: input.note_index,
         amount: input.amount,
         recipient: input.recipient,
-        total_amount,
         nullifier,
         pow_digest,
-        target_address,
-        target_address_hash,
-        notes_hash,
-        proof_depth: input.proof_depth,
-        proof_commitment,
     })
 }
 

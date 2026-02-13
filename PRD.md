@@ -133,5 +133,5 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
 Shadow is “production-ready” only when:
 
 - End-to-end: prove -> on-chain verify -> claim works on target network with the real `IEthMinter`.
-- Circuits and bindings are tested against adversarial/edge-case trie proofs and amounts.
+- Guest program and on-chain bindings are tested against adversarial/edge-case trie proofs and amounts.
 - Contracts and proving pipeline are audited and threat-modeled.

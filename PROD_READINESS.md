@@ -23,7 +23,7 @@ This checklist tracks end-to-end readiness for Shadow on **Taiko Hoodi**:
 |----|-------|----------|--------|
 | M-3 | Missing E2E integration tests | Medium | **OPEN** |
 
-See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
+See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.md) for detailed analysis.
 
 ---
 
@@ -36,7 +36,7 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
   - **Files:** `packages/risc0-prover/host/src/main.rs`
 
 - [x] **2) Journal format is chain-verifiable**
-  - Guest commits a packed **288-byte** journal (not RISC0 serde), matching `Risc0CircuitVerifier` expectations.
+  - Guest commits a packed **152-byte** journal (not RISC0 serde), matching `Risc0CircuitVerifier` expectations.
   - **Files:** `packages/risc0-prover/crates/shadow-proof-core/src/lib.rs:82-101`
 
 - [x] **3) Hoodi checkpoint flow wired**
@@ -49,7 +49,7 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
 - [x] **4) On-chain deployment complete (Hoodi L2)**
   - Deploy script: `packages/contracts/script/DeployTaiko.s.sol`
   - Default verifier: Taiko Hoodi RISC0 verifier (`0xd1934807041B168f383870A0d8F565aDe2DF9D7D`)
-  - Image ID: `0x924fe3521927419a1f555ded0ed87883a170c21474e2a577cf8b124751f026c5`
+  - Image ID: `0x6eb3c68a0378110f3401e10e81cf3870c6c2378068a7ae56a06c11b141f99c5f`
 
 - [x] **5) On-chain proof verification (view)**
   - `Risc0CircuitVerifier.verifyProof(bytes,uint256[])` returns `true` for a generated Groth16 proof.
@@ -67,9 +67,9 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
 ### Security Verification
 
 - [x] **8) Public input binding verified**
-  - All 8 public inputs properly constrained in circuit
-  - Journal matches public inputs with field-by-field validation
-  - **Files:** `packages/circuits/circuits/shadow/Shadow.circom:27-35`
+  - Guest packs a fixed-length journal committed in the receipt.
+  - `Risc0CircuitVerifier` validates journal fields against the 120-element public inputs array.
+  - **Files:** `packages/risc0-prover/crates/shadow-proof-core/src/lib.rs`, `packages/contracts/src/impl/Risc0CircuitVerifier.sol`
 
 - [x] **9) Nullifier double-spend prevention verified**
   - Atomic check-and-consume pattern
@@ -78,9 +78,9 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
   - **Files:** `packages/contracts/src/impl/Nullifier.sol:23-31`
 
 - [x] **10) Domain separation verified**
-  - Magic prefixes consistent across TS/Rust/Circom
-  - ChainId binding in nullifier and address derivation
-  - **Files:** `packages/circuits/circuits/lib/constants.circom`
+  - Magic prefixes consistent across TS/Rust.
+  - ChainId binding in nullifier and address derivation.
+  - **Files:** `packages/risc0-prover/crates/shadow-proof-core/src/lib.rs`, `packages/risc0-prover/scripts/shadowcli.mjs`, `packages/ui/src/main.js`
 
 - [x] **11) Checkpoint recency policy**
   - By design: old checkpoints are acceptable (no max age enforced).
@@ -91,7 +91,7 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
 
 - [x] **12) Unit tests pass**
   - Contract tests: `packages/contracts/test/Shadow.t.sol`
-  - Circuit tests: `packages/circuits/test/`
+  - Verifier adapter tests: `packages/contracts/test/Risc0CircuitVerifier.t.sol`
 
 - [ ] **13) E2E integration tests**
   - Missing: Full deposit file -> proof generation -> claim test
@@ -143,5 +143,4 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
 
 - [PRD](./PRD.md)
 - [Privacy](./PRIVACY.md)
-- [REVIEW_1.md](./REVIEW_1.md) - Detailed security review
 - [EIP-7503](https://eips.ethereum.org/EIPS/eip-7503) - Inspiration

@@ -8,7 +8,7 @@ import {ShadowPublicInputs} from "../src/lib/ShadowPublicInputs.sol";
 import {MockRiscZeroVerifier} from "./mocks/MockRiscZeroVerifier.sol";
 
 contract Risc0CircuitVerifierTest is Test {
-    uint256 private constant _JOURNAL_LEN = 288;
+    uint256 private constant _JOURNAL_LEN = 152;
     bytes32 private constant _IMAGE_ID = keccak256("shadow-image-id");
 
     MockRiscZeroVerifier internal risc0Verifier;
@@ -24,7 +24,7 @@ contract Risc0CircuitVerifierTest is Test {
         uint256[] memory publicInputs = this._toArray(input);
 
         bytes memory seal = hex"010203";
-        bytes memory journal = _buildJournal(input, input.amount);
+        bytes memory journal = _buildJournal(input);
         bytes memory proof = abi.encode(seal, journal);
 
         risc0Verifier.setExpectations(_IMAGE_ID, sha256(journal), seal, true);
@@ -37,7 +37,7 @@ contract Risc0CircuitVerifierTest is Test {
         uint256[] memory publicInputs = this._toArray(input);
 
         bytes memory seal = hex"aaaa";
-        bytes memory journal = _buildJournal(input, input.amount);
+        bytes memory journal = _buildJournal(input);
         bytes memory proof = abi.encode(seal, journal);
 
         publicInputs[35] = publicInputs[35] + 1;
@@ -50,7 +50,7 @@ contract Risc0CircuitVerifierTest is Test {
         uint256[] memory publicInputs = this._toArray(input);
 
         bytes memory seal = hex"bbbb";
-        bytes memory journal = _buildJournal(input, input.amount);
+        bytes memory journal = _buildJournal(input);
         bytes memory proof = abi.encode(seal, journal);
 
         risc0Verifier.setShouldVerify(false);
@@ -71,7 +71,7 @@ contract Risc0CircuitVerifierTest is Test {
         uint256[] memory publicInputs = this._toArray(input);
 
         bytes memory seal = hex"cccc";
-        bytes memory journal = _buildJournal(input, input.amount);
+        bytes memory journal = _buildJournal(input);
         bytes memory proof = abi.encode(seal, journal);
 
         publicInputs[1] = 300;
@@ -108,11 +108,7 @@ contract Risc0CircuitVerifierTest is Test {
         });
     }
 
-    function _buildJournal(IShadow.PublicInput memory _input, uint256 _totalAmount)
-        private
-        pure
-        returns (bytes memory journal_)
-    {
+    function _buildJournal(IShadow.PublicInput memory _input) private pure returns (bytes memory journal_) {
         journal_ = new bytes(_JOURNAL_LEN);
 
         _writeLe(journal_, 0, _input.blockNumber, 8);
@@ -121,9 +117,8 @@ contract Risc0CircuitVerifierTest is Test {
         _writeLe(journal_, 48, _input.noteIndex, 4);
         _writeLe(journal_, 52, _input.amount, 16);
         _writeAddress(journal_, 68, _input.recipient);
-        _writeLe(journal_, 88, _totalAmount, 16);
-        _writeBytes32(journal_, 104, _input.nullifier);
-        _writeBytes32(journal_, 136, _input.powDigest);
+        _writeBytes32(journal_, 88, _input.nullifier);
+        _writeBytes32(journal_, 120, _input.powDigest);
     }
 
     function _writeLe(bytes memory _buffer, uint256 _offset, uint256 _value, uint256 _len) private pure {

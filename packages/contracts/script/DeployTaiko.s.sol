@@ -17,7 +17,7 @@ contract DeployTaiko is Script {
     address internal constant HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
     address internal constant HOODI_CHECKPOINT_STORE = 0x1670130000000000000000000000000000000005;
 
-    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x924fe3521927419a1f555ded0ed87883a170c21474e2a577cf8b124751f026c5;
+    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x6eb3c68a0378110f3401e10e81cf3870c6c2378068a7ae56a06c11b141f99c5f;
     uint64 internal constant _SHADOW_PROXY_NONCE_OFFSET = 5;
 
     error UnexpectedShadowProxy(address expected, address actual);

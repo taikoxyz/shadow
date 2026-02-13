@@ -1,10 +1,10 @@
-# Shadow Circuit Public Inputs Specification
+# Shadow Public Inputs Specification
 
-This document specifies the public input format for the Shadow ZK circuit verifier.
+This document specifies the 120-element public input array format consumed by `ICircuitVerifier.verifyProof(bytes,uint256[])`.
 
 ## Overview
 
-The Shadow circuit uses 120 field elements as public inputs. Each element is a `uint256` value representing either a single field element or one byte of a multi-byte value.
+Shadow uses 120 `uint256` values as public inputs. Each element represents either a single scalar (for numeric fields) or one byte of a multi-byte value (for `bytes32`/`address`).
 
 ## Layout
 
@@ -95,18 +95,7 @@ The serialized array would be:
 [119]: 0x00                   // powDigest[31] - must be 0
 ```
 
-## Circuit Correspondence
+## Implementation Notes
 
-The proof program defines public signals in the same order:
-```text
-signal input blockNumber;           // Index 0
-signal input stateRoot[32];         // Index 1-32
-signal input chainId;               // Index 33
-signal input noteIndex;             // Index 34
-signal input amount;                // Index 35
-signal input recipient[20];         // Index 36-55
-signal output nullifier[32];        // Index 56-87
-signal output powDigest[32];        // Index 88-119
-```
-
-Note: `nullifier` and `powDigest` are circuit outputs that become part of the public inputs for verification.
+- `ShadowPublicInputs.toArray` produces this exact layout from `IShadow.PublicInput`.
+- `Risc0CircuitVerifier` binds the proof to these public inputs by parsing the committed journal and checking each field matches the expected offsets and byte encodings.

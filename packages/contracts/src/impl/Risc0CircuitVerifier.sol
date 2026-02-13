@@ -36,15 +36,15 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
     uint256 private constant _IDX_NULLIFIER = 56;
     uint256 private constant _IDX_POW_DIGEST = 88;
 
-    uint256 private constant _JOURNAL_LEN = 288;
+    uint256 private constant _JOURNAL_LEN = 152;
     uint256 private constant _OFFSET_BLOCK_NUMBER = 0;
     uint256 private constant _OFFSET_STATE_ROOT = 8;
     uint256 private constant _OFFSET_CHAIN_ID = 40;
     uint256 private constant _OFFSET_NOTE_INDEX = 48;
     uint256 private constant _OFFSET_AMOUNT = 52;
     uint256 private constant _OFFSET_RECIPIENT = 68;
-    uint256 private constant _OFFSET_NULLIFIER = 104;
-    uint256 private constant _OFFSET_POW_DIGEST = 136;
+    uint256 private constant _OFFSET_NULLIFIER = 88;
+    uint256 private constant _OFFSET_POW_DIGEST = 120;
 
     constructor(address _risc0Verifier, bytes32 _imageId) {
         require(_risc0Verifier != address(0), ZeroVerifier());

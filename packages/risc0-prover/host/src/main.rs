@@ -140,7 +140,6 @@ fn cmd_prove(input_path: &Path, receipt_path: &Path, journal_path: &Path, receip
     println!("Journal: {}", journal_path.display());
     println!("Nullifier: 0x{}", hex::encode(journal.nullifier));
     println!("PoW digest: 0x{}", hex::encode(journal.pow_digest));
-    println!("Target address: 0x{}", hex::encode(journal.target_address));
     println!("Receipt kind: {}", describe_receipt_kind(&receipt.inner));
 
     Ok(())
@@ -198,8 +197,7 @@ fn cmd_verify(receipt_path: &Path) -> Result<()> {
     println!("Receipt verified: {}", receipt_path.display());
     println!("Nullifier: 0x{}", hex::encode(journal.nullifier));
     println!("PoW digest: 0x{}", hex::encode(journal.pow_digest));
-    println!("Target address: 0x{}", hex::encode(journal.target_address));
-    println!("Proof depth (bound only): {}", journal.proof_depth);
+    // Proof depth is not part of the public journal; it is validated inside the guest.
 
     Ok(())
 }
@@ -213,10 +211,8 @@ fn cmd_inspect(input_path: &Path) -> Result<()> {
     println!("chainId: {}", journal.chain_id);
     println!("noteIndex: {}", journal.note_index);
     println!("amount: {}", journal.amount);
-    println!("totalAmount: {}", journal.total_amount);
     println!("nullifier: 0x{}", hex::encode(journal.nullifier));
     println!("powDigest: 0x{}", hex::encode(journal.pow_digest));
-    println!("targetAddress: 0x{}", hex::encode(journal.target_address));
 
     Ok(())
 }
