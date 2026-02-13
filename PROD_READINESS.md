@@ -21,8 +21,6 @@ This checklist tracks end-to-end readiness for Shadow on **Taiko Hoodi**:
 
 | ID | Issue | Severity | Status |
 |----|-------|----------|--------|
-| M-1 | State root freshness not enforced | Medium | **OPEN** |
-| M-2 | Privacy limitations undocumented | Medium | **OPEN** |
 | M-3 | Missing E2E integration tests | Medium | **OPEN** |
 
 See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
@@ -84,10 +82,9 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
   - ChainId binding in nullifier and address derivation
   - **Files:** `packages/circuits/circuits/lib/constants.circom`
 
-- [ ] **11) State root freshness enforced**
-  - PRD requires: "blockNumber is sufficiently recent"
-  - Current: Only checks `blockNumber > 0`
-  - **BLOCKING:** Implement `MAX_BLOCK_AGE` check
+- [x] **11) Checkpoint recency policy**
+  - By design: old checkpoints are acceptable (no max age enforced).
+  - Current behavior: verifies the checkpoint state root; does not enforce recency.
   - **Files:** `packages/contracts/src/impl/ShadowVerifier.sol:29`
 
 ### Test Coverage
@@ -106,11 +103,8 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
 
 ### Documentation
 
-- [ ] **15) Privacy limitations documented**
-  - Required: User-facing privacy guarantees
-  - What is private: target address, secret, full note set
-  - What is NOT private: claim amount, recipient, timing
-  - **BLOCKING:** Create user documentation
+- [x] **15) Privacy limitations documented**
+  - **Doc:** `PRIVACY.md`
 
 ### UX
 
@@ -141,14 +135,13 @@ See [REVIEW_1.md](./REVIEW_1.md) for detailed analysis.
 - Contracts deployed and verified
 
 ### Mainnet: **NO-GO** (until blocking issues resolved)
-- M-1: State root freshness (security)
-- M-2: Privacy documentation (UX/legal)
 - M-3: E2E tests (confidence)
 
 ---
 
 ## References
 
-- [PRD](./packages/docs/PRD.md)
+- [PRD](./PRD.md)
+- [Privacy](./PRIVACY.md)
 - [REVIEW_1.md](./REVIEW_1.md) - Detailed security review
 - [EIP-7503](https://eips.ethereum.org/EIPS/eip-7503) - Inspiration

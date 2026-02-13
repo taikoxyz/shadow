@@ -6,6 +6,10 @@ Shadow is a privacy-forward ETH claim system on **Taiko Hoodi** where claims are
 
 Key property: deposits are normal ETH transfers to the target address (no deposit contract, no burn event).
 
+## Privacy
+
+Shadow provides privacy properties but does not guarantee anonymity. See `PRIVACY.md` for user-facing data exposure and linkability limitations.
+
 ## Users
 
 - Depositor: creates a note set, derives a target address, funds it on Hoodi L1.
@@ -131,4 +135,3 @@ Shadow is “production-ready” only when:
 - End-to-end: prove -> on-chain verify -> claim works on target network with the real `IEthMinter`.
 - Circuits and bindings are tested against adversarial/edge-case trie proofs and amounts.
 - Contracts and proving pipeline are audited and threat-modeled.
-
