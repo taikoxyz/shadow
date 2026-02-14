@@ -9,12 +9,12 @@ import {Nullifier} from "../src/impl/Nullifier.sol";
 import {IShadow} from "../src/iface/IShadow.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
-import {MockCheckpointStore} from "./mocks/MockCheckpointStore.sol";
+import {MockAnchor} from "./mocks/MockAnchor.sol";
 
 contract ShadowDummyEtherMinterIntegrationTest is Test {
     event EthMinted(address indexed recipient, uint256 amount);
 
-    MockCheckpointStore internal checkpointStore;
+    MockAnchor internal anchor;
     MockCircuitVerifier internal circuitVerifier;
     ShadowVerifier internal shadowVerifier;
     Nullifier internal nullifier;
@@ -22,9 +22,9 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
     Shadow internal shadow;
 
     function setUp() public {
-        checkpointStore = new MockCheckpointStore();
+        anchor = new MockAnchor();
         circuitVerifier = new MockCircuitVerifier();
-        shadowVerifier = new ShadowVerifier(address(checkpointStore), address(circuitVerifier));
+        shadowVerifier = new ShadowVerifier(address(anchor), address(circuitVerifier));
         etherMinter = new DummyEtherMinter();
         uint64 nonce = vm.getNonce(address(this));
         address predictedShadowProxy = vm.computeCreateAddress(address(this), nonce + 2);
@@ -38,8 +38,8 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
 
     function test_claim_emitsDummyMintedEvent() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("block");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         address recipient = address(0xBEEF);
         bytes32 nullifierValue = keccak256("nullifier");
@@ -47,7 +47,7 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: amount,

@@ -25,12 +25,6 @@ const MAX_NOTES = 5;
 const MAX_PROOF_DEPTH = 64;
 const MAX_NODE_BYTES = 4096;
 const MAX_TOTAL_WEI = 32000000000000000000n;
-const HOODI_CHAIN_ID = 167013n;
-const HOODI_L1_CHAIN_ID = 560048n;
-const HOODI_CHECKPOINT_STORE = "0x1670130000000000000000000000000000000005";
-const HOODI_L1_RPC = "https://ethereum-hoodi-rpc.publicnode.com";
-const DEFAULT_CHECKPOINT_LOOKBACK = 2048n;
-const CHECKPOINT_NOT_FOUND_SELECTOR = "0xf297591c";
 
 const IDX = {
   BLOCK_NUMBER: 0,
@@ -45,7 +39,7 @@ const IDX = {
 
 const usage = `Usage:
   node scripts/shadowcli.mjs validate --deposit <DEPOSIT.json> [--rpc <url>] [--note-index <n>]
-  node scripts/shadowcli.mjs prove --deposit <DEPOSIT.json> --rpc <url> [--l1-rpc <url>] [--checkpoint-store <address>] [--checkpoint-block <n>] [--checkpoint-lookback <n>] [--note-index <n>] [--proof-out <note-x.proof.json>] [--receipt-kind groth16|succinct|composite] [--keep-intermediate-files] [--verbose]
+  node scripts/shadowcli.mjs prove --deposit <DEPOSIT.json> --rpc <url> [--note-index <n>] [--proof-out <note-x.proof.json>] [--receipt-kind groth16|succinct|composite] [--keep-intermediate-files] [--verbose]
   node scripts/shadowcli.mjs verify --proof <note-x.proof.json> [--verifier <address|deployed_verifier.json> --rpc <url>] [--receipt <receipt.bin>] [--host-bin <path>]
   node scripts/shadowcli.mjs claim --proof <note-x.proof.json> --shadow <address> --rpc <url> --private-key <0x...>
 
@@ -174,78 +168,19 @@ async function cmdProve(opts) {
   }
 
   let blockNumber;
-  let stateRootBytes;
+  let blockHashBytes;
+  let blockHeaderRlpBytes;
   let accountProof;
   let accountBalance;
 
-  const useCheckpointMode =
-    opts["l1-rpc"] !== undefined ||
-    opts["checkpoint-store"] !== undefined ||
-    chainId === HOODI_CHAIN_ID;
-
-  if (useCheckpointMode) {
-    const l1RpcUrl = resolveL1RpcUrl(opts["l1-rpc"], chainId);
-    const l1ChainId = await fetchChainId(l1RpcUrl);
-    if (chainId === HOODI_CHAIN_ID && l1ChainId !== HOODI_L1_CHAIN_ID) {
-      throw new Error(`L1 RPC chainId (${l1ChainId}) does not match Hoodi L1 (${HOODI_L1_CHAIN_ID})`);
-    }
-
-    const checkpointStoreAddress = resolveCheckpointStoreAddress(opts["checkpoint-store"], chainId);
-    const checkpointStoreProvider = new JsonRpcProvider(rpcUrl);
-    const checkpointStore = new Contract(
-      checkpointStoreAddress,
-      [
-        "function getCheckpoint(uint48 _blockNumber) view returns ((uint48 blockNumber, bytes32 blockHash, bytes32 stateRoot))"
-      ],
-      checkpointStoreProvider
-    );
-
-    const checkpointBlockOpt = opts["checkpoint-block"];
-    let checkpoint;
-    if (checkpointBlockOpt !== undefined) {
-      const checkpointBlock = parseDec(checkpointBlockOpt, "checkpoint-block");
-      checkpoint = await getCheckpointOrThrow(checkpointStore, checkpointBlock);
-    } else {
-      const l1LatestBlock = parseRpcNumber(await rpcCall(l1RpcUrl, "eth_blockNumber", []));
-      const checkpointLookback = parseOptionalDec(
-        opts["checkpoint-lookback"],
-        "checkpoint-lookback",
-        DEFAULT_CHECKPOINT_LOOKBACK
-      );
-      checkpoint = await findLatestCheckpoint(checkpointStore, l1LatestBlock, checkpointLookback);
-    }
-
-    blockNumber = checkpoint.blockNumber;
-    stateRootBytes = hexToBytes(checkpoint.stateRoot);
-
-    const l1Block = await rpcCall(l1RpcUrl, "eth_getBlockByNumber", [toRpcQuantity(blockNumber), false]);
-    if (!l1Block) {
-      throw new Error(`L1 block not found at checkpoint block ${blockNumber}`);
-    }
-    if (
-      l1Block.hash.toLowerCase() !== checkpoint.blockHash.toLowerCase() ||
-      l1Block.stateRoot.toLowerCase() !== checkpoint.stateRoot.toLowerCase()
-    ) {
-      throw new Error(
-        `checkpoint mismatch at block ${blockNumber}: checkpoint (${checkpoint.blockHash}, ${checkpoint.stateRoot}) vs L1 block (${l1Block.hash}, ${l1Block.stateRoot})`
-      );
-    }
-
-    accountProof = await rpcCall(l1RpcUrl, "eth_getProof", [targetAddressHex, [], toRpcQuantity(blockNumber)]);
-    accountBalance = parseRpcBigInt(accountProof.balance);
-
-    console.log("Checkpoint store:", checkpointStoreAddress);
-    console.log("L1 RPC:", l1RpcUrl);
-    console.log("L1 chain ID:", l1ChainId.toString());
-    console.log("Proof block:", blockNumber.toString(), "(checkpoint block)");
-  } else {
-    const block = await rpcCall(rpcUrl, "eth_getBlockByNumber", ["latest", false]);
-    blockNumber = parseRpcNumber(block.number);
-    stateRootBytes = hexToBytes(block.stateRoot);
-    accountProof = await rpcCall(rpcUrl, "eth_getProof", [targetAddressHex, [], block.number]);
-    accountBalance = parseRpcBigInt(accountProof.balance);
-    console.log("Proof block:", blockNumber.toString());
-  }
+  const block = await rpcCall(rpcUrl, "eth_getBlockByNumber", ["latest", false]);
+  blockNumber = parseRpcNumber(block.number);
+  blockHashBytes = hexToBytes(block.hash);
+  const blockRaw = await rpcCall(rpcUrl, "debug_getRawBlock", [block.number]);
+  blockHeaderRlpBytes = extractHeaderRlp(hexToBytes(blockRaw));
+  accountProof = await rpcCall(rpcUrl, "eth_getProof", [targetAddressHex, [], block.number]);
+  accountBalance = parseRpcBigInt(accountProof.balance);
+  console.log("Proof block:", blockNumber.toString());
 
   console.log("Account balance:", accountBalance.toString(), "wei");
   if (accountBalance < derived.totalAmount && !allowInsufficient) {
@@ -256,7 +191,8 @@ async function cmdProve(opts) {
 
   const claimInput = buildLegacyClaimInput({
     blockNumber,
-    stateRootBytes,
+    blockHashBytes,
+    blockHeaderRlpBytes,
     chainId,
     noteIndex,
     claimAmount: derived.claimAmount,
@@ -311,7 +247,8 @@ async function cmdProve(opts) {
 
   const publicInputs = buildPublicInputs({
     blockNumber,
-    stateRootBytes,
+    blockHashBytes,
+    blockHeaderRlpBytes,
     chainId,
     noteIndex,
     claimAmount: derived.claimAmount,
@@ -403,12 +340,12 @@ async function cmdClaim(opts) {
   const { proof, publicInputs } = extractVerificationPayload(noteProof, proofPath);
   const pis = publicInputs.map((x) => BigInt(x));
 
-  const stateRoot = bytes32FromPublicInputs(pis, IDX.STATE_ROOT);
+  const blockHash = bytes32FromPublicInputs(pis, IDX.STATE_ROOT);
   const powDigest = bytes32FromPublicInputs(pis, IDX.POW_DIGEST);
 
   const input = [
     BigInt(noteProof.blockNumber),
-    stateRoot,
+    blockHash,
     BigInt(noteProof.chainId),
     BigInt(noteProof.noteIndex),
     BigInt(noteProof.amount),
@@ -423,7 +360,7 @@ async function cmdClaim(opts) {
     shadowAddress,
     [
       "function isConsumed(bytes32 _nullifier) view returns (bool)",
-      "function claim(bytes _proof, (uint48 blockNumber, bytes32 stateRoot, uint256 chainId, uint256 noteIndex, uint256 amount, address recipient, bytes32 nullifier, bytes32 powDigest) _input)"
+      "function claim(bytes _proof, (uint48 blockNumber, bytes32 blockHash, uint256 chainId, uint256 noteIndex, uint256 amount, address recipient, bytes32 nullifier, bytes32 powDigest) _input)"
     ],
     wallet
   );
@@ -633,7 +570,8 @@ function deriveFromDeposit(deposit, chainId, noteIndex) {
 
 function buildLegacyClaimInput({
   blockNumber,
-  stateRootBytes,
+  blockHashBytes,
+  blockHeaderRlpBytes,
   chainId,
   noteIndex,
   claimAmount,
@@ -684,7 +622,8 @@ function buildLegacyClaimInput({
 
   return {
     blockNumber: blockNumber.toString(),
-    stateRoot: bytesToDecStrings(stateRootBytes),
+    blockHash: bytesToDecStrings(blockHashBytes),
+    blockHeaderRlp: bytesToDecStrings(blockHeaderRlpBytes),
     chainId: chainId.toString(),
     noteIndex: String(noteIndex),
     amount: claimAmount.toString(),
@@ -702,7 +641,7 @@ function buildLegacyClaimInput({
 
 function buildPublicInputs({
   blockNumber,
-  stateRootBytes,
+  blockHashBytes,
   chainId,
   noteIndex,
   claimAmount,
@@ -712,7 +651,7 @@ function buildPublicInputs({
 }) {
   const out = new Array(120).fill(0n);
   out[IDX.BLOCK_NUMBER] = blockNumber;
-  writeBytes(out, IDX.STATE_ROOT, stateRootBytes);
+  writeBytes(out, IDX.STATE_ROOT, blockHashBytes);
   out[IDX.CHAIN_ID] = chainId;
   out[IDX.NOTE_INDEX] = BigInt(noteIndex);
   out[IDX.AMOUNT] = claimAmount;
@@ -920,6 +859,62 @@ function parseRpcNumber(value) {
   return parseDec(String(value), "blockNumber");
 }
 
+
+function extractHeaderRlp(rawBlockBytes) {
+  if (!(rawBlockBytes instanceof Uint8Array) || rawBlockBytes.length === 0) {
+    throw new Error("invalid raw block payload");
+  }
+
+  const { payloadOffset, payloadLength, endOffset } = decodeRlpItem(rawBlockBytes, 0);
+  if (endOffset !== rawBlockBytes.length) {
+    throw new Error("raw block RLP has trailing data");
+  }
+
+  let cursor = payloadOffset;
+  const payloadEnd = payloadOffset + payloadLength;
+  const txStart = cursor;
+  while (cursor < payloadEnd) {
+    const item = decodeRlpItem(rawBlockBytes, cursor);
+    cursor = item.endOffset;
+    if (cursor >= payloadEnd) {
+      throw new Error("raw block does not contain tx list");
+    }
+    const maybeTxs = decodeRlpItem(rawBlockBytes, cursor);
+    if (maybeTxs.isList) {
+      return rawBlockBytes.slice(txStart, cursor);
+    }
+  }
+  throw new Error("failed to parse block header from raw block");
+}
+
+function decodeRlpItem(bytes, offset) {
+  if (offset >= bytes.length) throw new Error("RLP offset out of range");
+  const prefix = bytes[offset];
+  if (prefix <= 0x7f) return { isList: false, payloadOffset: offset, payloadLength: 1, endOffset: offset + 1 };
+  if (prefix <= 0xb7) {
+    const len = prefix - 0x80;
+    return { isList: false, payloadOffset: offset + 1, payloadLength: len, endOffset: offset + 1 + len };
+  }
+  if (prefix <= 0xbf) {
+    const lenOfLen = prefix - 0xb7;
+    const len = readBeNumber(bytes, offset + 1, lenOfLen);
+    return { isList: false, payloadOffset: offset + 1 + lenOfLen, payloadLength: len, endOffset: offset + 1 + lenOfLen + len };
+  }
+  if (prefix <= 0xf7) {
+    const len = prefix - 0xc0;
+    return { isList: true, payloadOffset: offset + 1, payloadLength: len, endOffset: offset + 1 + len };
+  }
+  const lenOfLen = prefix - 0xf7;
+  const len = readBeNumber(bytes, offset + 1, lenOfLen);
+  return { isList: true, payloadOffset: offset + 1 + lenOfLen, payloadLength: len, endOffset: offset + 1 + lenOfLen + len };
+}
+
+function readBeNumber(bytes, offset, len) {
+  let out = 0;
+  for (let i = 0; i < len; i++) out = out * 256 + bytes[offset + i];
+  return out;
+}
+
 function parseRpcBigInt(value) {
   if (typeof value === "string" && value.startsWith("0x")) {
     return BigInt(value);
@@ -1007,70 +1002,3 @@ function toRpcQuantity(value) {
   return `0x${BigInt(value).toString(16)}`;
 }
 
-function resolveL1RpcUrl(cliL1Rpc, chainId) {
-  if (cliL1Rpc) {
-    return cliL1Rpc;
-  }
-  if (chainId === HOODI_CHAIN_ID) {
-    return HOODI_L1_RPC;
-  }
-  throw new Error("missing required --l1-rpc for checkpoint mode");
-}
-
-function resolveCheckpointStoreAddress(cliCheckpointStore, chainId) {
-  if (cliCheckpointStore) {
-    if (!isAddress(cliCheckpointStore)) {
-      throw new Error(`invalid --checkpoint-store address: ${cliCheckpointStore}`);
-    }
-    return getAddress(cliCheckpointStore);
-  }
-  if (chainId === HOODI_CHAIN_ID) {
-    return HOODI_CHECKPOINT_STORE;
-  }
-  throw new Error("missing required --checkpoint-store for checkpoint mode");
-}
-
-function extractErrorData(err) {
-  return err?.data || err?.info?.error?.data || err?.error?.data || "";
-}
-
-async function tryGetCheckpoint(checkpointStore, blockNumber) {
-  try {
-    const checkpoint = await checkpointStore.getCheckpoint(blockNumber);
-    return {
-      blockNumber: BigInt(checkpoint.blockNumber),
-      blockHash: checkpoint.blockHash,
-      stateRoot: checkpoint.stateRoot
-    };
-  } catch (err) {
-    const data = String(extractErrorData(err)).toLowerCase();
-    if (data.startsWith(CHECKPOINT_NOT_FOUND_SELECTOR)) {
-      return null;
-    }
-    throw new Error(`checkpoint query failed at block ${blockNumber}: ${formatErr(err)}`);
-  }
-}
-
-async function getCheckpointOrThrow(checkpointStore, blockNumber) {
-  const checkpoint = await tryGetCheckpoint(checkpointStore, blockNumber);
-  if (!checkpoint) {
-    throw new Error(`checkpoint not found at block ${blockNumber}`);
-  }
-  return checkpoint;
-}
-
-async function findLatestCheckpoint(checkpointStore, latestBlock, lookback) {
-  if (latestBlock <= 0n) {
-    throw new Error(`invalid latest L1 block number: ${latestBlock}`);
-  }
-  const minBlock = latestBlock > lookback ? latestBlock - lookback : 1n;
-  for (let block = latestBlock; block >= minBlock; block -= 1n) {
-    const checkpoint = await tryGetCheckpoint(checkpointStore, block);
-    if (checkpoint) {
-      return checkpoint;
-    }
-  }
-  throw new Error(
-    `no checkpoint found in range [${minBlock.toString()}, ${latestBlock.toString()}] (lookback ${lookback.toString()})`
-  );
-}

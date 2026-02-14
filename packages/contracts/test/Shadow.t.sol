@@ -10,12 +10,12 @@ import {IShadow} from "../src/iface/IShadow.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
 import {MockEtherMinter} from "./mocks/MockEtherMinter.sol";
-import {MockCheckpointStore} from "./mocks/MockCheckpointStore.sol";
+import {MockAnchor} from "./mocks/MockAnchor.sol";
 
 contract ShadowTest is Test {
     event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount);
 
-    MockCheckpointStore internal checkpointStore;
+    MockAnchor internal anchor;
     MockCircuitVerifier internal circuitVerifier;
     ShadowVerifier internal shadowVerifier;
     MockEtherMinter internal etherMinter;
@@ -23,9 +23,9 @@ contract ShadowTest is Test {
     Shadow internal shadow;
 
     function setUp() public {
-        checkpointStore = new MockCheckpointStore();
+        anchor = new MockAnchor();
         circuitVerifier = new MockCircuitVerifier();
-        shadowVerifier = new ShadowVerifier(address(checkpointStore), address(circuitVerifier));
+        shadowVerifier = new ShadowVerifier(address(anchor), address(circuitVerifier));
         etherMinter = new MockEtherMinter();
         uint64 nonce = vm.getNonce(address(this));
         address predictedShadowProxy = vm.computeCreateAddress(address(this), nonce + 2);
@@ -63,8 +63,8 @@ contract ShadowTest is Test {
 
     function test_claim_succeeds() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         address recipient = address(0xBEEF);
         bytes32 nullifierValue = keccak256("nullifier");
@@ -73,7 +73,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: amount,
@@ -97,8 +97,8 @@ contract ShadowTest is Test {
 
     function test_claim_mintsOnlyOnceWhen_FeeIsZero() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         address recipient = address(0xBEEF);
         bytes32 nullifierValue = keccak256("nullifier-fee-zero");
@@ -107,7 +107,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: amount,
@@ -130,12 +130,12 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_ChainIdMismatch() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid + 1,
             noteIndex: 1,
             amount: 1 ether,
@@ -150,12 +150,12 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_PowInvalid() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 1 ether,
@@ -170,13 +170,13 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_ProofVerificationFailed() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
         circuitVerifier.setShouldVerify(false);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 1 ether,
@@ -191,14 +191,14 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_ProofVerificationFailed_doesNotConsumeOrMint() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
         circuitVerifier.setShouldVerify(false);
 
         bytes32 nullifierValue = keccak256("nullifier-security");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 1 ether,
@@ -216,14 +216,14 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_EtherMintFails_doesNotConsumeNullifier() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
         etherMinter.setShouldRevert(true);
 
         bytes32 nullifierValue = keccak256("nullifier-mint-failure");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 1 ether,
@@ -241,14 +241,14 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_FeeMintFails_doesNotConsumeOrMint() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
         etherMinter.setRevertOnMintNumber(2);
 
         bytes32 nullifierValue = keccak256("nullifier-fee-mint-failure");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 1000,
@@ -266,13 +266,13 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_NullifierReused() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         bytes32 nullifierValue = keccak256("nullifier");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 1 ether,
@@ -288,12 +288,12 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_InvalidRecipient() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 1 ether,
@@ -308,12 +308,12 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_InvalidAmount() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 stateRoot = keccak256("root");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), stateRoot);
+        bytes32 blockHash = keccak256("root");
+        anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: block.chainid,
             noteIndex: 1,
             amount: 0,

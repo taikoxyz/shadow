@@ -17,7 +17,7 @@
 
 ### Core Implementations (`src/impl/`)
 - **`Shadow`**: Claim contract with immutable dependencies (verifier, ETH minter hook, nullifier, feeRecipient). Applies a 0.1% claim fee (`amount / 1000`).
-- **`ShadowVerifier`**: Wrapper that checks state roots before dispatching to the circuit verifier.
+- **`ShadowVerifier`**: Wrapper that checks Anchor block hashes before dispatching to the circuit verifier.
 - **`Risc0CircuitVerifier`**: ICircuitVerifier adapter that binds public inputs to a RISC0 journal and delegates receipt-seal validation to a RISC0 verifier contract.
 - **`Nullifier`**: Registry that tracks and burns nullifiers to prevent replayed claims.
 - **`DummyEtherMinter`**: No-op minter used in local/testing deployments; emits `EthMinted(recipient, amount)`.
@@ -41,7 +41,7 @@ Mocks for every interface live under `test/mocks` to keep integration tests herm
 
 The adapter:
 
-- validates that `journal` matches the claim public inputs (`blockNumber`, `stateRoot`, `chainId`, `noteIndex`, `amount`, `recipient`, `nullifier`, `powDigest`)
+- validates that `journal` matches the claim public inputs (`blockNumber`, `blockHash`, `chainId`, `noteIndex`, `amount`, `recipient`, `nullifier`, `powDigest`)
 - computes `journalDigest = sha256(journal)`
 - calls the configured `IRiscZeroVerifier.verify(seal, imageId, journalDigest)`
 
@@ -59,7 +59,7 @@ Required environment variables:
 
 - `DEPLOYER_PRIVATE_KEY`
 - `OWNER` (Shadow owner / final governance owner)
-- `CHECKPOINT_STORE`
+- `ANCHOR`
 - `IMAGE_ID` (optional; RISC0 method image id as `bytes32`, defaults to hoodi image id)
 
 Optional environment variables:
@@ -72,7 +72,7 @@ Example:
 export RPC_URL="https://rpc.hoodi.taiko.xyz"
 export DEPLOYER_PRIVATE_KEY="0x..."
 export OWNER="0x..."
-export CHECKPOINT_STORE="0x..."
+export ANCHOR="0x..."
 export IMAGE_ID="0x..."
 
 forge script script/DeployTaiko.s.sol:DeployTaiko \

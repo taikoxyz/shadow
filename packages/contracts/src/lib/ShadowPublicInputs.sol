@@ -8,7 +8,7 @@ import {IShadow} from "../iface/IShadow.sol";
 library ShadowPublicInputs {
     uint256 private constant _PUBLIC_INPUTS_LEN = 120;
     uint256 private constant _IDX_BLOCK_NUMBER = 0;
-    uint256 private constant _IDX_STATE_ROOT = 1;
+    uint256 private constant _IDX_BLOCK_HASH = 1;
     uint256 private constant _IDX_CHAIN_ID = 33;
     uint256 private constant _IDX_NOTE_INDEX = 34;
     uint256 private constant _IDX_AMOUNT = 35;
@@ -24,7 +24,7 @@ library ShadowPublicInputs {
 
         inputs_[_IDX_BLOCK_NUMBER] = _input.blockNumber;
 
-        _writeBytes32(inputs_, _IDX_STATE_ROOT, _input.stateRoot);
+        _writeBytes32(inputs_, _IDX_BLOCK_HASH, _input.blockHash);
 
         inputs_[_IDX_CHAIN_ID] = _input.chainId;
         inputs_[_IDX_NOTE_INDEX] = _input.noteIndex;
