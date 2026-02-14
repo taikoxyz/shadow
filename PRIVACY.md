@@ -1,6 +1,6 @@
 # Shadow — Privacy & Data Exposure
 
-This document describes what Shadow does and does not keep private on Taiko Hoodi.
+This document describes what Shadow does and does not keep private on Taiko.
 
 Shadow is **not a mixer**. It does not provide a large anonymity set, and it does not hide recipients or claim amounts.
 
@@ -12,7 +12,7 @@ Shadow is **not a mixer**. It does not provide a large anonymity set, and it doe
 
 ## What Becomes Public
 
-### L1 Funding (Hoodi L1)
+### Funding
 
 Funding the derived `targetAddress` is a standard ETH transfer. Like any ETH transfer, observers can see:
 
@@ -23,20 +23,20 @@ Funding the derived `targetAddress` is a standard ETH transfer. Like any ETH tra
 
 There is no protocol-level way to hide this on a public blockchain.
 
-### L2 Claim (Hoodi L2)
+### Claim
 
 Claims are public transactions. Observers can see:
 
 - `recipient` and `amount` (also emitted in events)
 - `noteIndex`
-- `blockNumber` and `stateRoot` (the L1 checkpoint used)
+- `blockNumber` and `blockHash`
 - `nullifier` (and when it is consumed)
 - transaction sender (may be different from `recipient`)
 
 In the current implementation, the claim proof payload also includes a **RISC Zero journal** that is sent on-chain and therefore public. This journal contains a packed copy of the claim inputs:
 
 - `blockNumber`
-- `stateRoot`
+- `blockHash`
 - `chainId`
 - `noteIndex`
 - `recipient`
@@ -53,7 +53,7 @@ The journal is used only to bind the proof to the already-public claim inputs an
 
 ### Deposit-to-Claim Link
 
-Shadow does not publish `targetAddress` on L2 as part of a claim. This reduces passive linkability between an L1 funding address and an L2 claim for third-party observers who do not already know the deposit address.
+Shadow does not publish `targetAddress` as part of a claim. This reduces passive linkability between a funding address and a claim for third-party observers who do not already know the deposit address.
 
 ### Linking Multiple Claims From the Same Note Set
 
@@ -61,7 +61,7 @@ Claims from the same deposit file/note set are linkable (for example via the pub
 
 ### Recipient/Amount Are Not Private
 
-Each claim publicly reveals the note’s `recipient` and `amount` in calldata and events. The contract applies a 0.1% claim fee (sent to a fixed `feeRecipient`), so the net amount minted to `recipient` is `amount - (amount / 1000)`.
+Each claim publicly reveals the note's `recipient` and `amount` in calldata and events. The contract applies a 0.1% claim fee (sent to a fixed `feeRecipient`), so the net amount minted to `recipient` is `amount - (amount / 1000)`.
 
 ### Timing Analysis
 
@@ -73,9 +73,9 @@ Reusing the same `secret` across multiple deposit files is strongly discouraged 
 
 ## Operational Guidance (Non-Technical)
 
-- Use a fresh funding account for L1 deposits if you want to avoid linking the deposit to your identity or other on-chain activity.
+- Use a fresh funding account for deposits if you want to avoid linking the deposit to your identity or other on-chain activity.
 - Separate deposit and claim in time if timing correlation is a concern.
-- Consider using a relayer to submit the L2 claim so the transaction sender is not the same as the recipient (recipient is still public).
+- Consider using a relayer to submit the claim so the transaction sender is not the same as the recipient (recipient is still public).
 - Treat the deposit file like a private key: do not upload it to third-party storage or share it.
 
 ## Legal / Compliance Notice

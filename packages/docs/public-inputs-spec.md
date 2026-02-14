@@ -1,6 +1,6 @@
-# Shadow Circuit Public Inputs (Specification)
+# Shadow Public Inputs Specification
 
-This document defines the **canonical** public input encoding consumed by:
+This document defines the **canonical** public input encoding consumed by the Shadow protocol:
 
 - `ICircuitVerifier.verifyProof(bytes proof, uint256[] publicInputs)`
 - `ShadowVerifier.verifyProof(bytes proof, IShadow.PublicInput input)`
@@ -11,14 +11,16 @@ It also specifies how `Risc0CircuitVerifier` binds `publicInputs` to the committ
 
 Shadow uses this logical input (see `IShadow.PublicInput`):
 
-- `blockNumber`: L1 block number used for `stateRoot` and `eth_getProof`
-- `stateRoot`: L1 state root at `blockNumber`
-- `chainId`: L2 chain id (must equal `block.chainid` in `Shadow.claim`)
-- `noteIndex`: claimed note index (0-based)
-- `amount`: claimed amount (wei, gross note amount; `Shadow.claim` may apply a fee before minting)
-- `recipient`: claim recipient
-- `nullifier`: claim nullifier
-- `powDigest`: anti-spam PoW digest
+| Field | Description |
+|-------|-------------|
+| `blockNumber` | Block number used for `blockHash` and `eth_getProof` |
+| `blockHash` | Block hash at `blockNumber` (verified by prover against header RLP) |
+| `chainId` | Chain id (must equal `block.chainid` in `Shadow.claim`) |
+| `noteIndex` | Claimed note index (0-based) |
+| `amount` | Claimed amount (wei, gross note amount; `Shadow.claim` applies a 0.1% fee) |
+| `recipient` | Claim recipient |
+| `nullifier` | Claim nullifier |
+| `powDigest` | Anti-spam PoW digest |
 
 ## Flattened Public Inputs (`uint256[120]`)
 
@@ -26,10 +28,12 @@ Shadow uses this logical input (see `IShadow.PublicInput`):
 
 Scalar values are stored directly in a single `uint256`. Multi-byte values are stored as **one byte per element**.
 
+### Layout
+
 | Offset | Length | Field | Type | Encoding |
 |---:|---:|---|---|---|
 | 0 | 1 | `blockNumber` | `uint256` | Stored directly. |
-| 1 | 32 | `stateRoot` | `bytes32` | One byte per element, Solidity byte order (MSB to LSB). |
+| 1 | 32 | `blockHash` | `bytes32` | One byte per element, Solidity byte order (MSB to LSB). |
 | 33 | 1 | `chainId` | `uint256` | Stored directly. |
 | 34 | 1 | `noteIndex` | `uint256` | Stored directly. |
 | 35 | 1 | `amount` | `uint256` | Stored directly. |
@@ -37,18 +41,14 @@ Scalar values are stored directly in a single `uint256`. Multi-byte values are s
 | 56 | 32 | `nullifier` | `bytes32` | One byte per element, Solidity byte order (MSB to LSB). |
 | 88 | 32 | `powDigest` | `bytes32` | One byte per element, Solidity byte order (MSB to LSB). |
 
-### Byte Element Constraints
+### Constraints
 
-For all byte-encoded fields (`stateRoot`, `recipient`, `nullifier`, `powDigest`):
-
-- Each `publicInputs[i]` representing a byte **MUST** be in `[0, 255]`.
+- `inputs.length == 120` must hold for verifier calls.
+- For all byte-encoded fields (`blockHash`, `recipient`, `nullifier`, `powDigest`): each `publicInputs[i]` representing a byte **MUST** be in `[0, 255]`.
 
 ### Byte Order (Solidity Byte Indexing)
 
-Multi-byte values are written in the same order as Solidity's byte indexing:
-
-- Most-significant byte first
-- Least-significant byte last
+Multi-byte values are written in the same order as Solidity's `bytes` indexing (most-significant byte first, least-significant byte last).
 
 #### `bytes32` Encoding
 
@@ -80,10 +80,10 @@ publicInputs[o + 19] = uint8(bytes20(a)[19])  // LSB
 
 The verifier binds `publicInputs` to the proof by:
 
-1. decoding `(seal, journal)`
-2. checking `journal.length == 152`
-3. parsing fields from `journal` and comparing them to the expected values derived from `publicInputs`
-4. calling the configured RISC0 verifier with `sha256(journal)`
+1. Decoding `(seal, journal)` from the proof
+2. Checking `journal.length == 152`
+3. Parsing fields from `journal` and comparing them to the expected values derived from `publicInputs`
+4. Calling the configured RISC0 verifier with `sha256(journal)`
 
 ### Journal Binary Layout (`bytes[152]`)
 
@@ -92,7 +92,7 @@ The journal is a fixed 152-byte binary blob with the following layout:
 | Offset (bytes) | Size | Field | Type | Encoding |
 |---:|---:|---|---|---|
 | 0 | 8 | `blockNumber` | `uint64` | Little-endian integer. |
-| 8 | 32 | `stateRoot` | `bytes32` | Raw bytes. |
+| 8 | 32 | `blockHash` | `bytes32` | Raw bytes. |
 | 40 | 8 | `chainId` | `uint64` | Little-endian integer. |
 | 48 | 4 | `noteIndex` | `uint32` | Little-endian integer. |
 | 52 | 16 | `amount` | `uint128` | Little-endian integer. |
@@ -105,7 +105,7 @@ The journal is a fixed 152-byte binary blob with the following layout:
 The binding checks are:
 
 - `journal.blockNumber` (LE `uint64`) equals `publicInputs[0]`
-- `journal.stateRoot` equals `bytes32(publicInputs[1..32])`
+- `journal.blockHash` equals `bytes32(publicInputs[1..32])`
 - `journal.chainId` (LE `uint64`) equals `publicInputs[33]`
 - `journal.noteIndex` (LE `uint32`) equals `publicInputs[34]`
 - `journal.amount` (LE `uint128`) equals `publicInputs[35]`
@@ -139,7 +139,7 @@ Equivalently, the last 3 bytes of `powDigest` must be zero. In the flattened pub
 Given:
 
 - `blockNumber = 100`
-- `stateRoot = 0xabc...def` (32 bytes)
+- `blockHash = 0xabc...def` (32 bytes)
 - `chainId = 167013`
 - `noteIndex = 0`
 - `amount = 1000000000000000000` (1 ETH)
@@ -151,9 +151,9 @@ Then the flattened array contains:
 
 ```text
 publicInputs[0]   = 100               // blockNumber
-publicInputs[1]   = stateRoot[0]      // MSB
+publicInputs[1]   = blockHash[0]      // MSB
 ...
-publicInputs[32]  = stateRoot[31]     // LSB
+publicInputs[32]  = blockHash[31]     // LSB
 publicInputs[33]  = 167013            // chainId
 publicInputs[34]  = 0                 // noteIndex
 publicInputs[35]  = 1000000000000000000
@@ -165,12 +165,36 @@ publicInputs[56]  = nullifier[0]      // MSB
 publicInputs[87]  = nullifier[31]     // LSB
 publicInputs[88]  = powDigest[0]      // MSB
 ...
-publicInputs[117] = 0                // powDigest[29] must be 0
-publicInputs[118] = 0                // powDigest[30] must be 0
-publicInputs[119] = 0                // powDigest[31] must be 0
+publicInputs[117] = 0                 // powDigest[29] must be 0
+publicInputs[118] = 0                 // powDigest[30] must be 0
+publicInputs[119] = 0                 // powDigest[31] must be 0
 ```
 
-## Source Of Truth
+## Private Inputs
+
+The circuit also requires private inputs that are not exposed on-chain. These are provided by the prover and verified internally by the circuit.
+
+### Block Header
+
+The full Ethereum block header is provided as private input. The circuit verifies:
+
+- The header RLP hashes to the public `blockHash`
+- The header contains the correct `stateRoot` for the account proof verification
+
+### Account Proof
+
+Merkle-Patricia trie proof for the target address:
+
+- `accountProofNodes[]`: RLP-encoded trie nodes from `eth_getProof`
+- The circuit verifies the proof is valid under the block's `stateRoot`
+- Extracts and validates the account balance
+
+### Secret Material
+
+- `secret`: User's secret from the deposit file
+- `notes[]`: Full note set (1-5 notes with amount and recipient)
+
+## Source of Truth
 
 The implementation must match this spec:
 

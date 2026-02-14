@@ -27,8 +27,7 @@
 - `IEtherMinter`, `ICircuitVerifier` – External dependency interfaces
 
 ### Public input layout
-- `docs/public-inputs.md` – Flattened public input ordering and byte layout.
-- `docs/circuit-public-inputs-spec.md` – Normative specification, including the RISC0 journal binding rules.
+- `packages/docs/public-inputs-spec.md` – Full specification including public input encoding and RISC0 journal binding.
 
 ### Testing
 Mocks for every interface live under `test/mocks` to keep integration tests hermetic. Upgradeable contracts are tested behind ERC1967Proxy to ensure proper initialization behavior.

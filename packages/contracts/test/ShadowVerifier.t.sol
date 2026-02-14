@@ -145,7 +145,8 @@ contract ShadowVerifierTest is Test {
             powDigest: bytes32(uint256(1) << 24)
         });
 
-        vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, blockNumber));
+        // When anchor reverts, the revert propagates directly
+        vm.expectRevert("anchor reverted");
         revertingVerifier.verifyProof("", input);
     }
 
