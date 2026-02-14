@@ -19,7 +19,7 @@ const MAGIC_NULLIFIER: &[u8] = b"shadow.nullifier.v1";
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaimInput {
     pub block_number: u64,
-    pub state_root: [u8; 32],
+    pub block_hash: [u8; 32],
     pub chain_id: u64,
     pub note_index: u32,
     pub amount: u128,
@@ -28,6 +28,7 @@ pub struct ClaimInput {
     pub note_count: u32,
     pub amounts: Vec<u128>,
     pub recipient_hashes: Vec<[u8; 32]>,
+    pub block_header_rlp: Vec<u8>,
     pub proof_depth: u32,
     pub proof_nodes: Vec<Vec<u8>>,
     pub proof_node_lengths: Vec<u32>,
@@ -36,7 +37,7 @@ pub struct ClaimInput {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaimJournal {
     pub block_number: u64,
-    pub state_root: [u8; 32],
+    pub block_hash: [u8; 32],
     pub chain_id: u64,
     pub note_index: u32,
     pub amount: u128,
@@ -76,7 +77,7 @@ pub fn pack_journal(journal: &ClaimJournal) -> [u8; PACKED_JOURNAL_LEN] {
     let mut out = [0u8; PACKED_JOURNAL_LEN];
 
     out[0..8].copy_from_slice(&journal.block_number.to_le_bytes());
-    out[8..40].copy_from_slice(&journal.state_root);
+    out[8..40].copy_from_slice(&journal.block_hash);
     out[40..48].copy_from_slice(&journal.chain_id.to_le_bytes());
     out[48..52].copy_from_slice(&journal.note_index.to_le_bytes());
     out[52..68].copy_from_slice(&journal.amount.to_le_bytes());
@@ -93,7 +94,7 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
     }
 
     let block_number = u64::from_le_bytes(copy_array::<8>(&bytes[0..8]));
-    let state_root = copy_array::<32>(&bytes[8..40]);
+    let block_hash = copy_array::<32>(&bytes[8..40]);
     let chain_id = u64::from_le_bytes(copy_array::<8>(&bytes[40..48]));
     let note_index = u32::from_le_bytes(copy_array::<4>(&bytes[48..52]));
     let amount = u128::from_le_bytes(copy_array::<16>(&bytes[52..68]));
@@ -103,7 +104,7 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
 
     Ok(ClaimJournal {
         block_number,
-        state_root,
+        block_hash,
         chain_id,
         note_index,
         amount,
@@ -139,7 +140,10 @@ pub enum ClaimValidationError {
     InvalidAccountValue,
     InsufficientAccountBalance,
     InvalidPowDigest,
+    InvalidBlockHeaderHash,
+    InvalidBlockHeaderShape,
 }
+
 
 impl ClaimValidationError {
     pub const fn as_str(&self) -> &'static str {
@@ -162,6 +166,8 @@ impl ClaimValidationError {
             Self::InvalidAccountValue => "invalid account value encoding",
             Self::InsufficientAccountBalance => "account balance is insufficient for note total",
             Self::InvalidPowDigest => "pow digest does not satisfy target",
+            Self::InvalidBlockHeaderHash => "block header hash mismatch",
+            Self::InvalidBlockHeaderShape => "invalid block header shape",
         }
     }
 }
@@ -224,8 +230,9 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
 
     let notes_hash = compute_notes_hash(note_count, &input.amounts, &input.recipient_hashes)?;
     let target_address = derive_target_address(&input.secret, input.chain_id, &notes_hash);
+    let state_root = parse_state_root_from_block_header(&input.block_hash, &input.block_header_rlp)?;
     let account_balance =
-        verify_account_proof_and_get_balance(&input.state_root, &target_address, &input.proof_nodes)?;
+        verify_account_proof_and_get_balance(&state_root, &target_address, &input.proof_nodes)?;
     if !balance_gte_total(&account_balance, total_amount) {
         return Err(ClaimValidationError::InsufficientAccountBalance);
     }
@@ -238,7 +245,7 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
 
     Ok(ClaimJournal {
         block_number: input.block_number,
-        state_root: input.state_root,
+        block_hash: input.block_hash,
         chain_id: input.chain_id,
         note_index: input.note_index,
         amount: input.amount,
@@ -376,6 +383,23 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
     let mut out = [0u8; 32];
     keccak.finalize(&mut out);
     out
+}
+
+
+fn parse_state_root_from_block_header(
+    expected_block_hash: &[u8; 32],
+    block_header_rlp: &[u8],
+) -> Result<[u8; 32], ClaimValidationError> {
+    if keccak256(block_header_rlp) != *expected_block_hash {
+        return Err(ClaimValidationError::InvalidBlockHeaderHash);
+    }
+
+    let fields = decode_rlp_list_payload_items(block_header_rlp)?;
+    if fields.len() < 4 || fields[3].len() != 32 {
+        return Err(ClaimValidationError::InvalidBlockHeaderShape);
+    }
+
+    Ok(to_32(fields[3]))
 }
 
 #[derive(Clone, Copy)]

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
-import {ICheckpointStore} from "../iface/ICheckpointStore.sol";
+import {IAnchor} from "../iface/IAnchor.sol";
 import {ICircuitVerifier} from "../iface/ICircuitVerifier.sol";
 import {IShadow} from "../iface/IShadow.sol";
 import {IShadowVerifier} from "../iface/IShadowVerifier.sol";
@@ -11,12 +11,12 @@ import {ShadowPublicInputs} from "../lib/ShadowPublicInputs.sol";
 
 contract ShadowVerifier is IShadowVerifier {
     ICircuitVerifier public immutable circuitVerifier;
-    ICheckpointStore public immutable checkpointStore;
+    IAnchor public immutable anchor;
 
-    constructor(address _checkpointStore, address _circuitVerifier) {
-        require(_checkpointStore != address(0), ZeroAddress());
+    constructor(address _anchor, address _circuitVerifier) {
+        require(_anchor != address(0), ZeroAddress());
         require(_circuitVerifier != address(0), ZeroAddress());
-        checkpointStore = ICheckpointStore(_checkpointStore);
+        anchor = IAnchor(_anchor);
         circuitVerifier = ICircuitVerifier(_circuitVerifier);
     }
 
@@ -26,18 +26,11 @@ contract ShadowVerifier is IShadowVerifier {
         view
         returns (bool _isValid_)
     {
-        require(_input.blockNumber > 0, CheckpointNotFound(_input.blockNumber));
+        require(_input.blockNumber > 0, BlockHashNotFound(_input.blockNumber));
 
-        ICheckpointStore.Checkpoint memory checkpoint;
-        try checkpointStore.getCheckpoint(_input.blockNumber) returns (ICheckpointStore.Checkpoint memory cp) {
-            checkpoint = cp;
-        } catch {
-            revert CheckpointNotFound(_input.blockNumber);
-        }
-
-        require(checkpoint.blockNumber == _input.blockNumber, CheckpointNotFound(_input.blockNumber));
-        require(checkpoint.stateRoot != bytes32(0), CheckpointNotFound(_input.blockNumber));
-        require(checkpoint.stateRoot == _input.stateRoot, StateRootMismatch(checkpoint.stateRoot, _input.stateRoot));
+        bytes32 canonicalBlockHash = anchor.blockHashes(_input.blockNumber);
+        require(canonicalBlockHash != bytes32(0), BlockHashNotFound(_input.blockNumber));
+        require(canonicalBlockHash == _input.blockHash, BlockHashMismatch(canonicalBlockHash, _input.blockHash));
 
         uint256[] memory publicInputs = ShadowPublicInputs.toArray(_input);
         bool ok = circuitVerifier.verifyProof(_proof, publicInputs);

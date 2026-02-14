@@ -11,14 +11,14 @@ contract ShadowPublicInputsTest is Test {
     }
 
     function test_toArray_layout() external {
-        bytes32 stateRoot = hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+        bytes32 blockHash = hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
         bytes32 nullifier = hex"1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100";
         bytes32 powDigest = hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         address recipient = address(0x11223344556677889900aABbCcdDEeFF00112233);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: 42,
-            stateRoot: stateRoot,
+            blockHash: blockHash,
             chainId: 167,
             noteIndex: 3,
             amount: 5 ether,
@@ -35,7 +35,7 @@ contract ShadowPublicInputsTest is Test {
         assertEq(inputs[35], 5 ether);
 
         for (uint256 i = 0; i < 32; i++) {
-            assertEq(inputs[1 + i], uint256(uint8(stateRoot[i])));
+            assertEq(inputs[1 + i], uint256(uint8(blockHash[i])));
             assertEq(inputs[56 + i], uint256(uint8(nullifier[i])));
             assertEq(inputs[88 + i], uint256(uint8(powDigest[i])));
         }

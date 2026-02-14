@@ -89,7 +89,7 @@ contract Risc0CircuitVerifierTest is Test {
         assertFalse(ok);
     }
 
-    function test_verifyProof_returnsFalseWhenStateRootMismatch() external {
+    function test_verifyProof_returnsFalseWhenBlockHashMismatch() external {
         IShadow.PublicInput memory input = _sampleInput();
         uint256[] memory publicInputs = this._toArray(input);
 
@@ -217,7 +217,7 @@ contract Risc0CircuitVerifierTest is Test {
     function _sampleInput() private view returns (IShadow.PublicInput memory) {
         return IShadow.PublicInput({
             blockNumber: 4_353_615,
-            stateRoot: keccak256("state-root"),
+            blockHash: keccak256("state-root"),
             chainId: block.chainid,
             noteIndex: 0,
             amount: 1_230_000_000_000,
@@ -231,7 +231,7 @@ contract Risc0CircuitVerifierTest is Test {
         journal_ = new bytes(_JOURNAL_LEN);
 
         _writeLe(journal_, 0, _input.blockNumber, 8);
-        _writeBytes32(journal_, 8, _input.stateRoot);
+        _writeBytes32(journal_, 8, _input.blockHash);
         _writeLe(journal_, 40, _input.chainId, 8);
         _writeLe(journal_, 48, _input.noteIndex, 4);
         _writeLe(journal_, 52, _input.amount, 16);
