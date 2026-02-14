@@ -6,8 +6,8 @@
 - `forge script script/DeployTaiko.s.sol:DeployTaiko --rpc-url <RPC> --broadcast` – deploys and wires the full stack
 
 ## Directory Structure
-- `src/iface/` – Interface contracts (IShadow, IShadowVerifier, INullifier, etc.)
-- `src/impl/` – Implementation contracts (Shadow, ShadowVerifier, Nullifier)
+- `src/iface/` – Interface contracts (IShadow, IShadowVerifier, etc.)
+- `src/impl/` – Implementation contracts (Shadow, ShadowVerifier, ...)
 - `src/lib/` – Shared helpers (public input parsing)
 - `script/` – Foundry deployment scripts
 - `test/` – Test files
@@ -16,14 +16,13 @@
 ## Components
 
 ### Core Implementations (`src/impl/`)
-- **`Shadow`**: Claim contract with immutable dependencies (verifier, ETH minter hook, nullifier, feeRecipient). Applies a 0.1% claim fee (`amount / 1000`).
+- **`Shadow`**: Claim contract with immutable dependencies (verifier, ETH minter hook, feeRecipient). Tracks consumed nullifiers internally. Applies a 0.1% claim fee (`amount / 1000`).
 - **`ShadowVerifier`**: Wrapper that checks state roots before dispatching to the circuit verifier.
 - **`Risc0CircuitVerifier`**: ICircuitVerifier adapter that binds public inputs to a RISC0 journal and delegates receipt-seal validation to a RISC0 verifier contract.
-- **`Nullifier`**: Registry that tracks and burns nullifiers to prevent replayed claims.
 - **`DummyEtherMinter`**: No-op minter used in local/testing deployments; emits `EthMinted(recipient, amount)`.
 
 ### Interfaces (`src/iface/`)
-- `IShadow`, `IShadowVerifier`, `INullifier` – Core protocol interfaces
+- `IShadow`, `IShadowVerifier` – Core protocol interfaces
 - `IEtherMinter`, `ICircuitVerifier` – External dependency interfaces
 
 ### Public input layout
@@ -41,7 +40,8 @@ Mocks for every interface live under `test/mocks` to keep integration tests herm
 
 The adapter:
 
-- validates that `journal` matches the claim public inputs (`blockNumber`, `stateRoot`, `chainId`, `noteIndex`, `amount`, `recipient`, `nullifier`, `powDigest`)
+- validates that `journal` matches the claim public inputs (`blockNumber`, `stateRoot`, `chainId`, `amount`, `recipient`, `nullifier`)
+- `noteIndex` and `powDigest` are enforced privately inside the zkVM guest and are not committed in the journal.
 - computes `journalDigest = sha256(journal)`
 - calls the configured `IRiscZeroVerifier.verify(seal, imageId, journalDigest)`
 
@@ -49,11 +49,10 @@ The adapter:
 
 `script/DeployTaiko.s.sol` deploys, initializes, and wires:
 
-1. `Nullifier`
-2. `DummyEtherMinter`
-3. `Risc0CircuitVerifier`
-4. `ShadowVerifier`
-5. `Shadow` implementation (with immutable `feeRecipient = owner`) + `ERC1967Proxy` initialized with `initialize(owner)`
+1. `DummyEtherMinter`
+2. `Risc0CircuitVerifier`
+3. `ShadowVerifier`
+4. `Shadow` implementation (with immutable `feeRecipient = owner`) + `ERC1967Proxy` initialized with `initialize(owner)`
 
 Required environment variables:
 

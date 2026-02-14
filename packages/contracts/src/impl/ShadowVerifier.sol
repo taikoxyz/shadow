@@ -37,9 +37,8 @@ contract ShadowVerifier is IShadowVerifier {
 
         require(checkpoint.blockNumber == _input.blockNumber, CheckpointNotFound(_input.blockNumber));
         require(checkpoint.stateRoot != bytes32(0), CheckpointNotFound(_input.blockNumber));
-        require(checkpoint.stateRoot == _input.stateRoot, StateRootMismatch(checkpoint.stateRoot, _input.stateRoot));
 
-        uint256[] memory publicInputs = ShadowPublicInputs.toArray(_input);
+        uint256[] memory publicInputs = ShadowPublicInputs.toArray(_input, checkpoint.stateRoot);
         bool ok = circuitVerifier.verifyProof(_proof, publicInputs);
         require(ok, ProofVerificationFailed());
         _isValid_ = true;

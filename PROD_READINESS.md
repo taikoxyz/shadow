@@ -36,7 +36,7 @@ See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.m
   - **Files:** `packages/risc0-prover/host/src/main.rs`
 
 - [x] **2) Journal format is chain-verifiable**
-  - Guest commits a packed **152-byte** journal (not RISC0 serde), matching `Risc0CircuitVerifier` expectations.
+  - Guest commits a packed **116-byte** journal (not RISC0 serde), matching `Risc0CircuitVerifier` expectations.
   - **Files:** `packages/risc0-prover/crates/shadow-proof-core/src/lib.rs:82-101`
 
 - [x] **3) Hoodi checkpoint flow wired**
@@ -49,7 +49,7 @@ See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.m
 - [x] **4) On-chain deployment complete (Hoodi L2)**
   - Deploy script: `packages/contracts/script/DeployTaiko.s.sol`
   - Default verifier: Taiko Hoodi RISC0 verifier (`0xd1934807041B168f383870A0d8F565aDe2DF9D7D`)
-  - Image ID: `0x9ea74bd84383a9ca3d776790823f48d79638cf8f99bccc77f2eac4cb70c89216`
+  - Image ID: `0x67e4b7b2bab50e0cbb1159f0b74cc7ffba1266fa6c516b51e6a4917fa3062a61`
 
 - [x] **5) On-chain proof verification (view)**
   - `Risc0CircuitVerifier.verifyProof(bytes,uint256[])` returns `true` for a generated Groth16 proof.
@@ -63,20 +63,19 @@ See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.m
   - **Files:** `packages/contracts/src/impl/Shadow.sol`
 
 - [x] **7) Contracts verified on TaikoScan (Etherscan API v2)**
-  - Verified: `DummyEtherMinter`, `Nullifier`, `Risc0CircuitVerifier`, `ShadowVerifier`, `Shadow` (implementation), `ERC1967Proxy`
+  - Verified: `DummyEtherMinter`, `Risc0CircuitVerifier`, `ShadowVerifier`, `Shadow` (implementation), `ERC1967Proxy`
 
 ### Security Verification
 
 - [x] **8) Public input binding verified**
   - Guest packs a fixed-length journal committed in the receipt.
-  - `Risc0CircuitVerifier` validates journal fields against the 120-element public inputs array.
+  - `Risc0CircuitVerifier` validates journal fields against the 87-element public inputs array.
   - **Files:** `packages/risc0-prover/crates/shadow-proof-core/src/lib.rs`, `packages/contracts/src/impl/Risc0CircuitVerifier.sol`
 
 - [x] **9) Nullifier double-spend prevention verified**
   - Atomic check-and-consume pattern
-  - Access control on `consume()` function
   - Test coverage for reuse attempt
-  - **Files:** `packages/contracts/src/impl/Nullifier.sol:23-31`
+  - **Files:** `packages/contracts/src/impl/Shadow.sol`
 
 - [x] **10) Domain separation verified**
   - Magic prefixes consistent across TS/Rust.
@@ -119,7 +118,6 @@ See [`packages/contracts/REVIEW_RESULT.md`](./packages/contracts/REVIEW_RESULT.m
 
 | Contract | Address | Verified |
 |----------|---------|----------|
-| Nullifier | TBD | Yes |
 | DummyEtherMinter | TBD | Yes |
 | Risc0CircuitVerifier | TBD | Yes |
 | ShadowVerifier | TBD | Yes |

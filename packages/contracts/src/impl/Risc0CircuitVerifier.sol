@@ -15,36 +15,30 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
     error InvalidJournalLength(uint256 actual);
     error JournalBlockNumberMismatch(uint256 expected, uint256 actual);
     error JournalChainIdMismatch(uint256 expected, uint256 actual);
-    error JournalNoteIndexMismatch(uint256 expected, uint256 actual);
     error JournalAmountMismatch(uint256 expected, uint256 actual);
     error JournalStateRootMismatch(bytes32 expected, bytes32 actual);
     error JournalRecipientMismatch(address expected, address actual);
     error JournalNullifierMismatch(bytes32 expected, bytes32 actual);
-    error JournalPowDigestMismatch(bytes32 expected, bytes32 actual);
     error PublicInputByteOutOfRange(uint256 index, uint256 value);
 
     IRiscZeroVerifier public immutable risc0Verifier;
     bytes32 public immutable imageId;
 
-    uint256 private constant _PUBLIC_INPUTS_LEN = 120;
+    uint256 private constant _PUBLIC_INPUTS_LEN = 87;
     uint256 private constant _IDX_BLOCK_NUMBER = 0;
     uint256 private constant _IDX_STATE_ROOT = 1;
     uint256 private constant _IDX_CHAIN_ID = 33;
-    uint256 private constant _IDX_NOTE_INDEX = 34;
-    uint256 private constant _IDX_AMOUNT = 35;
-    uint256 private constant _IDX_RECIPIENT = 36;
-    uint256 private constant _IDX_NULLIFIER = 56;
-    uint256 private constant _IDX_POW_DIGEST = 88;
+    uint256 private constant _IDX_AMOUNT = 34;
+    uint256 private constant _IDX_RECIPIENT = 35;
+    uint256 private constant _IDX_NULLIFIER = 55;
 
-    uint256 private constant _JOURNAL_LEN = 152;
+    uint256 private constant _JOURNAL_LEN = 116;
     uint256 private constant _OFFSET_BLOCK_NUMBER = 0;
     uint256 private constant _OFFSET_STATE_ROOT = 8;
     uint256 private constant _OFFSET_CHAIN_ID = 40;
-    uint256 private constant _OFFSET_NOTE_INDEX = 48;
-    uint256 private constant _OFFSET_AMOUNT = 52;
-    uint256 private constant _OFFSET_RECIPIENT = 68;
-    uint256 private constant _OFFSET_NULLIFIER = 88;
-    uint256 private constant _OFFSET_POW_DIGEST = 120;
+    uint256 private constant _OFFSET_AMOUNT = 48;
+    uint256 private constant _OFFSET_RECIPIENT = 64;
+    uint256 private constant _OFFSET_NULLIFIER = 84;
 
     constructor(address _risc0Verifier, bytes32 _imageId) {
         require(_risc0Verifier != address(0), ZeroVerifier());
@@ -115,18 +109,11 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
         uint256 chainId = _readLeUint(_journal, _OFFSET_CHAIN_ID, 8);
         require(chainId == _publicInputs[_IDX_CHAIN_ID], JournalChainIdMismatch(_publicInputs[_IDX_CHAIN_ID], chainId));
 
-        uint256 noteIndex = _readLeUint(_journal, _OFFSET_NOTE_INDEX, 4);
-        require(
-            noteIndex == _publicInputs[_IDX_NOTE_INDEX],
-            JournalNoteIndexMismatch(_publicInputs[_IDX_NOTE_INDEX], noteIndex)
-        );
-
         uint256 amount = _readLeUint(_journal, _OFFSET_AMOUNT, 16);
         require(amount == _publicInputs[_IDX_AMOUNT], JournalAmountMismatch(_publicInputs[_IDX_AMOUNT], amount));
 
         bytes32 stateRoot = _readBytes32(_journal, _OFFSET_STATE_ROOT);
         bytes32 nullifier = _readBytes32(_journal, _OFFSET_NULLIFIER);
-        bytes32 powDigest = _readBytes32(_journal, _OFFSET_POW_DIGEST);
         address recipient = _readAddress(_journal, _OFFSET_RECIPIENT);
 
         bytes32 expectedStateRoot = _readBytes32FromPublicInputs(_publicInputs, _IDX_STATE_ROOT);
@@ -137,9 +124,6 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
 
         bytes32 expectedNullifier = _readBytes32FromPublicInputs(_publicInputs, _IDX_NULLIFIER);
         require(nullifier == expectedNullifier, JournalNullifierMismatch(expectedNullifier, nullifier));
-
-        bytes32 expectedPowDigest = _readBytes32FromPublicInputs(_publicInputs, _IDX_POW_DIGEST);
-        require(powDigest == expectedPowDigest, JournalPowDigestMismatch(expectedPowDigest, powDigest));
     }
 
     function _readLeUint(bytes memory _data, uint256 _offset, uint256 _len) private pure returns (uint256 value_) {

@@ -48,7 +48,7 @@ Deposits are made to `targetAddress` on **Hoodi L1** using standard ETH transfer
 
 ### Nullifier (Double-Claim Prevention)
 
-A per-note nullifier is derived inside the circuit and published as part of the proof’s public outputs. The on-chain nullifier store consumes it to prevent replays.
+A per-note nullifier is derived inside the circuit and published as part of the proof’s public outputs. `Shadow` tracks and consumes nullifiers on-chain to prevent replays.
 
 Current implementation:
 - `nullifier = SHA256(domain_sep || chainId || secret || noteIndex)`
@@ -59,13 +59,13 @@ Current implementation:
 2. App/CLI derives `targetAddress` and displays it.
 3. Anyone funds `targetAddress` on **Hoodi L1** with ETH.
 4. Claimer generates a ZK proof for a single `noteIndex` using:
-   - An L1 `stateRoot` at some `blockNumber`
+   - A checkpointed L1 `stateRoot` at some `blockNumber` (queried from `ICheckpointStore` on Hoodi L2)
    - An Ethereum account trie proof (`eth_getProof`) for `targetAddress` at that block
-5. Claimer submits an L2 transaction calling `Shadow.claim(proof, publicInput)`.
+5. Claimer submits an L2 transaction calling `Shadow.claim(proof, input)`.
 
 ## ZK Proof Statement (What Must Be Proven)
 
-Given private inputs `(secret, full note set, accountProofNodes...)` and public inputs `(blockNumber, stateRoot, chainId, noteIndex, recipient, amount, nullifier, powDigest)` the proof must show:
+Given private inputs `(secret, noteIndex, full note set, accountProofNodes...)` and public inputs `(blockNumber, stateRoot, chainId, recipient, amount, nullifier)` the proof must show:
 
 1. Note validity
    - `noteIndex` is within note set bounds.
@@ -78,7 +78,7 @@ Given private inputs `(secret, full note set, accountProofNodes...)` and public 
    - The extracted account balance satisfies `balance(targetAddress) >= sum(noteAmounts)`.
 4. Nullifier correctness
    - `nullifier` is derived correctly for `(secret, chainId, noteIndex)`.
-5. Anti-spam PoW (currently enforced)
+5. Anti-spam PoW (enforced privately in the guest)
    - `powDigest = SHA256(notesHash || secret)` has **24 trailing zero bits** (bound to the note set).
 
 Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-chain verification (trusted setup is provided by RISC0 tooling; no new ceremony required).
@@ -86,15 +86,15 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
 ## On-Chain Components (Hoodi L2)
 
 - `Shadow`:
-  - Checks `chainId == block.chainid`, `amount > 0`, `recipient != 0`, and PoW predicate.
+  - Checks `chainId == block.chainid`, `amount > 0`, and `recipient != 0`.
   - Calls `ShadowVerifier.verifyProof`.
-  - Consumes the nullifier.
+  - Consumes the nullifier (tracked internally in `Shadow` storage).
   - Applies claim fee: `fee = amount / 1000` (0.1%).
   - Mints `amount - fee` to the note `recipient` and (if `fee > 0`) mints `fee` to an immutable `feeRecipient` (currently set to the initial owner at deployment).
 
 - `ShadowVerifier`:
   - Loads a checkpoint from `ICheckpointStore.getCheckpoint(blockNumber)`.
-  - Requires checkpoint `stateRoot == publicInput.stateRoot`.
+  - Uses checkpoint `stateRoot` as the circuit `stateRoot` public input (it is not user-provided calldata).
   - Trust model: the checkpoint is provided by a Taiko **system-level** contract and is guaranteed by the Taiko rollup protocol; Shadow trusts checkpoint correctness and finality.
   - Calls `ICircuitVerifier.verifyProof(proof, publicInputsArray)`.
   - Note: no freshness constraint is enforced (old checkpoints are acceptable).
@@ -103,9 +103,6 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
   - ABI-decodes `(seal, journal)` from `proof`.
   - Ensures selected fields in `journal` match the provided public inputs.
   - Calls Taiko’s deployed RISC0 verifier with `(seal, imageId, SHA256(journal))`.
-
-- `Nullifier`:
-  - Tracks consumed nullifiers and prevents reuse.
 
 - `IEthMinter`:
   - Testnet: `DummyEtherMinter` emits `EthMinted(to, amount)` (no real mint).

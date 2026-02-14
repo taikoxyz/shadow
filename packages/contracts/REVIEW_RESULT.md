@@ -17,7 +17,7 @@ Reviewed verifier-related Solidity code and tests:
 - `test/mocks/MockCheckpointStore.sol`
 
 ## Summary
-The verification flow is cleanly separated (Shadow -> ShadowVerifier -> ICircuitVerifier) and core checks for chainId, recipient, amount, PoW digest, and nullifier replay are present. ShadowVerifier validates checkpoint existence and state-root matching before dispatch. Public input encoding is deterministic with a contiguous 120-element layout and is documented under `docs/public-inputs.md`. On-chain PoW validation enforces trailing 24 zero bits; binding PoW to a note set/secret is enforced by the proof, not by the standalone on-chain mask check.
+The verification flow is cleanly separated (Shadow -> ShadowVerifier -> ICircuitVerifier). Shadow checks `chainId`, `amount`, `recipient`, and nullifier replay. ShadowVerifier validates checkpoint existence and uses the checkpoint `stateRoot` as the circuit `stateRoot` public input (it is not user-provided calldata). Public input encoding is deterministic with a contiguous 87-element layout and is documented under `docs/public-inputs.md`. `noteIndex` and PoW (`powDigest`) are enforced privately inside the zkVM guest and are not committed in the public journal.
 
 ## Findings
 

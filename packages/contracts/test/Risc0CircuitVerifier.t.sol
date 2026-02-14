@@ -8,7 +8,7 @@ import {ShadowPublicInputs} from "../src/lib/ShadowPublicInputs.sol";
 import {MockRiscZeroVerifier} from "./mocks/MockRiscZeroVerifier.sol";
 
 contract Risc0CircuitVerifierTest is Test {
-    uint256 private constant _JOURNAL_LEN = 152;
+    uint256 private constant _JOURNAL_LEN = 116;
     bytes32 private constant _IMAGE_ID = keccak256("shadow-image-id");
 
     MockRiscZeroVerifier internal risc0Verifier;
@@ -25,11 +25,12 @@ contract Risc0CircuitVerifierTest is Test {
     }
 
     function test_verifyProof_succeedsWhenBindingMatches() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"010203";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
         risc0Verifier.setExpectations(_IMAGE_ID, sha256(journal), seal, true);
@@ -38,24 +39,26 @@ contract Risc0CircuitVerifierTest is Test {
     }
 
     function test_verifyProof_returnsFalseWhenJournalBindingMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"aaaa";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
-        publicInputs[35] = publicInputs[35] + 1;
+        publicInputs[34] = publicInputs[34] + 1;
         bool ok = adapter.verifyProof(proof, publicInputs);
         assertFalse(ok);
     }
 
     function test_verifyProof_returnsFalseWhenBlockNumberMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"beef";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
         publicInputs[0] = publicInputs[0] + 1;
@@ -64,11 +67,12 @@ contract Risc0CircuitVerifierTest is Test {
     }
 
     function test_verifyProof_returnsFalseWhenChainIdMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"cafe";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
         publicInputs[33] = publicInputs[33] + 1;
@@ -76,25 +80,13 @@ contract Risc0CircuitVerifierTest is Test {
         assertFalse(ok);
     }
 
-    function test_verifyProof_returnsFalseWhenNoteIndexMismatch() external {
-        IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
-
-        bytes memory seal = hex"0001";
-        bytes memory journal = _buildJournal(input);
-        bytes memory proof = abi.encode(seal, journal);
-
-        publicInputs[34] = publicInputs[34] + 1;
-        bool ok = adapter.verifyProof(proof, publicInputs);
-        assertFalse(ok);
-    }
-
     function test_verifyProof_returnsFalseWhenStateRootMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"0002";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
         publicInputs[32] = (publicInputs[32] + 1) % 256;
@@ -103,50 +95,40 @@ contract Risc0CircuitVerifierTest is Test {
     }
 
     function test_verifyProof_returnsFalseWhenRecipientMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"0003";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
-        publicInputs[36] = (publicInputs[36] + 1) % 256;
+        publicInputs[35] = (publicInputs[35] + 1) % 256;
         bool ok = adapter.verifyProof(proof, publicInputs);
         assertFalse(ok);
     }
 
     function test_verifyProof_returnsFalseWhenNullifierMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"0004";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
-        publicInputs[87] = (publicInputs[87] + 1) % 256;
-        bool ok = adapter.verifyProof(proof, publicInputs);
-        assertFalse(ok);
-    }
-
-    function test_verifyProof_returnsFalseWhenPowDigestMismatch() external {
-        IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
-
-        bytes memory seal = hex"0005";
-        bytes memory journal = _buildJournal(input);
-        bytes memory proof = abi.encode(seal, journal);
-
-        publicInputs[116] = (publicInputs[116] + 1) % 256;
+        publicInputs[86] = (publicInputs[86] + 1) % 256;
         bool ok = adapter.verifyProof(proof, publicInputs);
         assertFalse(ok);
     }
 
     function test_verifyProof_returnsFalseWhenVerifierRejects() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"bbbb";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
         risc0Verifier.setShouldVerify(false);
@@ -155,8 +137,9 @@ contract Risc0CircuitVerifierTest is Test {
     }
 
     function test_verifyProof_returnsFalseWhenProofEncodingInvalid() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bool ok = adapter.verifyProof(hex"12", publicInputs);
         assertFalse(ok);
@@ -173,11 +156,12 @@ contract Risc0CircuitVerifierTest is Test {
     }
 
     function test_verifyProof_returnsFalseWhenPublicInputByteOutOfRange() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"cccc";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
         publicInputs[1] = 300;
@@ -186,21 +170,23 @@ contract Risc0CircuitVerifierTest is Test {
     }
 
     function test_verifyProof_returnsFalseWhenRecipientByteOutOfRange() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"cccd";
-        bytes memory journal = _buildJournal(input);
+        bytes memory journal = _buildJournal(input, stateRoot);
         bytes memory proof = abi.encode(seal, journal);
 
-        publicInputs[36] = 300;
+        publicInputs[35] = 300;
         bool ok = adapter.verifyProof(proof, publicInputs);
         assertFalse(ok);
     }
 
     function test_verifyProof_returnsFalseWhenJournalLengthInvalid() external {
+        bytes32 stateRoot = _sampleStateRoot();
         IShadow.PublicInput memory input = _sampleInput();
-        uint256[] memory publicInputs = this._toArray(input);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
 
         bytes memory seal = hex"dddd";
         bytes memory badJournal = new bytes(_JOURNAL_LEN - 1);
@@ -210,34 +196,37 @@ contract Risc0CircuitVerifierTest is Test {
         assertFalse(ok);
     }
 
-    function _toArray(IShadow.PublicInput calldata _input) external pure returns (uint256[] memory) {
-        return ShadowPublicInputs.toArray(_input);
+    function _toArray(IShadow.PublicInput calldata _input, bytes32 _stateRoot)
+        external
+        pure
+        returns (uint256[] memory)
+    {
+        return ShadowPublicInputs.toArray(_input, _stateRoot);
     }
 
     function _sampleInput() private view returns (IShadow.PublicInput memory) {
         return IShadow.PublicInput({
             blockNumber: 4_353_615,
-            stateRoot: keccak256("state-root"),
             chainId: block.chainid,
-            noteIndex: 0,
             amount: 1_230_000_000_000,
             recipient: 0xA92C80B3962F10e063Ad5463f996fe414F0E1F66,
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
     }
 
-    function _buildJournal(IShadow.PublicInput memory _input) private pure returns (bytes memory journal_) {
+    function _sampleStateRoot() private pure returns (bytes32) {
+        return keccak256("state-root");
+    }
+
+    function _buildJournal(IShadow.PublicInput memory _input, bytes32 _stateRoot) private pure returns (bytes memory journal_) {
         journal_ = new bytes(_JOURNAL_LEN);
 
         _writeLe(journal_, 0, _input.blockNumber, 8);
-        _writeBytes32(journal_, 8, _input.stateRoot);
+        _writeBytes32(journal_, 8, _stateRoot);
         _writeLe(journal_, 40, _input.chainId, 8);
-        _writeLe(journal_, 48, _input.noteIndex, 4);
-        _writeLe(journal_, 52, _input.amount, 16);
-        _writeAddress(journal_, 68, _input.recipient);
-        _writeBytes32(journal_, 88, _input.nullifier);
-        _writeBytes32(journal_, 120, _input.powDigest);
+        _writeLe(journal_, 48, _input.amount, 16);
+        _writeAddress(journal_, 64, _input.recipient);
+        _writeBytes32(journal_, 84, _input.nullifier);
     }
 
     function _writeLe(bytes memory _buffer, uint256 _offset, uint256 _value, uint256 _len) private pure {

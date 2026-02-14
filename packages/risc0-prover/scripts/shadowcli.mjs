@@ -36,11 +36,9 @@ const IDX = {
   BLOCK_NUMBER: 0,
   STATE_ROOT: 1,
   CHAIN_ID: 33,
-  NOTE_INDEX: 34,
-  AMOUNT: 35,
-  RECIPIENT: 36,
-  NULLIFIER: 56,
-  POW_DIGEST: 88
+  AMOUNT: 34,
+  RECIPIENT: 35,
+  NULLIFIER: 55
 };
 
 const usage = `Usage:
@@ -313,15 +311,13 @@ async function cmdProve(opts) {
     blockNumber,
     stateRootBytes,
     chainId,
-    noteIndex,
     claimAmount: derived.claimAmount,
     recipientBytes: derived.claimRecipientBytes,
-    nullifierBytes: derived.nullifier,
-    powDigestBytes: derived.powDigest
+    nullifierBytes: derived.nullifier
   });
 
   const noteProof = {
-    version: "v1",
+    version: "v2",
     depositFile: depositProofPath,
     blockNumber: blockNumber.toString(),
     chainId: chainId.toString(),
@@ -400,21 +396,14 @@ async function cmdClaim(opts) {
   const shadowAddress = getAddress(shadowAddressRaw);
 
   const noteProof = loadJson(proofPath);
-  const { proof, publicInputs } = extractVerificationPayload(noteProof, proofPath);
-  const pis = publicInputs.map((x) => BigInt(x));
-
-  const stateRoot = bytes32FromPublicInputs(pis, IDX.STATE_ROOT);
-  const powDigest = bytes32FromPublicInputs(pis, IDX.POW_DIGEST);
+  const { proof } = extractVerificationPayload(noteProof, proofPath);
 
   const input = [
     BigInt(noteProof.blockNumber),
-    stateRoot,
     BigInt(noteProof.chainId),
-    BigInt(noteProof.noteIndex),
     BigInt(noteProof.amount),
     getAddress(noteProof.recipient),
-    noteProof.nullifier,
-    powDigest
+    noteProof.nullifier
   ];
 
   const provider = new JsonRpcProvider(rpcUrl);
@@ -423,7 +412,7 @@ async function cmdClaim(opts) {
     shadowAddress,
     [
       "function isConsumed(bytes32 _nullifier) view returns (bool)",
-      "function claim(bytes _proof, (uint48 blockNumber, bytes32 stateRoot, uint256 chainId, uint256 noteIndex, uint256 amount, address recipient, bytes32 nullifier, bytes32 powDigest) _input)"
+      "function claim(bytes _proof, (uint48 blockNumber, uint256 chainId, uint256 amount, address recipient, bytes32 nullifier) _input)"
     ],
     wallet
   );
@@ -484,18 +473,6 @@ function resolveOffchainReceiptPath(cliReceipt, noteProof) {
     return defaultReceipt;
   }
   return null;
-}
-
-function bytes32FromPublicInputs(publicInputs, offset) {
-  let hex = "0x";
-  for (let i = 0; i < 32; i++) {
-    const b = Number(publicInputs[offset + i]);
-    if (!Number.isInteger(b) || b < 0 || b > 255) {
-      throw new Error(`public input byte out of range at ${offset + i}: ${publicInputs[offset + i]}`);
-    }
-    hex += b.toString(16).padStart(2, "0");
-  }
-  return hex;
 }
 
 function materializeEmbeddedReceipt(noteProof) {
@@ -704,21 +681,17 @@ function buildPublicInputs({
   blockNumber,
   stateRootBytes,
   chainId,
-  noteIndex,
   claimAmount,
   recipientBytes,
-  nullifierBytes,
-  powDigestBytes
+  nullifierBytes
 }) {
-  const out = new Array(120).fill(0n);
+  const out = new Array(87).fill(0n);
   out[IDX.BLOCK_NUMBER] = blockNumber;
   writeBytes(out, IDX.STATE_ROOT, stateRootBytes);
   out[IDX.CHAIN_ID] = chainId;
-  out[IDX.NOTE_INDEX] = BigInt(noteIndex);
   out[IDX.AMOUNT] = claimAmount;
   writeBytes(out, IDX.RECIPIENT, recipientBytes);
   writeBytes(out, IDX.NULLIFIER, nullifierBytes);
-  writeBytes(out, IDX.POW_DIGEST, powDigestBytes);
   return out;
 }
 

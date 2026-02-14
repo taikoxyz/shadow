@@ -45,13 +45,10 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         bool ok = verifier.verifyProof("", input);
@@ -61,37 +58,13 @@ contract ShadowVerifierTest is Test {
     function test_verifyProof_RevertWhen_BlockNumberIsZero() external {
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: 0,
-            stateRoot: bytes32(uint256(1)),
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.CheckpointNotFound.selector, uint48(0)));
-        verifier.verifyProof("", input);
-    }
-
-    function test_verifyProof_RevertWhen_StateRootMismatch() external {
-        uint48 blockNumber = uint48(block.number);
-        bytes32 expectedRoot = keccak256("expected");
-        bytes32 actualRoot = keccak256("actual");
-        checkpointStore.setCheckpoint(blockNumber, bytes32(0), expectedRoot);
-
-        IShadow.PublicInput memory input = IShadow.PublicInput({
-            blockNumber: blockNumber,
-            stateRoot: actualRoot,
-            chainId: block.chainid,
-            noteIndex: 1,
-            amount: 1 ether,
-            recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
-        });
-
-        vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.StateRootMismatch.selector, expectedRoot, actualRoot));
         verifier.verifyProof("", input);
     }
 
@@ -101,13 +74,10 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: bytes32(0),
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.CheckpointNotFound.selector, blockNumber));
@@ -119,13 +89,10 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: bytes32(uint256(1)),
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.CheckpointNotFound.selector, blockNumber));
@@ -138,13 +105,10 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: bytes32(uint256(1)),
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.CheckpointNotFound.selector, blockNumber));
@@ -159,13 +123,10 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.ProofVerificationFailed.selector));

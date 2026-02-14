@@ -4,7 +4,6 @@ pragma solidity ^0.8.33;
 import {Script, console2} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {Nullifier} from "../src/impl/Nullifier.sol";
 import {Shadow} from "../src/impl/Shadow.sol";
 import {DummyEtherMinter} from "../src/impl/DummyEtherMinter.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
@@ -17,13 +16,9 @@ contract DeployTaiko is Script {
     address internal constant HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
     address internal constant HOODI_CHECKPOINT_STORE = 0x1670130000000000000000000000000000000005;
 
-    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x9ea74bd84383a9ca3d776790823f48d79638cf8f99bccc77f2eac4cb70c89216;
-    uint64 internal constant _SHADOW_PROXY_NONCE_OFFSET = 5;
-
-    error UnexpectedShadowProxy(address expected, address actual);
+    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x67e4b7b2bab50e0cbb1159f0b74cc7ffba1266fa6c516b51e6a4917fa3062a61;
 
     struct Deployment {
-        address nullifier;
         address etherMinter;
         address risc0CircuitVerifier;
         address shadowVerifier;
@@ -39,27 +34,18 @@ contract DeployTaiko is Script {
         address checkpointStore = vm.envOr("CHECKPOINT_STORE", HOODI_CHECKPOINT_STORE);
         address risc0Verifier = vm.envOr("RISC0_VERIFIER", HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI);
         bytes32 imageId = vm.envOr("IMAGE_ID", HOODI_SHADOW_CLAIM_GUEST_ID);
-        uint64 deployerNonce = vm.getNonce(deployer);
-        address predictedShadowProxy = vm.computeCreateAddress(deployer, deployerNonce + _SHADOW_PROXY_NONCE_OFFSET);
 
         vm.startBroadcast(deployerPrivateKey);
 
-        deployed_.nullifier = address(new Nullifier(predictedShadowProxy));
         deployed_.etherMinter = address(new DummyEtherMinter());
 
         deployed_.risc0CircuitVerifier = address(new Risc0CircuitVerifier(risc0Verifier, imageId));
         deployed_.shadowVerifier = address(new ShadowVerifier(checkpointStore, deployed_.risc0CircuitVerifier));
-        deployed_.shadowImplementation =
-            address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, deployed_.nullifier, owner));
-
+        deployed_.shadowImplementation = address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner));
         bytes memory initData = abi.encodeCall(Shadow.initialize, (owner));
         deployed_.shadowProxy = address(new ERC1967Proxy(deployed_.shadowImplementation, initData));
 
         vm.stopBroadcast();
-
-        if (deployed_.shadowProxy != predictedShadowProxy) {
-            revert UnexpectedShadowProxy(predictedShadowProxy, deployed_.shadowProxy);
-        }
 
         _logConfig(deployer, owner, checkpointStore, risc0Verifier, imageId);
         _logDeployment(deployed_);
@@ -85,7 +71,6 @@ contract DeployTaiko is Script {
 
     function _logDeployment(Deployment memory deployed_) private pure {
         console2.log("=== Deployed Contracts ===");
-        console2.log("Nullifier", deployed_.nullifier);
         console2.log("DummyEtherMinter", deployed_.etherMinter);
         console2.log("Risc0CircuitVerifier", deployed_.risc0CircuitVerifier);
         console2.log("ShadowVerifier", deployed_.shadowVerifier);

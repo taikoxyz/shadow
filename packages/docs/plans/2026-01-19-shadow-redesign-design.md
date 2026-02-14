@@ -1,5 +1,8 @@
 # Shadow Redesign Design Notes (2026-01-19)
 
+Note: this document contains historical design notes and is not the source of truth.
+For the current implementation, see `PRD.md` and `packages/contracts/docs/circuit-public-inputs-spec.md`.
+
 ## Goal
 
 Redesign Shadow to remove burn-event provenance and instead authorize claims
@@ -7,7 +10,7 @@ by proving a derived target address holds enough ETH in a recent L1 block.
 
 ## Core Model
 
-- Users define a fixed note set (1-10 notes). Each note has a non-zero wei
+- Users define a fixed note set (1-5 notes). Each note has a non-zero wei
   `amount` and a recipient binding `recipientHash`.
 - The note list is immutable and ordered (zero-based index). No notes can be
   added later.
@@ -34,8 +37,11 @@ by proving a derived target address holds enough ETH in a recent L1 block.
 
 ## Public Inputs
 
-`blockNumber`, `blockHash`, `chainId`, `noteIndex`, `amount`, `recipient`,
-`nullifier`, `powDigest` (or equivalent bits).
+Circuit public inputs:
+
+`blockNumber`, `stateRoot`, `chainId`, `amount`, `recipient`, `nullifier`.
+
+Private witness (not public / not in journal): `noteIndex`, `powDigest`.
 
 ## Public Input Ordering (v1)
 

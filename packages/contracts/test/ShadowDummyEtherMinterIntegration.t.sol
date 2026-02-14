@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Shadow} from "../src/impl/Shadow.sol";
 import {DummyEtherMinter} from "../src/impl/DummyEtherMinter.sol";
-import {Nullifier} from "../src/impl/Nullifier.sol";
 import {IShadow} from "../src/iface/IShadow.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
@@ -17,7 +16,6 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
     MockCheckpointStore internal checkpointStore;
     MockCircuitVerifier internal circuitVerifier;
     ShadowVerifier internal shadowVerifier;
-    Nullifier internal nullifier;
     DummyEtherMinter internal etherMinter;
     Shadow internal shadow;
 
@@ -26,11 +24,8 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
         circuitVerifier = new MockCircuitVerifier();
         shadowVerifier = new ShadowVerifier(address(checkpointStore), address(circuitVerifier));
         etherMinter = new DummyEtherMinter();
-        uint64 nonce = vm.getNonce(address(this));
-        address predictedShadowProxy = vm.computeCreateAddress(address(this), nonce + 2);
-        nullifier = new Nullifier(predictedShadowProxy);
 
-        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(this));
+        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(this));
         ERC1967Proxy shadowProxy =
             new ERC1967Proxy(address(shadowImpl), abi.encodeCall(Shadow.initialize, (address(this))));
         shadow = Shadow(address(shadowProxy));
@@ -47,13 +42,10 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            stateRoot: stateRoot,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: amount,
             recipient: recipient,
-            nullifier: nullifierValue,
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: nullifierValue
         });
 
         vm.expectEmit(true, false, false, true, address(etherMinter));

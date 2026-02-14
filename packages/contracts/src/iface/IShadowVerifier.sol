@@ -8,7 +8,6 @@ import {IShadow} from "./IShadow.sol";
 interface IShadowVerifier {
     error CheckpointNotFound(uint48 blockNumber);
     error ProofVerificationFailed();
-    error StateRootMismatch(bytes32 expected, bytes32 actual);
     error ZeroAddress();
 
     /// @notice Verifies a proof and its public inputs.
