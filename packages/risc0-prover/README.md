@@ -87,7 +87,7 @@ node scripts/shadowcli.mjs claim \
 Use `scripts/shadowcli.mjs` for the full deposit -> proof workflow.
 
 - `validate`: validates the deposit file and recomputes target address, nullifier, and PoW digest.
-- `prove`: validates deposit, resolves a recent L1 checkpoint (via `ICheckpointStore`) on Taiko Hoodi, fetches `eth_getProof` from L1 at the checkpoint block, runs local RISC Zero proving, writes the JSON proof note file, and deletes intermediate files by default (use `--keep-intermediate-files` to retain them).
+- `prove`: validates deposit, uses the latest L2 block on the target RPC, fetches `debug_getRawBlock` + `eth_getProof`, derives/validates block header and state root in-circuit, runs local RISC Zero proving, writes the JSON proof note file, and deletes intermediate files by default (use `--keep-intermediate-files` to retain them).
 - `verify`: if `--verifier` is provided, calls `verifyProof(bytes,uint256[])` via JSON-RPC `eth_call`; otherwise verifies off-chain using `--receipt`, embedded `risc0.receipt`, or `build/risc0/receipt.bin`.
 - Proof JSON stores shared `publicInputs` at top-level; RISC Zero-specific payload stays under `risc0` (`proof`, `receipt`).
 
@@ -95,7 +95,7 @@ Use `scripts/shadowcli.mjs` for the full deposit -> proof workflow.
 
 - The first build/prove may take several minutes because Metal kernels are compiled on first use.
 - Groth16 receipts require Docker to be installed and running (used by upstream `risc0-groth16` shrinkwrap).
-- Guest logic validates note/recipient/nullifier/PoW invariants and performs in-guest Ethereum account MPT verification against `stateRoot`.
+- Guest logic validates note/recipient/nullifier/PoW invariants and performs in-guest Ethereum account MPT verification against the state root extracted from the RLP block header bound to `blockHash`.
 - PoW digest is bound to the full note set: `powDigest = sha256(notesHash || secret)` (same trailing-24-zero-bits requirement).
 - The target address must be funded at or above `sum(noteAmounts)` on the proof block unless `--allow-insufficient-balance` is used.
 - `Shadow.claim` applies a 0.1% fee (`amount / 1000`); the note `amount` in the proof is the gross amount.
