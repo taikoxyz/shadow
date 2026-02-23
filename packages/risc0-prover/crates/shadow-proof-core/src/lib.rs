@@ -19,7 +19,7 @@ const MAGIC_NULLIFIER: &[u8] = b"shadow.nullifier.v1";
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaimInput {
     pub block_number: u64,
-    pub state_root: [u8; 32],
+    pub block_hash: [u8; 32],
     pub chain_id: u64,
     pub note_index: u32,
     pub amount: u128,
@@ -28,6 +28,7 @@ pub struct ClaimInput {
     pub note_count: u32,
     pub amounts: Vec<u128>,
     pub recipient_hashes: Vec<[u8; 32]>,
+    pub block_header_rlp: Vec<u8>,
     pub proof_depth: u32,
     pub proof_nodes: Vec<Vec<u8>>,
     pub proof_node_lengths: Vec<u32>,
@@ -140,7 +141,10 @@ pub enum ClaimValidationError {
     InvalidAccountValue,
     InsufficientAccountBalance,
     InvalidPowDigest,
+    InvalidBlockHeaderHash,
+    InvalidBlockHeaderShape,
 }
+
 
 impl ClaimValidationError {
     pub const fn as_str(&self) -> &'static str {
@@ -163,6 +167,8 @@ impl ClaimValidationError {
             Self::InvalidAccountValue => "invalid account value encoding",
             Self::InsufficientAccountBalance => "account balance is insufficient for note total",
             Self::InvalidPowDigest => "pow digest does not satisfy target",
+            Self::InvalidBlockHeaderHash => "block header hash mismatch",
+            Self::InvalidBlockHeaderShape => "invalid block header shape",
         }
     }
 }
@@ -225,8 +231,9 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
 
     let notes_hash = compute_notes_hash(note_count, &input.amounts, &input.recipient_hashes)?;
     let target_address = derive_target_address(&input.secret, input.chain_id, &notes_hash);
+    let state_root = parse_state_root_from_block_header(&input.block_hash, &input.block_header_rlp)?;
     let account_balance =
-        verify_account_proof_and_get_balance(&input.state_root, &target_address, &input.proof_nodes)?;
+        verify_account_proof_and_get_balance(&state_root, &target_address, &input.proof_nodes)?;
     if !balance_gte_total(&account_balance, total_amount) {
         return Err(ClaimValidationError::InsufficientAccountBalance);
     }
@@ -239,7 +246,7 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
 
     Ok(ClaimJournal {
         block_number: input.block_number,
-        state_root: input.state_root,
+        state_root,
         chain_id: input.chain_id,
         amount: input.amount,
         recipient: input.recipient,
@@ -651,6 +658,23 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
     let mut out = [0u8; 32];
     keccak.finalize(&mut out);
     out
+}
+
+
+fn parse_state_root_from_block_header(
+    expected_block_hash: &[u8; 32],
+    block_header_rlp: &[u8],
+) -> Result<[u8; 32], ClaimValidationError> {
+    if keccak256(block_header_rlp) != *expected_block_hash {
+        return Err(ClaimValidationError::InvalidBlockHeaderHash);
+    }
+
+    let fields = decode_rlp_list_payload_items(block_header_rlp)?;
+    if fields.len() < 4 || fields[3].len() != 32 {
+        return Err(ClaimValidationError::InvalidBlockHeaderShape);
+    }
+
+    Ok(to_32(fields[3]))
 }
 
 #[derive(Clone, Copy)]

@@ -192,7 +192,9 @@ async function main() {
 
   const block = await rpc("eth_getBlockByNumber", [BLOCK_NUMBER, false]);
   const blockNumber = block.number;
-  const stateRootBytes = hexToBytes(block.stateRoot);
+  const blockHashBytes = hexToBytes(block.hash);
+  const blockRaw = await rpc("debug_getRawBlock", [blockNumber]);
+  const blockHeaderRlpBytes = extractHeaderRlp(hexToBytes(blockRaw));
 
   const proof = await rpc("eth_getProof", [targetAddressHex, [], blockNumber]);
   const accountBalance = BigInt(proof.balance);
@@ -237,7 +239,8 @@ async function main() {
 
   const input = {
     blockNumber: BigInt(blockNumber).toString(),
-    stateRoot: bytesToDecStrings(stateRootBytes),
+    blockHash: bytesToDecStrings(blockHashBytes),
+    blockHeaderRlp: bytesToDecStrings(blockHeaderRlpBytes),
     chainId: chainId.toString(),
     noteIndex: NOTE_INDEX.toString(),
     amount: amounts[NOTE_INDEX].toString(),
@@ -258,6 +261,33 @@ async function main() {
   fs.writeFileSync(OUTPUT, JSON.stringify(input, null, 2));
   console.log("Wrote input:", OUTPUT);
 }
+
+
+function extractHeaderRlp(rawBlockBytes) {
+  const item = decodeRlpItem(rawBlockBytes, 0);
+  let cursor = item.payloadOffset;
+  const payloadEnd = item.payloadOffset + item.payloadLength;
+  const headerStart = cursor;
+  while (cursor < payloadEnd) {
+    const next = decodeRlpItem(rawBlockBytes, cursor);
+    cursor = next.endOffset;
+    if (cursor >= payloadEnd) throw new Error("failed to split block header");
+    const maybeTxs = decodeRlpItem(rawBlockBytes, cursor);
+    if (maybeTxs.isList) return rawBlockBytes.slice(headerStart, cursor);
+  }
+  throw new Error("failed to parse raw block");
+}
+
+function decodeRlpItem(bytes, offset) {
+  const prefix = bytes[offset];
+  if (prefix <= 0x7f) return { isList: false, payloadOffset: offset, payloadLength: 1, endOffset: offset + 1 };
+  if (prefix <= 0xb7) { const len = prefix - 0x80; return { isList: false, payloadOffset: offset + 1, payloadLength: len, endOffset: offset + 1 + len }; }
+  if (prefix <= 0xbf) { const l = prefix - 0xb7; const len = readBe(bytes, offset + 1, l); return { isList: false, payloadOffset: offset + 1 + l, payloadLength: len, endOffset: offset + 1 + l + len }; }
+  if (prefix <= 0xf7) { const len = prefix - 0xc0; return { isList: true, payloadOffset: offset + 1, payloadLength: len, endOffset: offset + 1 + len }; }
+  const l = prefix - 0xf7; const len = readBe(bytes, offset + 1, l); return { isList: true, payloadOffset: offset + 1 + l, payloadLength: len, endOffset: offset + 1 + l + len };
+}
+
+function readBe(bytes, offset, len) { let n = 0; for (let i=0;i<len;i++) n = n * 256 + bytes[offset+i]; return n; }
 
 main().catch((err) => {
   console.error("Failed to generate input:", err);

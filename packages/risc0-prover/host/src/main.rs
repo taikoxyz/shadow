@@ -279,8 +279,10 @@ fn ensure_parent(path: &Path) -> Result<()> {
 struct LegacyClaimInput {
     #[serde(rename = "blockNumber")]
     block_number: String,
-    #[serde(rename = "stateRoot")]
-    state_root: Vec<String>,
+    #[serde(rename = "blockHash")]
+    block_hash: Vec<String>,
+    #[serde(rename = "blockHeaderRlp")]
+    block_header_rlp: Vec<String>,
     #[serde(rename = "chainId")]
     chain_id: String,
     #[serde(rename = "noteIndex")]
@@ -321,7 +323,8 @@ fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
         bail!("noteCount must be in [1, {}]", MAX_NOTES);
     }
 
-    let state_root = parse_fixed_u8_array::<32>(&legacy.state_root)?;
+    let block_hash = parse_fixed_u8_array::<32>(&legacy.block_hash)?;
+    let block_header_rlp = parse_u8_vec(&legacy.block_header_rlp)?;
     let recipient = parse_fixed_u8_array::<20>(&legacy.recipient)?;
     let secret = parse_fixed_u8_array::<32>(&legacy.secret)?;
 
@@ -367,7 +370,7 @@ fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
 
     Ok(ClaimInput {
         block_number: parse_u64(&legacy.block_number)?,
-        state_root,
+        block_hash,
         chain_id: parse_u64(&legacy.chain_id)?,
         note_index: parse_u32(&legacy.note_index)?,
         amount: parse_u128(&legacy.amount)?,
@@ -376,10 +379,20 @@ fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
         note_count,
         amounts,
         recipient_hashes,
+        block_header_rlp,
         proof_depth,
         proof_nodes,
         proof_node_lengths,
     })
+}
+
+
+fn parse_u8_vec(values: &[String]) -> Result<Vec<u8>> {
+    let mut out = Vec::with_capacity(values.len());
+    for value in values {
+        out.push(parse_u8(value)?);
+    }
+    Ok(out)
 }
 
 fn parse_fixed_u8_array<const N: usize>(values: &[String]) -> Result<[u8; N]> {

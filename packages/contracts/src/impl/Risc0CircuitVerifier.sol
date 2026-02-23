@@ -16,7 +16,7 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
     error JournalBlockNumberMismatch(uint256 expected, uint256 actual);
     error JournalChainIdMismatch(uint256 expected, uint256 actual);
     error JournalAmountMismatch(uint256 expected, uint256 actual);
-    error JournalStateRootMismatch(bytes32 expected, bytes32 actual);
+    error JournalBlockHashMismatch(bytes32 expected, bytes32 actual);
     error JournalRecipientMismatch(address expected, address actual);
     error JournalNullifierMismatch(bytes32 expected, bytes32 actual);
     error PublicInputByteOutOfRange(uint256 index, uint256 value);
@@ -26,7 +26,7 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
 
     uint256 private constant _PUBLIC_INPUTS_LEN = 87;
     uint256 private constant _IDX_BLOCK_NUMBER = 0;
-    uint256 private constant _IDX_STATE_ROOT = 1;
+    uint256 private constant _IDX_BLOCK_HASH = 1;
     uint256 private constant _IDX_CHAIN_ID = 33;
     uint256 private constant _IDX_AMOUNT = 34;
     uint256 private constant _IDX_RECIPIENT = 35;
@@ -34,7 +34,7 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
 
     uint256 private constant _JOURNAL_LEN = 116;
     uint256 private constant _OFFSET_BLOCK_NUMBER = 0;
-    uint256 private constant _OFFSET_STATE_ROOT = 8;
+    uint256 private constant _OFFSET_BLOCK_HASH = 8;
     uint256 private constant _OFFSET_CHAIN_ID = 40;
     uint256 private constant _OFFSET_AMOUNT = 48;
     uint256 private constant _OFFSET_RECIPIENT = 64;
@@ -112,12 +112,12 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
         uint256 amount = _readLeUint(_journal, _OFFSET_AMOUNT, 16);
         require(amount == _publicInputs[_IDX_AMOUNT], JournalAmountMismatch(_publicInputs[_IDX_AMOUNT], amount));
 
-        bytes32 stateRoot = _readBytes32(_journal, _OFFSET_STATE_ROOT);
+        bytes32 blockHash = _readBytes32(_journal, _OFFSET_BLOCK_HASH);
         bytes32 nullifier = _readBytes32(_journal, _OFFSET_NULLIFIER);
         address recipient = _readAddress(_journal, _OFFSET_RECIPIENT);
 
-        bytes32 expectedStateRoot = _readBytes32FromPublicInputs(_publicInputs, _IDX_STATE_ROOT);
-        require(stateRoot == expectedStateRoot, JournalStateRootMismatch(expectedStateRoot, stateRoot));
+        bytes32 expectedBlockHash = _readBytes32FromPublicInputs(_publicInputs, _IDX_BLOCK_HASH);
+        require(blockHash == expectedBlockHash, JournalBlockHashMismatch(expectedBlockHash, blockHash));
 
         address expectedRecipient = _readAddressFromPublicInputs(_publicInputs, _IDX_RECIPIENT);
         require(recipient == expectedRecipient, JournalRecipientMismatch(expectedRecipient, recipient));
