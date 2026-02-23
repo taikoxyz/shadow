@@ -39,61 +39,19 @@ You start by creating a deposit file. This is a JSON file that contains:
 
 You can create 1 to 5 notes per deposit, with a maximum total of 32 ETH.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     DEPOSIT FILE                                │
-├─────────────────────────────────────────────────────────────────┤
-│  secret: 0x7a2f...e9c1        (keep this private!)             │
-│                                                                 │
-│  notes:                                                         │
-│    • Note 0: Send 1.0 ETH to 0xABCD...                         │
-│    • Note 1: Send 0.5 ETH to 0xEFGH...                         │
-│    • Note 2: Send 2.0 ETH to 0xIJKL...                         │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Deposit File Structure](images/deposit-file.svg)
 
 ### Step 2: Derive Your "Target Address"
 
 From your secret and notes, Shadow mathematically derives a unique **target address**. This address looks like a normal Ethereum address, but here's the trick: **nobody has the private key for it**.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   TARGET ADDRESS DERIVATION                     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   secret + notes ──► SHA256 hash ──► Target Address            │
-│                                                                 │
-│   0x7a2f...e9c1  +  [notes]  ──►  0x1234...abcd               │
-│                                                                 │
-│   This address is "unspendable" — no private key exists!       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Target Address Derivation](images/target-address-derivation.svg)
 
 ### Step 3: Fund the Target Address
 
 You send ETH to that target address using a normal Ethereum transfer. This looks exactly like any other ETH transaction — there's nothing special or suspicious about it.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         STEP 3: FUND                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Your Wallet                                                   │
-│       │                                                         │
-│       │  Normal ETH transfer                                    │
-│       ▼                                                         │
-│   ┌─────────────────────────────────────┐                      │
-│   │  To: 0x1234...abcd                  │                      │
-│   │  Amount: 3.5 ETH                     │                      │
-│   └─────────────────────────────────────┘                      │
-│              │                                                  │
-│              │  (Looks like any normal transaction)            │
-│              ▼                                                  │
-│       Target Address Balance: 3.5 ETH                          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Step 3: Fund](images/step-fund.svg)
 
 ### Step 4: Generate Your ZK Proof
 
@@ -103,91 +61,17 @@ Now comes the cryptographic magic. You run software that generates a **zero-know
 - You know the secret that derives that address
 - This is all proven WITHOUT revealing your secret or linking to your identity
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    STEP 4: PROVE                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Private Inputs (you keep these):                             │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │ • Your secret                                          │   │
-│   │ • The full note set (all recipients & amounts)         │   │
-│   │ • The account proof from Ethereum                      │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                            │                                     │
-│                            ▼                                     │
-│              ┌─────────────────────────┐                        │
-│              │   ZK PROVER (RISC Zero)  │                       │
-│              │   - Generates proof      │                       │
-│              │   - Proves balance       │                       │
-│              │   - Hides all secrets    │                       │
-│              └─────────────────────────┘                        │
-│                            │                                     │
-│                            ▼                                     │
-│   Public Output:                                                │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │ • "This proof is valid" (yes/no)                        │   │
-│   │ • Recipient address (0xEFGH...)                         │   │
-│   │ • Amount (0.5 ETH)                                      │   │
-│   │ • A "nullifier" (prevents double-claiming)              │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Step 4: Prove](images/step-prove.svg)
 
 ### Step 5: Claim Your ETH
 
 Finally, you submit the proof to the Shadow contract on Taiko L2. The contract verifies the proof (without learning your secrets) and mints the ETH to your specified recipient address — minus a small 0.1% fee.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      STEP 5: CLAIM                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   You submit to Shadow Contract:                                │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │ • ZK Proof                                              │   │
-│   │ • Recipient: 0xEFGH...                                  │   │
-│   │ • Amount: 0.5 ETH                                        │   │
-│   │ • Nullifier: 0x9876...                                  │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                            │                                     │
-│                            ▼                                     │
-│              ┌─────────────────────────┐                        │
-│              │   SHADOW CONTRACT        │                        │
-│              │   1. Verifies proof      │                        │
-│              │   2. Checks nullifier    │                        │
-│              │   3. Mints ETH (minus    │                        │
-│              │      0.1% fee)           │                        │
-│              └─────────────────────────┘                        │
-│                            │                                     │
-│                            ▼                                     │
-│   Result:                                                                 
-│   ┌─────────────────────────────────────────────────────────┐   
-│   │   Recipient gets: 0.4995 ETH (0.5 - 0.1% fee)           │   
-│   │   Fee recipient gets: 0.0005 ETH                        │   
-│   └─────────────────────────────────────────────────────────┘   
-│                                                                 
-└─────────────────────────────────────────────────────────────────┘
-```
+![Step 5: Claim](images/step-claim.svg)
 
 ### Complete Flow Diagram
 
-```mermaid
-flowchart TD
-    A["User creates<br/>Deposit File"] --> B["Derive Target<br/>Address"]
-    B --> C["Fund Target Address<br/>with ETH"]
-    C --> D["Generate ZK Proof<br/>using RISC Zero"]
-    D --> E["Submit Claim to<br/>Shadow Contract"]
-    E --> F["ETH Minted to<br/>Recipient"]
-    
-    style A fill:#e1f5fe
-    style B fill:#e1f5fe
-    style C fill:#fff3e0
-    style D fill:#e8f5e9
-    style E fill:#f3e5f5
-    style F fill:#e0f2f1
-```
+![Complete Flow](images/complete-flow.svg)
 
 ---
 
