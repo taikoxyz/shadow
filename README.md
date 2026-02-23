@@ -45,7 +45,7 @@ node scripts/shadowcli.mjs claim-all \
 
 - [Protocol Specification](PRD.md) - Core protocol design
 - [Privacy Model](PRIVACY.md) - Privacy guarantees and limitations
-- [Deployments](deployments.md) - Deployed contract addresses
+- [Deployments](DEPLOYMENT.md) - Deployed contract addresses
 
 ## Development
 
