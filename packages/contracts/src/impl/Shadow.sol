@@ -6,10 +6,12 @@ import {IShadow} from "../iface/IShadow.sol";
 import {IShadowVerifier} from "../iface/IShadowVerifier.sol";
 import {OwnableUpgradeable} from "../lib/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 /// @custom:security-contact security@taiko.xyz
 
-contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable {
+contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     IShadowVerifier public immutable verifier;
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
@@ -43,6 +45,7 @@ contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable {
     function initialize(address _owner) external initializer {
         __OwnableUpgradeable_init(_owner);
         __Pausable_init();
+        __ReentrancyGuard_init();
     }
 
     /// @notice Returns whether the nullifier has been consumed.
@@ -92,7 +95,7 @@ contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable {
     ///      There is no on-chain EIP/ERC standard for PoW anti-spam deposits; this design
     ///      draws inspiration from the general Hashcash concept (Adam Back, 1997) applied
     ///      to commitment schemes.
-    function claim(bytes calldata _proof, PublicInput calldata _input) external whenNotPaused {
+    function claim(bytes calldata _proof, PublicInput calldata _input) external whenNotPaused nonReentrant {
         require(_input.chainId == block.chainid, ChainIdMismatch(_input.chainId, block.chainid));
         require(_input.amount > 0, InvalidAmount(_input.amount));
         require(_input.recipient != address(0), InvalidRecipient(_input.recipient));
