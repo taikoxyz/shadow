@@ -37,7 +37,7 @@ contract ShadowVerifierTest is Test {
     }
 
     function test_verifyProof_succeeds() external {
-        uint48 blockNumber = uint48(block.number);
+        uint64 blockNumber = uint64(block.number);
         bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
@@ -62,12 +62,12 @@ contract ShadowVerifierTest is Test {
             nullifier: keccak256("nullifier")
         });
 
-        vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, uint48(0)));
+        vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, uint64(0)));
         verifier.verifyProof("", input);
     }
 
     function test_verifyProof_RevertWhen_BlockHashIsZero() external {
-        uint48 blockNumber = uint48(block.number);
+        uint64 blockNumber = uint64(block.number);
         // Don't set block hash - it will be zero
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
@@ -83,7 +83,7 @@ contract ShadowVerifierTest is Test {
     }
 
     function test_verifyProof_RevertWhen_ProofVerificationFails() external {
-        uint48 blockNumber = uint48(block.number);
+        uint64 blockNumber = uint64(block.number);
         bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
         circuitVerifier.setShouldVerify(false);
@@ -97,6 +97,41 @@ contract ShadowVerifierTest is Test {
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.ProofVerificationFailed.selector));
+        verifier.verifyProof("", input);
+    }
+
+    function test_verifyProof_succeeds_withOldBlock() external {
+        // Per PRD: "no freshness constraint is enforced (old blocks are acceptable)"
+        uint64 oldBlockNumber = 1;
+        bytes32 blockHash = keccak256("old-blockhash");
+        anchor.setBlockHash(oldBlockNumber, blockHash);
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: oldBlockNumber,
+            chainId: block.chainid,
+            amount: 1 ether,
+            recipient: address(0xBEEF),
+            nullifier: keccak256("nullifier-old-block")
+        });
+
+        bool ok = verifier.verifyProof("", input);
+        assertTrue(ok);
+    }
+
+    function test_verifyProof_RevertWhen_FutureBlockNotInAnchor() external {
+        // Future block would not have a hash in the anchor
+        uint64 futureBlockNumber = uint64(block.number + 1000);
+        // Don't set any block hash - simulates future block not existing
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: futureBlockNumber,
+            chainId: block.chainid,
+            amount: 1 ether,
+            recipient: address(0xBEEF),
+            nullifier: keccak256("nullifier-future")
+        });
+
+        vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, futureBlockNumber));
         verifier.verifyProof("", input);
     }
 }

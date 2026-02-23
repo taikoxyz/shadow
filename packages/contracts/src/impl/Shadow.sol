@@ -21,6 +21,9 @@ contract Shadow is IShadow, OwnableUpgradeable {
     /// @dev Consumed nullifiers to prevent replayed claims.
     mapping(bytes32 _nullifier => bool _consumed) private _consumed;
 
+    /// @dev Reserved storage gap for future upgrades.
+    uint256[49] private __gap;
+
     event NullifierConsumed(bytes32 indexed nullifier);
 
     uint256 internal constant _FEE_DIVISOR = 1000; // 0.1%

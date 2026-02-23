@@ -5,7 +5,7 @@ pragma solidity ^0.8.33;
 
 interface IShadow {
     struct PublicInput {
-        uint48 blockNumber;
+        uint64 blockNumber;
         uint256 chainId;
         uint256 amount;
         address recipient;

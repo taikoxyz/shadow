@@ -24,6 +24,18 @@ contract MockEtherMinter is IEthMinter {
         revertOnMintNumber = _n;
     }
 
+    function reset() external {
+        lastRecipient = address(0);
+        lastAmount = 0;
+        mintCount = 0;
+        firstRecipient = address(0);
+        firstAmount = 0;
+        secondRecipient = address(0);
+        secondAmount = 0;
+        revertOnMintNumber = 0;
+        shouldRevert = false;
+    }
+
     function mintEth(address _recipient, uint256 _amount) external {
         uint256 nextMintNumber = mintCount + 1;
         if (shouldRevert) revert MintFailed();

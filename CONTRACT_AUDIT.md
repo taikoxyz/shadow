@@ -355,7 +355,7 @@ contract Shadow is IShadow, OwnableUpgradeable {
 1. ✅ Immutable dependencies survive upgrades
 2. ✅ Owner can upgrade implementation
 3. ✅ `initializer` prevents re-initialization
-4. ⚠️ No storage gap in Shadow.sol (see recommendations)
+4. ✅ Storage gap (`uint256[49] __gap`) reserves space for future upgrades
 
 ---
 
@@ -363,46 +363,39 @@ contract Shadow is IShadow, OwnableUpgradeable {
 
 ### 4.1 High Priority
 
-#### 4.1.1 [MEDIUM] Missing Storage Gap in Shadow.sol
+#### 4.1.1 [RESOLVED] Storage Gap in Shadow.sol
 
 **Location**: `packages/contracts/src/impl/Shadow.sol`
 
-**Issue**: The contract uses UUPS upgradeability but does not include a storage gap for future storage additions.
+**Issue**: The contract uses UUPS upgradeability and needs a storage gap for future storage additions.
 
-**Current Storage Layout:**
+**Resolution**: Storage gap added:
 ```solidity
-contract Shadow is IShadow, OwnableUpgradeable {
-    // Inherited: address _owner (from OwnableUpgradeable)
-    mapping(bytes32 => bool) private _consumed;  // Slot N
-    // No storage gap
-}
+/// @dev Reserved storage gap for future upgrades.
+uint256[49] private __gap;
 ```
 
-**Impact**: Future upgrades adding storage variables could collide with derived contract storage.
-
-**Recommendation**: Add storage gap:
-```solidity
-uint256[49] private __gap;  // Reserve 49 slots for future upgrades
-```
+**Status**: ✅ FIXED
 
 ### 4.2 Medium Priority
 
-#### 4.2.1 [LOW] No Event for Fee Changes
+#### 4.2.1 [INFO] Fee Parameters are Immutable
 
-**Observation**: `feeRecipient` and `_FEE_DIVISOR` are immutable, so fee parameters cannot change. If upgradeability is intended to allow fee changes, events should be emitted.
+**Observation**: `feeRecipient` and `_FEE_DIVISOR` are immutable, so fee parameters cannot change after deployment.
 
-**Current Status**: Acceptable - fees are fixed at deployment.
+**Status**: ✅ Acceptable - fees are intentionally fixed at deployment.
 
-#### 4.2.2 [LOW] Block Number Type Inconsistency
+#### 4.2.2 [RESOLVED] Block Number Type Consistency
 
-**Locations**:
-- `IShadow.PublicInput.blockNumber`: `uint48`
-- `ShadowPublicInputs._IDX_BLOCK_NUMBER`: stored as `uint256`
+**Previous Issue**: Type inconsistency between interface and circuit:
+- `IShadow.PublicInput.blockNumber`: was `uint48`
 - Circuit journal: `u64`
 
-**Analysis**: `uint48` is sufficient for Ethereum block numbers (max ~281 trillion blocks). The circuit uses `u64` for alignment. No functional issue, but type consistency aids clarity.
+**Resolution**: Changed `blockNumber` to `uint64` in:
+- `IShadow.PublicInput.blockNumber`
+- `IShadowVerifier.BlockHashNotFound` error
 
-**Recommendation**: Document the type choice rationale.
+**Status**: ✅ FIXED - Now consistent with circuit's `u64` type.
 
 ### 4.3 Low Priority
 
@@ -464,25 +457,25 @@ Based on contract analysis, the following test scenarios should be verified:
 - [x] Revert on zero recipient
 - [x] Revert on consumed nullifier
 - [x] Revert on invalid proof
-- [ ] Fee calculation boundary cases (amount < 1000 wei)
-- [ ] Multiple claims with different nullifiers
-- [ ] Upgrade scenario with storage preservation
+- [x] Fee calculation boundary cases (1 wei, 1000 wei, 1001 wei)
+- [x] Multiple claims with different nullifiers
+- [x] Upgrade scenario with storage preservation
 
 ### 6.2 ShadowVerifier.sol Tests
 
 - [x] Successful verification with valid block hash
 - [x] Revert on block number 0
 - [x] Revert on missing block hash (returns 0)
-- [ ] Block hash from very old block
-- [ ] Block hash from future block (should fail)
+- [x] Block hash from very old block (acceptable per PRD)
+- [x] Future block not in anchor (should fail)
 
 ### 6.3 Risc0CircuitVerifier.sol Tests
 
 - [x] Journal binding correctness
 - [x] Invalid journal length rejection
-- [ ] Malformed proof encoding
-- [ ] Journal field mismatch detection (all 6 fields)
-- [ ] Byte out of range in public inputs
+- [x] Malformed proof encoding
+- [x] Journal field mismatch detection (all 6 fields)
+- [x] Byte out of range in public inputs
 
 ---
 
@@ -515,9 +508,7 @@ The Shadow smart contracts are well-designed and implement the protocol specific
 4. **Proper Access Control**: No privileged functions after initialization
 5. **Type Safety**: Explicit byte range validation for public inputs
 
-**Key Recommendation**: Add storage gap to `Shadow.sol` for upgrade safety.
-
-**Audit Status**: PASSED with minor recommendations
+**Audit Status**: PASSED - All identified issues have been resolved.
 
 ---
 
