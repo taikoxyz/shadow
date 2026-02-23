@@ -1,0 +1,10 @@
+.git
+node_modules
+packages/**/node_modules
+packages/**/target
+packages/risc0-prover/build
+packages/risc0-prover/target
+packages/ui/dist
+packages/docs/runs
+docker/prover/dist
+.pnpm-store

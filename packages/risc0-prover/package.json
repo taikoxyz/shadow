@@ -4,12 +4,8 @@
   "private": true,
   "description": "RISC Zero proving pipeline for Shadow",
   "scripts": {
-    "build": "PATH=\"$HOME/.risc0/bin:$PATH\" cargo build --release -p shadow-risc0-host",
-    "prove": "PATH=\"$HOME/.risc0/bin:$PATH\" cargo run --release -p shadow-risc0-host -- prove --input inputs/shadow/default.json",
-    "verify": "PATH=\"$HOME/.risc0/bin:$PATH\" cargo run --release -p shadow-risc0-host -- verify",
-    "inspect": "PATH=\"$HOME/.risc0/bin:$PATH\" cargo run --release -p shadow-risc0-host -- inspect --input inputs/shadow/default.json",
-    "generate:real-input": "node scripts/generate-real-input.mjs",
-    "shadow:cli": "node scripts/shadowcli.mjs"
+    "build": "cargo build --release -p shadow-risc0-host",
+    "cli": "node scripts/shadowcli.mjs"
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",

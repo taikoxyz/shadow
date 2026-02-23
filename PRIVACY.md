@@ -28,8 +28,7 @@ There is no protocol-level way to hide this on a public blockchain.
 Claims are public transactions. Observers can see:
 
 - `recipient` and `amount` (also emitted in events)
-- `noteIndex`
-- `blockNumber` and `blockHash`
+- `blockNumber` (the L1 checkpoint used)
 - `nullifier` (and when it is consumed)
 - transaction sender (may be different from `recipient`)
 
@@ -38,11 +37,9 @@ In the current implementation, the claim proof payload also includes a **RISC Ze
 - `blockNumber`
 - `blockHash`
 - `chainId`
-- `noteIndex`
 - `recipient`
 - `amount`
 - `nullifier`
-- `powDigest`
 
 The journal is used only to bind the proof to the already-public claim inputs and does **not** include:
 
@@ -57,7 +54,7 @@ Shadow does not publish `targetAddress` as part of a claim. This reduces passive
 
 ### Linking Multiple Claims From the Same Note Set
 
-Claims from the same deposit file/note set are linkable (for example via the published `powDigest`, which is constant for a given note set + secret).
+Shadow does not publish a per-deposit constant (for example `powDigest`) as a circuit output, so multiple claims from the same note set are not trivially linkable via the proof journal alone. Claims can still be correlated via public `recipient`/`amount` reuse and timing.
 
 ### Recipient/Amount Are Not Private
 

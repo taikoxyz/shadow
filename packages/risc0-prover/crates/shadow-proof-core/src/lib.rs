@@ -37,16 +37,26 @@ pub struct ClaimInput {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaimJournal {
     pub block_number: u64,
+    /// The block hash that was verified against the RLP-encoded block header.
+    /// The stateRoot is derived in-circuit from this block header; we commit
+    /// to blockHash because that's what the on-chain Anchor contract provides.
     pub block_hash: [u8; 32],
     pub chain_id: u64,
-    pub note_index: u32,
     pub amount: u128,
     pub recipient: [u8; 20],
     pub nullifier: [u8; 32],
-    pub pow_digest: [u8; 32],
 }
 
-pub const PACKED_JOURNAL_LEN: usize = 152;
+// Packed journal layout (little-endian fields, fixed widths):
+// - block_number: u64 (8)
+// - block_hash: bytes32 (32)
+// - chain_id: u64 (8)
+// - amount: u128 (16)
+// - recipient: address (20)
+// - nullifier: bytes32 (32)
+//
+// NOTE: `note_index` and `pow_digest` are intentionally NOT part of the public journal.
+pub const PACKED_JOURNAL_LEN: usize = 116;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PackedJournalError {
@@ -79,11 +89,9 @@ pub fn pack_journal(journal: &ClaimJournal) -> [u8; PACKED_JOURNAL_LEN] {
     out[0..8].copy_from_slice(&journal.block_number.to_le_bytes());
     out[8..40].copy_from_slice(&journal.block_hash);
     out[40..48].copy_from_slice(&journal.chain_id.to_le_bytes());
-    out[48..52].copy_from_slice(&journal.note_index.to_le_bytes());
-    out[52..68].copy_from_slice(&journal.amount.to_le_bytes());
-    out[68..88].copy_from_slice(&journal.recipient);
-    out[88..120].copy_from_slice(&journal.nullifier);
-    out[120..152].copy_from_slice(&journal.pow_digest);
+    out[48..64].copy_from_slice(&journal.amount.to_le_bytes());
+    out[64..84].copy_from_slice(&journal.recipient);
+    out[84..116].copy_from_slice(&journal.nullifier);
 
     out
 }
@@ -96,21 +104,17 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
     let block_number = u64::from_le_bytes(copy_array::<8>(&bytes[0..8]));
     let block_hash = copy_array::<32>(&bytes[8..40]);
     let chain_id = u64::from_le_bytes(copy_array::<8>(&bytes[40..48]));
-    let note_index = u32::from_le_bytes(copy_array::<4>(&bytes[48..52]));
-    let amount = u128::from_le_bytes(copy_array::<16>(&bytes[52..68]));
-    let recipient = copy_array::<20>(&bytes[68..88]);
-    let nullifier = copy_array::<32>(&bytes[88..120]);
-    let pow_digest = copy_array::<32>(&bytes[120..152]);
+    let amount = u128::from_le_bytes(copy_array::<16>(&bytes[48..64]));
+    let recipient = copy_array::<20>(&bytes[64..84]);
+    let nullifier = copy_array::<32>(&bytes[84..116]);
 
     Ok(ClaimJournal {
         block_number,
         block_hash,
         chain_id,
-        note_index,
         amount,
         recipient,
         nullifier,
-        pow_digest,
     })
 }
 
@@ -243,15 +247,15 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::InvalidPowDigest);
     }
 
+    // Note: stateRoot is derived in-circuit from block_header_rlp and verified against
+    // input.block_hash. We commit to block_hash because that's what TaikoAnchor provides.
     Ok(ClaimJournal {
         block_number: input.block_number,
         block_hash: input.block_hash,
         chain_id: input.chain_id,
-        note_index: input.note_index,
         amount: input.amount,
         recipient: input.recipient,
         nullifier,
-        pow_digest,
     })
 }
 
@@ -336,6 +340,81 @@ mod tests {
     extern crate std;
 
     use super::*;
+    use alloc::vec;
+
+    fn rlp_encode_bytes(raw: &[u8]) -> Vec<u8> {
+        if raw.len() == 1 && raw[0] <= 0x7f {
+            return vec![raw[0]];
+        }
+
+        if raw.len() <= 55 {
+            let mut out = Vec::with_capacity(1 + raw.len());
+            out.push(0x80u8 + raw.len() as u8);
+            out.extend_from_slice(raw);
+            return out;
+        }
+
+        let len_bytes = usize_to_be_bytes(raw.len());
+        let mut out = Vec::with_capacity(1 + len_bytes.len() + raw.len());
+        out.push(0xb7u8 + len_bytes.len() as u8);
+        out.extend_from_slice(&len_bytes);
+        out.extend_from_slice(raw);
+        out
+    }
+
+    fn rlp_encode_list(items: &[Vec<u8>]) -> Vec<u8> {
+        let payload_len: usize = items.iter().map(|it| it.len()).sum();
+        let mut payload = Vec::with_capacity(payload_len);
+        for it in items {
+            payload.extend_from_slice(it);
+        }
+
+        if payload.len() <= 55 {
+            let mut out = Vec::with_capacity(1 + payload.len());
+            out.push(0xc0u8 + payload.len() as u8);
+            out.extend_from_slice(&payload);
+            return out;
+        }
+
+        let len_bytes = usize_to_be_bytes(payload.len());
+        let mut out = Vec::with_capacity(1 + len_bytes.len() + payload.len());
+        out.push(0xf7u8 + len_bytes.len() as u8);
+        out.extend_from_slice(&len_bytes);
+        out.extend_from_slice(&payload);
+        out
+    }
+
+    fn usize_to_be_bytes(mut value: usize) -> Vec<u8> {
+        if value == 0 {
+            return vec![0u8];
+        }
+        let mut out = Vec::new();
+        while value > 0 {
+            out.push((value & 0xff) as u8);
+            value >>= 8;
+        }
+        out.reverse();
+        out
+    }
+
+    fn nibbles_to_compact_path(nibbles: &[u8], is_leaf: bool) -> Vec<u8> {
+        let is_odd = (nibbles.len() % 2) == 1;
+        let flags = (if is_leaf { 0x2 } else { 0x0 }) | (if is_odd { 0x1 } else { 0x0 });
+
+        let mut out = Vec::new();
+        if is_odd {
+            out.push((flags << 4) | (nibbles[0] & 0x0f));
+            for pair in nibbles[1..].chunks(2) {
+                out.push((pair[0] << 4) | (pair[1] & 0x0f));
+            }
+        } else {
+            out.push(flags << 4);
+            for pair in nibbles.chunks(2) {
+                out.push((pair[0] << 4) | (pair[1] & 0x0f));
+            }
+        }
+        out
+    }
 
     #[test]
     fn nullifier_includes_note_index() {
@@ -346,6 +425,207 @@ mod tests {
         let n1 = derive_nullifier(&secret, chain_id, 1);
 
         assert_ne!(n0, n1);
+    }
+
+    #[test]
+    fn decode_rlp_item_handles_single_byte_and_empty_string() {
+        let item = decode_rlp_item(&[0x7f], 0).unwrap();
+        assert!(!item.is_list);
+        assert_eq!(item.payload_offset, 0);
+        assert_eq!(item.payload_len, 1);
+        assert_eq!(item.total_len, 1);
+
+        // 0x80 encodes an empty string.
+        let item = decode_rlp_item(&[0x80], 0).unwrap();
+        assert!(!item.is_list);
+        assert_eq!(item.payload_offset, 1);
+        assert_eq!(item.payload_len, 0);
+        assert_eq!(item.total_len, 1);
+    }
+
+    #[test]
+    fn decode_rlp_list_payload_items_rejects_nested_list_items() {
+        // [[0x01]] is a list whose only element is another list. We reject nested lists.
+        let inner = rlp_encode_list(&[rlp_encode_bytes(&[0x01])]);
+        let outer = rlp_encode_list(&[inner]);
+        let err = decode_rlp_list_payload_items(&outer).unwrap_err();
+        assert!(matches!(err, ClaimValidationError::InvalidRlpNode));
+    }
+
+    #[test]
+    fn decode_compact_nibbles_roundtrip_even_leaf_and_odd_extension() {
+        let even = vec![0x0, 0x1, 0x2, 0x3];
+        let encoded = nibbles_to_compact_path(&even, true);
+        let (is_leaf, decoded) = decode_compact_nibbles(&encoded).unwrap();
+        assert!(is_leaf);
+        assert_eq!(decoded, even);
+
+        let odd = vec![0xa, 0xb, 0xc];
+        let encoded = nibbles_to_compact_path(&odd, false);
+        let (is_leaf, decoded) = decode_compact_nibbles(&encoded).unwrap();
+        assert!(!is_leaf);
+        assert_eq!(decoded, odd);
+    }
+
+    #[test]
+    fn node_matches_reference_supports_hashed_and_inlined_children() {
+        let node = b"some rlp node bytes".to_vec();
+
+        let digest = keccak256(&node);
+        assert!(node_matches_reference(&node, &digest));
+
+        let mut wrong = digest;
+        wrong[0] ^= 1;
+        assert!(!node_matches_reference(&node, &wrong));
+
+        // Inline reference is a literal byte-equality check.
+        assert!(node_matches_reference(&node, &node));
+        assert!(!node_matches_reference(&node, b"other"));
+    }
+
+    #[test]
+    fn verify_account_proof_accepts_single_leaf_root_and_extracts_balance() {
+        let target_address = [0x11u8; 20];
+        let key_hash = keccak256(&target_address);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        // Leaf path commits the entire key (this models a trie with a single key at the root).
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+
+        // Account RLP: [nonce, balance, storageRoot, codeHash]
+        let nonce = rlp_encode_bytes(&[]); // 0
+        let balance_raw = [0x01u8, 0x02, 0x03, 0x04, 0x05];
+        let balance = rlp_encode_bytes(&balance_raw);
+        let storage_root = rlp_encode_bytes(&[0x22u8; 32]);
+        let code_hash = rlp_encode_bytes(&[0x33u8; 32]);
+        let account_rlp = rlp_encode_list(&[nonce, balance, storage_root, code_hash]);
+
+        // MPT leaf node RLP: [path, accountRlpBytes]
+        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
+        let state_root = keccak256(&leaf_node);
+
+        let balance_32 = verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node]).unwrap();
+
+        let mut expected = [0u8; 32];
+        expected[32 - balance_raw.len()..].copy_from_slice(&balance_raw);
+        assert_eq!(balance_32, expected);
+    }
+
+    #[test]
+    fn verify_account_proof_rejects_state_root_mismatch() {
+        let target_address = [0x11u8; 20];
+        let key_hash = keccak256(&target_address);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),
+            rlp_encode_bytes(&[0x01]),
+            rlp_encode_bytes(&[0x22u8; 32]),
+            rlp_encode_bytes(&[0x33u8; 32]),
+        ]);
+        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
+
+        let wrong_root = [0x99u8; 32];
+        let err = verify_account_proof_and_get_balance(&wrong_root, &target_address, &[leaf_node])
+            .unwrap_err();
+        assert!(matches!(err, ClaimValidationError::InvalidNodeReference));
+    }
+
+    #[test]
+    fn verify_account_proof_rejects_trie_path_mismatch() {
+        let target_address = [0x11u8; 20];
+        let key_hash = keccak256(&target_address);
+        let mut key_nibbles = hash_to_nibbles(&key_hash);
+        key_nibbles[0] ^= 1; // corrupt the path
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),
+            rlp_encode_bytes(&[0x01]),
+            rlp_encode_bytes(&[0x22u8; 32]),
+            rlp_encode_bytes(&[0x33u8; 32]),
+        ]);
+        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
+        let state_root = keccak256(&leaf_node);
+
+        let err = verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node]).unwrap_err();
+        assert!(matches!(err, ClaimValidationError::InvalidTriePath));
+    }
+
+    #[test]
+    fn verify_account_proof_traverses_branch_then_leaf_with_hashed_child_reference() {
+        let target_address = [0x11u8; 20];
+        let key_hash = keccak256(&target_address);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let nonce = rlp_encode_bytes(&[]);
+        let balance_raw = [0x05u8, 0x04, 0x03, 0x02, 0x01];
+        let balance = rlp_encode_bytes(&balance_raw);
+        let storage_root = rlp_encode_bytes(&[0x22u8; 32]);
+        let code_hash = rlp_encode_bytes(&[0x33u8; 32]);
+        let account_rlp = rlp_encode_list(&[nonce, balance, storage_root, code_hash]);
+
+        // Build leaf for the remaining nibbles after the branch consumed the first nibble.
+        let leaf_path = nibbles_to_compact_path(&key_nibbles[1..], true);
+        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&leaf_path), rlp_encode_bytes(&account_rlp)]);
+        let leaf_hash = keccak256(&leaf_node);
+
+        // Root branch chooses next child based on the first nibble.
+        let mut branch_items = Vec::with_capacity(17);
+        for idx in 0..16usize {
+            if idx == key_nibbles[0] as usize {
+                branch_items.push(rlp_encode_bytes(&leaf_hash));
+            } else {
+                branch_items.push(rlp_encode_bytes(&[]));
+            }
+        }
+        branch_items.push(rlp_encode_bytes(&[])); // branch value slot (unused)
+
+        let branch_node = rlp_encode_list(&branch_items);
+        let state_root = keccak256(&branch_node);
+
+        let balance_32 =
+            verify_account_proof_and_get_balance(&state_root, &target_address, &[branch_node, leaf_node]).unwrap();
+
+        let mut expected = [0u8; 32];
+        expected[32 - balance_raw.len()..].copy_from_slice(&balance_raw);
+        assert_eq!(balance_32, expected);
+    }
+
+    #[test]
+    fn verify_account_proof_rejects_when_parent_child_reference_hash_mismatches() {
+        let target_address = [0x11u8; 20];
+        let key_hash = keccak256(&target_address);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),
+            rlp_encode_bytes(&[0x01]),
+            rlp_encode_bytes(&[0x22u8; 32]),
+            rlp_encode_bytes(&[0x33u8; 32]),
+        ]);
+
+        let leaf_path = nibbles_to_compact_path(&key_nibbles[1..], true);
+        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&leaf_path), rlp_encode_bytes(&account_rlp)]);
+        let mut leaf_hash = keccak256(&leaf_node);
+        leaf_hash[0] ^= 1;
+
+        let mut branch_items = Vec::with_capacity(17);
+        for idx in 0..16usize {
+            if idx == key_nibbles[0] as usize {
+                branch_items.push(rlp_encode_bytes(&leaf_hash));
+            } else {
+                branch_items.push(rlp_encode_bytes(&[]));
+            }
+        }
+        branch_items.push(rlp_encode_bytes(&[]));
+        let branch_node = rlp_encode_list(&branch_items);
+        let state_root = keccak256(&branch_node);
+
+        let err =
+            verify_account_proof_and_get_balance(&state_root, &target_address, &[branch_node, leaf_node]).unwrap_err();
+        assert!(matches!(err, ClaimValidationError::InvalidNodeReference));
     }
 }
 

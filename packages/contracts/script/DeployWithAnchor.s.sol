@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.33;
+
+import {Script, console2} from "forge-std/Script.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
+import {Shadow} from "../src/impl/Shadow.sol";
+import {DummyEtherMinter} from "../src/impl/DummyEtherMinter.sol";
+import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
+import {Risc0CircuitVerifier} from "../src/impl/Risc0CircuitVerifier.sol";
+
+// Import OFFICIAL RISC0 v3.0.0 verifier from risc0-ethereum library
+import {RiscZeroGroth16Verifier} from "risc0-ethereum/groth16/RiscZeroGroth16Verifier.sol";
+import {ControlID} from "risc0-ethereum/groth16/ControlID.sol";
+
+/// @notice Deploy Shadow using TaikoAnchor for blockHash verification.
+/// @dev This is the production-ready deployment for Taiko Hoodi.
+/// The ShadowVerifier uses TaikoAnchor.blockHashes() to get canonical block hashes.
+contract DeployWithAnchor is Script {
+    // TaikoAnchor on Taiko Hoodi L2 (predefined address)
+    address internal constant TAIKO_ANCHOR = 0x1670130000000000000000000000000000010001;
+
+    // RISC0 guest program imageId - update this when the prover changes
+    // Generated from: packages/risc0-prover/methods SHADOW_CLAIM_GUEST_ID
+    bytes32 internal constant SHADOW_CLAIM_GUEST_ID = 0xd8fe278f7420be827efe580ae81f6af2c3fbad0a2b7ae916ef6ca1964ef0b294;
+
+    struct Deployment {
+        address anchor;
+        address risc0Groth16Verifier;
+        address etherMinter;
+        address risc0CircuitVerifier;
+        address shadowVerifier;
+        address shadowImplementation;
+        address shadowProxy;
+    }
+
+    function run() external returns (Deployment memory deployed_) {
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PK");
+        address deployer = vm.addr(deployerPrivateKey);
+        address owner = vm.envOr("OWNER", deployer);
+        bytes32 imageId = vm.envOr("IMAGE_ID", SHADOW_CLAIM_GUEST_ID);
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        // Use TaikoAnchor (predefined L2 contract)
+        deployed_.anchor = TAIKO_ANCHOR;
+
+        // Deploy OFFICIAL RISC0 v3.0.0 Groth16 Verifier
+        deployed_.risc0Groth16Verifier = address(
+            new RiscZeroGroth16Verifier(ControlID.CONTROL_ROOT, ControlID.BN254_CONTROL_ID)
+        );
+
+        // Deploy DummyEtherMinter (replace with real bridge minter for production)
+        deployed_.etherMinter = address(new DummyEtherMinter());
+
+        // Deploy Risc0CircuitVerifier with imageId
+        deployed_.risc0CircuitVerifier = address(
+            new Risc0CircuitVerifier(deployed_.risc0Groth16Verifier, imageId)
+        );
+
+        // Deploy ShadowVerifier with TaikoAnchor
+        deployed_.shadowVerifier = address(
+            new ShadowVerifier(deployed_.anchor, deployed_.risc0CircuitVerifier)
+        );
+
+        // Deploy Shadow implementation and proxy
+        deployed_.shadowImplementation = address(
+            new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner)
+        );
+        bytes memory initData = abi.encodeCall(Shadow.initialize, (owner));
+        deployed_.shadowProxy = address(
+            new ERC1967Proxy(deployed_.shadowImplementation, initData)
+        );
+
+        vm.stopBroadcast();
+
+        _logConfig(deployer, owner, imageId);
+        _logDeployment(deployed_);
+    }
+
+    function _logConfig(address deployer, address owner, bytes32 imageId) private view {
+        console2.log("=== Deploy Config ===");
+        console2.log("chainId", block.chainid);
+        console2.log("deployer", deployer);
+        console2.log("owner", owner);
+        console2.log("imageId:");
+        console2.logBytes32(imageId);
+        console2.log("=====================");
+    }
+
+    function _logDeployment(Deployment memory deployed_) private pure {
+        console2.log("=== Deployed Contracts (with TaikoAnchor) ===");
+        console2.log("TaikoAnchor (predefined)", deployed_.anchor);
+        console2.log("RiscZeroGroth16Verifier (v3.0.0 official)", deployed_.risc0Groth16Verifier);
+        console2.log("DummyEtherMinter", deployed_.etherMinter);
+        console2.log("Risc0CircuitVerifier", deployed_.risc0CircuitVerifier);
+        console2.log("ShadowVerifier", deployed_.shadowVerifier);
+        console2.log("Shadow implementation", deployed_.shadowImplementation);
+        console2.log("Shadow proxy", deployed_.shadowProxy);
+        console2.log("=============================================");
+    }
+}

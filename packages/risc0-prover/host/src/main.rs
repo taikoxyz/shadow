@@ -131,7 +131,6 @@ fn cmd_prove(input_path: &Path, receipt_path: &Path, journal_path: &Path, receip
     println!("Receipt: {}", receipt_path.display());
     println!("Journal: {}", journal_path.display());
     println!("Nullifier: 0x{}", hex::encode(journal.nullifier));
-    println!("PoW digest: 0x{}", hex::encode(journal.pow_digest));
     println!("Receipt kind: {}", describe_receipt_kind(&receipt.inner));
 
     Ok(())
@@ -153,7 +152,6 @@ fn cmd_verify(receipt_path: &Path) -> Result<()> {
 
     println!("Receipt verified: {}", receipt_path.display());
     println!("Nullifier: 0x{}", hex::encode(journal.nullifier));
-    println!("PoW digest: 0x{}", hex::encode(journal.pow_digest));
     // Proof depth is not part of the public journal; it is validated inside the guest.
 
     Ok(())
@@ -163,13 +161,22 @@ fn cmd_inspect(input_path: &Path) -> Result<()> {
     let input = load_claim_input(input_path)?;
     let journal = evaluate_claim(&input).map_err(|e| anyhow!("claim evaluation failed: {}", e.as_str()))?;
 
+    let notes_hash = shadow_proof_core::compute_notes_hash(
+        input.note_count as usize,
+        &input.amounts,
+        &input.recipient_hashes,
+    )
+    .map_err(|e| anyhow!("notes hash evaluation failed: {}", e.as_str()))?;
+    let pow_digest = shadow_proof_core::compute_pow_digest(&notes_hash, &input.secret);
+
     println!("Input validated: {}", input_path.display());
     println!("blockNumber: {}", journal.block_number);
     println!("chainId: {}", journal.chain_id);
-    println!("noteIndex: {}", journal.note_index);
+    // noteIndex is a private witness; it is not part of the public journal.
+    println!("noteIndex: {}", input.note_index);
     println!("amount: {}", journal.amount);
     println!("nullifier: 0x{}", hex::encode(journal.nullifier));
-    println!("powDigest: 0x{}", hex::encode(journal.pow_digest));
+    println!("powDigest: 0x{}", hex::encode(pow_digest));
 
     Ok(())
 }

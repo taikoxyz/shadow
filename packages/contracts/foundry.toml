@@ -14,5 +14,7 @@ fs_permissions = [{ access = "read", path = "./" }]
 remappings = [
   'forge-std/=node_modules/forge-std/src/',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
-  '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/'
+  '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
+  'risc0-ethereum/=lib/risc0-ethereum/contracts/src/',
+  'openzeppelin/contracts/=node_modules/@openzeppelin/contracts/'
 ]

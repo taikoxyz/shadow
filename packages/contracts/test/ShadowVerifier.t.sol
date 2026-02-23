@@ -38,18 +38,15 @@ contract ShadowVerifierTest is Test {
 
     function test_verifyProof_succeeds() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("block");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         bool ok = verifier.verifyProof("", input);
@@ -59,112 +56,44 @@ contract ShadowVerifierTest is Test {
     function test_verifyProof_RevertWhen_BlockNumberIsZero() external {
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: 0,
-            blockHash: bytes32(uint256(1)),
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, uint48(0)));
         verifier.verifyProof("", input);
     }
 
-    function test_verifyProof_RevertWhen_BlockHashMismatch() external {
-        uint48 blockNumber = uint48(block.number);
-        bytes32 expectedBlockHash = keccak256("expected");
-        bytes32 actualBlockHash = keccak256("actual");
-        anchor.setBlockHash(blockNumber, expectedBlockHash);
-
-        IShadow.PublicInput memory input = IShadow.PublicInput({
-            blockNumber: blockNumber,
-            blockHash: actualBlockHash,
-            chainId: block.chainid,
-            noteIndex: 1,
-            amount: 1 ether,
-            recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
-        });
-
-        vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashMismatch.selector, expectedBlockHash, actualBlockHash));
-        verifier.verifyProof("", input);
-    }
-
     function test_verifyProof_RevertWhen_BlockHashIsZero() external {
         uint48 blockNumber = uint48(block.number);
-        anchor.setBlockHash(blockNumber, bytes32(0));
+        // Don't set block hash - it will be zero
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: bytes32(0),
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, blockNumber));
         verifier.verifyProof("", input);
-    }
-
-    function test_verifyProof_RevertWhen_BlockHashMissing() external {
-        uint48 blockNumber = uint48(block.number);
-
-        IShadow.PublicInput memory input = IShadow.PublicInput({
-            blockNumber: blockNumber,
-            blockHash: bytes32(uint256(1)),
-            chainId: block.chainid,
-            noteIndex: 1,
-            amount: 1 ether,
-            recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
-        });
-
-        vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, blockNumber));
-        verifier.verifyProof("", input);
-    }
-
-    function test_verifyProof_RevertWhen_AnchorReverts() external {
-        uint48 blockNumber = uint48(block.number);
-        ShadowVerifier revertingVerifier = new ShadowVerifier(address(new RevertingAnchor()), address(circuitVerifier));
-
-        IShadow.PublicInput memory input = IShadow.PublicInput({
-            blockNumber: blockNumber,
-            blockHash: bytes32(uint256(1)),
-            chainId: block.chainid,
-            noteIndex: 1,
-            amount: 1 ether,
-            recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
-        });
-
-        // When anchor reverts, the revert propagates directly
-        vm.expectRevert("anchor reverted");
-        revertingVerifier.verifyProof("", input);
     }
 
     function test_verifyProof_RevertWhen_ProofVerificationFails() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("block");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
         circuitVerifier.setShouldVerify(false);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.ProofVerificationFailed.selector));

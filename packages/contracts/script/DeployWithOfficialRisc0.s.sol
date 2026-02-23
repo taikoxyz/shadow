@@ -9,17 +9,20 @@ import {DummyEtherMinter} from "../src/impl/DummyEtherMinter.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {Risc0CircuitVerifier} from "../src/impl/Risc0CircuitVerifier.sol";
 
-contract DeployTaiko is Script {
-    // Deployer: 0xe36C0F16d5fB473CC5181f5fb86b6Eb3299aD9cb
-    address internal constant MAINNET_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xA5Da6507E6Ab8832EA3fDeB43bA6B7390952D8dA;
+// Import OFFICIAL RISC0 v3.0.0 verifier from risc0-ethereum library
+import {RiscZeroGroth16Verifier} from "risc0-ethereum/groth16/RiscZeroGroth16Verifier.sol";
+import {ControlID} from "risc0-ethereum/groth16/ControlID.sol";
 
-    address internal constant HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
+/// @notice Deploy Shadow with the OFFICIAL RISC0 v3.0.0 Groth16 verifier
+contract DeployWithOfficialRisc0 is Script {
     address internal constant HOODI_ANCHOR = 0x1670130000000000000000000000000000010001;
 
-    // Image ID from risc0-prover build (must match the prover's SHADOW_CLAIM_GUEST_ID)
-    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x37a5e85c934ec15f7752cfced2f407f40e6c28978dffcb3b895dc100a76acaf8;
+    // This is the imageId from the current prover build (risc0-zkvm v3.0.5)
+    // Generated from: packages/risc0-prover/methods SHADOW_CLAIM_GUEST_ID
+    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0xd828473aa985077bd77004fe82d445ea0c76b926c466a29747df3892872241b3;
 
     struct Deployment {
+        address risc0Groth16Verifier;
         address etherMinter;
         address risc0CircuitVerifier;
         address shadowVerifier;
@@ -33,22 +36,40 @@ contract DeployTaiko is Script {
 
         address owner = vm.envOr("OWNER", deployer);
         address anchor = vm.envOr("ANCHOR", HOODI_ANCHOR);
-        address risc0Verifier = vm.envOr("RISC0_VERIFIER", HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI);
         bytes32 imageId = vm.envOr("IMAGE_ID", HOODI_SHADOW_CLAIM_GUEST_ID);
 
         vm.startBroadcast(deployerPrivateKey);
 
+        // Deploy OFFICIAL RISC0 v3.0.0 Groth16 Verifier
+        deployed_.risc0Groth16Verifier = address(
+            new RiscZeroGroth16Verifier(ControlID.CONTROL_ROOT, ControlID.BN254_CONTROL_ID)
+        );
+
+        // Deploy DummyEtherMinter
         deployed_.etherMinter = address(new DummyEtherMinter());
 
-        deployed_.risc0CircuitVerifier = address(new Risc0CircuitVerifier(risc0Verifier, imageId));
-        deployed_.shadowVerifier = address(new ShadowVerifier(anchor, deployed_.risc0CircuitVerifier));
-        deployed_.shadowImplementation = address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner));
+        // Deploy Risc0CircuitVerifier (adapter that binds imageId)
+        deployed_.risc0CircuitVerifier = address(
+            new Risc0CircuitVerifier(deployed_.risc0Groth16Verifier, imageId)
+        );
+
+        // Deploy ShadowVerifier
+        deployed_.shadowVerifier = address(
+            new ShadowVerifier(anchor, deployed_.risc0CircuitVerifier)
+        );
+
+        // Deploy Shadow implementation and proxy
+        deployed_.shadowImplementation = address(
+            new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner)
+        );
         bytes memory initData = abi.encodeCall(Shadow.initialize, (owner));
-        deployed_.shadowProxy = address(new ERC1967Proxy(deployed_.shadowImplementation, initData));
+        deployed_.shadowProxy = address(
+            new ERC1967Proxy(deployed_.shadowImplementation, initData)
+        );
 
         vm.stopBroadcast();
 
-        _logConfig(deployer, owner, anchor, risc0Verifier, imageId);
+        _logConfig(deployer, owner, anchor, imageId);
         _logDeployment(deployed_);
     }
 
@@ -56,27 +77,26 @@ contract DeployTaiko is Script {
         address deployer,
         address owner,
         address anchor,
-        address risc0Verifier,
         bytes32 imageId
     ) private view {
         console2.log("=== Deploy Config ===");
         console2.log("chainId", block.chainid);
         console2.log("deployer", deployer);
         console2.log("owner", owner);
-        console2.log("feeRecipient", owner);
         console2.log("anchor", anchor);
-        console2.log("risc0Verifier", risc0Verifier);
+        console2.log("imageId:");
         console2.logBytes32(imageId);
         console2.log("=====================");
     }
 
     function _logDeployment(Deployment memory deployed_) private pure {
-        console2.log("=== Deployed Contracts ===");
+        console2.log("=== Deployed Contracts (OFFICIAL RISC0) ===");
+        console2.log("RiscZeroGroth16Verifier (v3.0.0 official)", deployed_.risc0Groth16Verifier);
         console2.log("DummyEtherMinter", deployed_.etherMinter);
         console2.log("Risc0CircuitVerifier", deployed_.risc0CircuitVerifier);
         console2.log("ShadowVerifier", deployed_.shadowVerifier);
         console2.log("Shadow implementation", deployed_.shadowImplementation);
         console2.log("Shadow proxy", deployed_.shadowProxy);
-        console2.log("==========================");
+        console2.log("============================================");
     }
 }

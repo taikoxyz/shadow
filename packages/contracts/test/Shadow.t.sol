@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {OwnableUpgradeable} from "../src/lib/OwnableUpgradeable.sol";
 import {Shadow} from "../src/impl/Shadow.sol";
-import {Nullifier} from "../src/impl/Nullifier.sol";
 import {IShadow} from "../src/iface/IShadow.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
@@ -19,7 +18,6 @@ contract ShadowTest is Test {
     MockCircuitVerifier internal circuitVerifier;
     ShadowVerifier internal shadowVerifier;
     MockEtherMinter internal etherMinter;
-    Nullifier internal nullifier;
     Shadow internal shadow;
 
     function setUp() public {
@@ -27,11 +25,8 @@ contract ShadowTest is Test {
         circuitVerifier = new MockCircuitVerifier();
         shadowVerifier = new ShadowVerifier(address(anchor), address(circuitVerifier));
         etherMinter = new MockEtherMinter();
-        uint64 nonce = vm.getNonce(address(this));
-        address predictedShadowProxy = vm.computeCreateAddress(address(this), nonce + 2);
-        nullifier = new Nullifier(predictedShadowProxy);
 
-        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(this));
+        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(this));
         ERC1967Proxy shadowProxy =
             new ERC1967Proxy(address(shadowImpl), abi.encodeCall(Shadow.initialize, (address(this))));
         shadow = Shadow(address(shadowProxy));
@@ -39,22 +34,17 @@ contract ShadowTest is Test {
 
     function test_constructor_RevertWhen_VerifierIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(0), address(etherMinter), address(nullifier), address(this));
+        new Shadow(address(0), address(etherMinter), address(this));
     }
 
     function test_constructor_RevertWhen_EtherMinterIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(shadowVerifier), address(0), address(nullifier), address(this));
-    }
-
-    function test_constructor_RevertWhen_NullifierIsZeroAddress() external {
-        vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(shadowVerifier), address(etherMinter), address(0), address(this));
+        new Shadow(address(shadowVerifier), address(0), address(this));
     }
 
     function test_constructor_RevertWhen_FeeRecipientIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(0));
+        new Shadow(address(shadowVerifier), address(etherMinter), address(0));
     }
 
     function test_feeRecipient_isImmutable() external view {
@@ -63,23 +53,19 @@ contract ShadowTest is Test {
 
     function test_claim_succeeds() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
         address recipient = address(0xBEEF);
         bytes32 nullifierValue = keccak256("nullifier");
         uint256 amount = 1 ether;
-        bytes32 powDigest = bytes32(uint256(1) << 24);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: amount,
             recipient: recipient,
-            nullifier: nullifierValue,
-            powDigest: powDigest
+            nullifier: nullifierValue
         });
 
         vm.expectEmit(true, true, false, true, address(shadow));
@@ -97,23 +83,19 @@ contract ShadowTest is Test {
 
     function test_claim_mintsOnlyOnceWhen_FeeIsZero() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
         address recipient = address(0xBEEF);
         bytes32 nullifierValue = keccak256("nullifier-fee-zero");
         uint256 amount = 999;
-        bytes32 powDigest = bytes32(uint256(1) << 24);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: amount,
             recipient: recipient,
-            nullifier: nullifierValue,
-            powDigest: powDigest
+            nullifier: nullifierValue
         });
 
         vm.expectEmit(true, true, false, true, address(shadow));
@@ -130,59 +112,33 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_ChainIdMismatch() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid + 1,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadow.ChainIdMismatch.selector, block.chainid + 1, block.chainid));
         shadow.claim("", input);
     }
 
-    function test_claim_RevertWhen_PowInvalid() external {
-        uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
-        anchor.setBlockHash(blockNumber, blockHash);
-
-        IShadow.PublicInput memory input = IShadow.PublicInput({
-            blockNumber: blockNumber,
-            blockHash: blockHash,
-            chainId: block.chainid,
-            noteIndex: 1,
-            amount: 1 ether,
-            recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1))
-        });
-
-        vm.expectRevert(abi.encodeWithSelector(IShadow.InvalidPowDigest.selector, bytes32(uint256(1))));
-        shadow.claim("", input);
-    }
-
     function test_claim_RevertWhen_ProofVerificationFailed() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
         circuitVerifier.setShouldVerify(false);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(IShadow.ProofVerificationFailed.selector);
@@ -191,20 +147,17 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_ProofVerificationFailed_doesNotConsumeOrMint() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
         circuitVerifier.setShouldVerify(false);
 
         bytes32 nullifierValue = keccak256("nullifier-security");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue,
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: nullifierValue
         });
 
         vm.expectRevert(IShadow.ProofVerificationFailed.selector);
@@ -216,20 +169,17 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_EtherMintFails_doesNotConsumeNullifier() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
         etherMinter.setShouldRevert(true);
 
         bytes32 nullifierValue = keccak256("nullifier-mint-failure");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue,
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: nullifierValue
         });
 
         vm.expectRevert(MockEtherMinter.MintFailed.selector);
@@ -241,20 +191,17 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_FeeMintFails_doesNotConsumeOrMint() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
         etherMinter.setRevertOnMintNumber(2);
 
         bytes32 nullifierValue = keccak256("nullifier-fee-mint-failure");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1000,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue,
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: nullifierValue
         });
 
         vm.expectRevert(MockEtherMinter.MintFailed.selector);
@@ -266,19 +213,16 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_NullifierReused() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
         bytes32 nullifierValue = keccak256("nullifier");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue,
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: nullifierValue
         });
 
         shadow.claim("", input);
@@ -288,18 +232,15 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_InvalidRecipient() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 1 ether,
             recipient: address(0),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadow.InvalidRecipient.selector, address(0)));
@@ -308,18 +249,15 @@ contract ShadowTest is Test {
 
     function test_claim_RevertWhen_InvalidAmount() external {
         uint48 blockNumber = uint48(block.number);
-        bytes32 blockHash = keccak256("root");
+        bytes32 blockHash = keccak256("blockhash");
         anchor.setBlockHash(blockNumber, blockHash);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            blockHash: blockHash,
             chainId: block.chainid,
-            noteIndex: 1,
             amount: 0,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier"),
-            powDigest: bytes32(uint256(1) << 24)
+            nullifier: keccak256("nullifier")
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadow.InvalidAmount.selector, 0));
@@ -360,7 +298,7 @@ contract ShadowTest is Test {
 
     function test_upgradeToAndCall_RevertWhen_NotOwner() external {
         Shadow newImpl =
-            new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), address(0xCAFE));
+            new Shadow(address(shadowVerifier), address(etherMinter), address(0xCAFE));
 
         vm.prank(address(0xBEEF));
         vm.expectRevert();
@@ -369,8 +307,7 @@ contract ShadowTest is Test {
 
     function test_upgradeToAndCall_succeedsAndUpdatesFeeRecipient() external {
         address newFeeRecipient = address(0xCAFE);
-        Shadow newImpl =
-            new Shadow(address(shadowVerifier), address(etherMinter), address(nullifier), newFeeRecipient);
+        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), newFeeRecipient);
 
         // OZ UUPS upgradeToAndCall() always delegatecalls the new implementation.
         // Use a safe no-op view call to avoid triggering fallback reverts.

@@ -21,16 +21,14 @@ const MAX_TOTAL_WEI = 32000000000000000000n;
 const HOODI_MAX_TX_SIZE_BYTES = 131072;
 // Intentionally empty: the correct address depends on the current deployment (image ID).
 const DEFAULT_SHADOW_ADDRESS = "";
-const PUBLIC_INPUTS_LEN = 120;
+const PUBLIC_INPUTS_LEN = 87;
 const PUBLIC_INPUT_IDX = {
   BLOCK_NUMBER: 0,
-  STATE_ROOT: 1,
+  BLOCK_HASH: 1,  // Changed from STATE_ROOT - circuit now commits blockHash
   CHAIN_ID: 33,
-  NOTE_INDEX: 34,
-  AMOUNT: 35,
-  RECIPIENT: 36,
-  NULLIFIER: 56,
-  POW_DIGEST: 88
+  AMOUNT: 34,
+  RECIPIENT: 35,
+  NULLIFIER: 55
 };
 const encoder = new TextEncoder();
 const HOODI_CHAIN_ID = 167013n;
@@ -1069,7 +1067,10 @@ function bindClaim() {
             `Loaded proof file: ${file.name}`,
             `Proof version: ${String(parsed.version || "unknown")}`,
             `Chain ID: ${prepared.chainId.toString()}`,
-            `Note index: ${prepared.claimInput.noteIndex.toString()}`,
+            `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
+            `Recipient: ${prepared.claimInput.recipient}`,
+            `Nullifier: ${prepared.claimInput.nullifier}`,
+            prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
             `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
             `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
             `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
@@ -1077,7 +1078,7 @@ function bindClaim() {
             proofBytes > HOODI_MAX_TX_SIZE_BYTES
               ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
               : "Tx-size check: within Hoodi limit."
-          ].join("\n")
+          ].filter(Boolean).join("\n")
         );
       } catch (error) {
         setOutput("claim-output", errorMessage(error));
@@ -1131,13 +1132,10 @@ function bindClaim() {
                 type: "tuple",
                 components: [
                   { name: "blockNumber", type: "uint48" },
-                  { name: "stateRoot", type: "bytes32" },
                   { name: "chainId", type: "uint256" },
-                  { name: "noteIndex", type: "uint256" },
                   { name: "amount", type: "uint256" },
                   { name: "recipient", type: "address" },
-                  { name: "nullifier", type: "bytes32" },
-                  { name: "powDigest", type: "bytes32" }
+                  { name: "nullifier", type: "bytes32" }
                 ]
               }
             ],
@@ -1209,17 +1207,17 @@ function prepareClaimPayload(proof) {
     "blockNumber"
   );
   const chainId = parseBigIntField(proof.chainId ?? fromPublicInputs?.chainId, "chainId");
-  const noteIndex = parseBigIntField(proof.noteIndex ?? fromPublicInputs?.noteIndex, "noteIndex");
   const amount = parseBigIntField(proof.amount ?? fromPublicInputs?.amount, "amount");
   const recipient = normalizeAddress(proof.recipient ?? fromPublicInputs?.recipient, "recipient");
 
   const nullifier = String(proof.nullifier ?? fromPublicInputs?.nullifier ?? "");
-  const stateRoot = String(proof.stateRoot ?? fromPublicInputs?.stateRoot ?? "");
-  const powDigest = String(proof.powDigest ?? fromPublicInputs?.powDigest ?? "");
+  let blockHash = proof.blockHash !== undefined ? String(proof.blockHash) : null;
+  const derivedBlockHash = fromPublicInputs?.blockHash ?? null;
 
   assertHex(nullifier, 32, "nullifier");
-  assertHex(stateRoot, 32, "stateRoot");
-  assertHex(powDigest, 32, "powDigest");
+  if (blockHash !== null) {
+    assertHex(blockHash, 32, "blockHash");
+  }
 
   if (blockNumber > (1n << 48n) - 1n) {
     throw new Error("blockNumber exceeds uint48 range");
@@ -1227,33 +1225,30 @@ function prepareClaimPayload(proof) {
   if (amount <= 0n) {
     throw new Error("amount must be > 0");
   }
-  if (!powDigestIsValidBytes(hexToBytes(powDigest))) {
-    throw new Error("powDigest is invalid (last 24 bits must be zero)");
-  }
 
   if (fromPublicInputs) {
     assertDerivedFieldMatch("blockNumber", blockNumber, fromPublicInputs.blockNumber);
     assertDerivedFieldMatch("chainId", chainId, fromPublicInputs.chainId);
-    assertDerivedFieldMatch("noteIndex", noteIndex, fromPublicInputs.noteIndex);
     assertDerivedFieldMatch("amount", amount, fromPublicInputs.amount);
     assertDerivedFieldMatch("recipient", recipient, fromPublicInputs.recipient);
     assertDerivedFieldMatch("nullifier", nullifier.toLowerCase(), fromPublicInputs.nullifier.toLowerCase());
-    assertDerivedFieldMatch("stateRoot", stateRoot.toLowerCase(), fromPublicInputs.stateRoot.toLowerCase());
-    assertDerivedFieldMatch("powDigest", powDigest.toLowerCase(), fromPublicInputs.powDigest.toLowerCase());
+    if (blockHash !== null) {
+      assertDerivedFieldMatch("blockHash", blockHash.toLowerCase(), fromPublicInputs.blockHash.toLowerCase());
+    }
   }
+
+  if (derivedBlockHash) blockHash = derivedBlockHash;
 
   return {
     proof: proofHex,
     chainId,
+    blockHash,
     claimInput: {
       blockNumber,
-      stateRoot,
       chainId,
-      noteIndex,
       amount,
       recipient,
-      nullifier,
-      powDigest
+      nullifier
     }
   };
 }
@@ -1280,12 +1275,10 @@ function deriveClaimFieldsFromPublicInputs(publicInputs) {
   return {
     blockNumber: parseBigIntField(publicInputs[PUBLIC_INPUT_IDX.BLOCK_NUMBER], "publicInputs.blockNumber"),
     chainId: parseBigIntField(publicInputs[PUBLIC_INPUT_IDX.CHAIN_ID], "publicInputs.chainId"),
-    noteIndex: parseBigIntField(publicInputs[PUBLIC_INPUT_IDX.NOTE_INDEX], "publicInputs.noteIndex"),
     amount: parseBigIntField(publicInputs[PUBLIC_INPUT_IDX.AMOUNT], "publicInputs.amount"),
     recipient: normalizeAddress(bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.RECIPIENT, 20))),
     nullifier: bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.NULLIFIER, 32)),
-    stateRoot: bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.STATE_ROOT, 32)),
-    powDigest: bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.POW_DIGEST, 32))
+    blockHash: bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.BLOCK_HASH, 32))
   };
 }
 

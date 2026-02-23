@@ -7,7 +7,7 @@ import process from "process";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 import Ajv from "ajv";
-import { AbiCoder, Contract, JsonRpcProvider, Wallet, getAddress, isAddress } from "ethers";
+import { AbiCoder, Contract, JsonRpcProvider, Wallet, encodeRlp, getAddress, isAddress, keccak256 } from "ethers";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,28 +28,35 @@ const MAX_TOTAL_WEI = 32000000000000000000n;
 
 const IDX = {
   BLOCK_NUMBER: 0,
-  STATE_ROOT: 1,
+  BLOCK_HASH: 1,  // Matches ShadowPublicInputs.sol layout - stateRoot is derived in-circuit
   CHAIN_ID: 33,
-  NOTE_INDEX: 34,
-  AMOUNT: 35,
-  RECIPIENT: 36,
-  NULLIFIER: 56,
-  POW_DIGEST: 88
+  AMOUNT: 34,
+  RECIPIENT: 35,
+  NULLIFIER: 55
 };
 
-const usage = `Usage:
-  node scripts/shadowcli.mjs validate --deposit <DEPOSIT.json> [--rpc <url>] [--note-index <n>]
-  node scripts/shadowcli.mjs prove --deposit <DEPOSIT.json> --rpc <url> [--note-index <n>] [--proof-out <note-x.proof.json>] [--receipt-kind groth16|succinct|composite] [--keep-intermediate-files] [--verbose]
-  node scripts/shadowcli.mjs verify --proof <note-x.proof.json> [--verifier <address|deployed_verifier.json> --rpc <url>] [--receipt <receipt.bin>] [--host-bin <path>]
-  node scripts/shadowcli.mjs claim --proof <note-x.proof.json> --shadow <address> --rpc <url> --private-key <0x...>
+// Default RPC URLs by chain ID
+const DEFAULT_RPC = {
+  167013: "https://rpc.hoodi.taiko.xyz"
+};
 
-Notes:
-  - DEPOSIT file must conform to packages/docs/data/schema/deposit.schema.json
-  - prove writes a self-contained note proof file with ABI-encoded proof payload
-  - prove deletes intermediate files by default (claim input, receipt, journal, exported proof payload)
-  - pass --verbose to stream host/docker logs
-  - verify with --verifier performs on-chain view verification via verifyProof(bytes,uint256[])
-  - verify without --verifier performs local receipt verification (uses --receipt or build/risc0/receipt.bin)
+// Default Shadow contract addresses by chain ID
+const DEFAULT_SHADOW = {
+  167013: "0xCd45084D91bC488239184EEF39dd20bCb710e7C2"
+};
+
+const usage = `Shadow Protocol CLI
+
+Usage:
+  shadowcli prove-all --deposit <file.json>     Generate proofs for all notes
+  shadowcli claim-all --deposit <file.json> --private-key <0x...>  Claim all unclaimed notes
+  shadowcli prove --deposit <file.json> --note-index <n>           Generate proof for one note
+  shadowcli claim --proof <file.json> --private-key <0x...>        Claim one note
+
+Options:
+  --rpc <url>       RPC endpoint (default: auto-detect from chainId)
+  --shadow <addr>   Shadow contract (default: auto-detect from chainId)
+  --verbose         Show detailed output
 `;
 
 main().catch((err) => {
@@ -66,12 +73,18 @@ async function main() {
     case "prove":
       await cmdProve(opts);
       return;
+    case "prove-all":
+      await cmdProveAll(opts);
+      return;
     case "verify":
     case "verify-onchain":
       await cmdVerify(opts);
       return;
     case "claim":
       await cmdClaim(opts);
+      return;
+    case "claim-all":
+      await cmdClaimAll(opts);
       return;
     default:
       console.error(usage);
@@ -142,13 +155,16 @@ async function cmdProve(opts) {
   const depositPath = requireOpt(opts, "deposit");
   const depositAbsPath = resolvePath(depositPath);
   const depositProofPath = tryRelativizePath(depositAbsPath) || depositAbsPath;
-  const rpcUrl = requireOpt(opts, "rpc");
   const deposit = loadDeposit(depositPath);
+  const chainId = resolveChainIdFromDeposit(deposit);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[Number(chainId)];
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
 
   const rpcChainId = await fetchChainId(rpcUrl);
-  const chainId = resolveChainIdFromDeposit(deposit);
   if (chainId !== rpcChainId) {
-    throw new Error(`RPC chainId (${rpcChainId}) does not match resolved chainId (${chainId})`);
+    throw new Error(`RPC chainId (${rpcChainId}) does not match deposit chainId (${chainId})`);
   }
 
   const noteIndex = resolveNoteIndex(opts["note-index"], deposit);
@@ -170,14 +186,19 @@ async function cmdProve(opts) {
   let blockNumber;
   let blockHashBytes;
   let blockHeaderRlpBytes;
+  let stateRootBytes;
   let accountProof;
   let accountBalance;
 
   const block = await rpcCall(rpcUrl, "eth_getBlockByNumber", ["latest", false]);
   blockNumber = parseRpcNumber(block.number);
-  blockHashBytes = hexToBytes(block.hash);
-  const blockRaw = await rpcCall(rpcUrl, "debug_getRawBlock", [block.number]);
-  blockHeaderRlpBytes = extractHeaderRlp(hexToBytes(blockRaw));
+  blockHeaderRlpBytes = encodeBlockHeaderFromJson(block);
+  const computedBlockHashHex = keccak256(blockHeaderRlpBytes);
+  blockHashBytes = hexToBytes(computedBlockHashHex);
+  stateRootBytes = hexToBytes(block.stateRoot);
+  if (block.hash && stripHexPrefix(block.hash).length > 0 && block.hash.toLowerCase() !== computedBlockHashHex.toLowerCase()) {
+    console.warn("Warning: RPC block.hash mismatch. Using keccak(headerRlp). rpc:", block.hash, "computed:", computedBlockHashHex);
+  }
   accountProof = await rpcCall(rpcUrl, "eth_getProof", [targetAddressHex, [], block.number]);
   accountBalance = parseRpcBigInt(accountProof.balance);
   console.log("Proof block:", blockNumber.toString());
@@ -192,6 +213,7 @@ async function cmdProve(opts) {
   const claimInput = buildLegacyClaimInput({
     blockNumber,
     blockHashBytes,
+    stateRootBytes,
     blockHeaderRlpBytes,
     chainId,
     noteIndex,
@@ -248,19 +270,17 @@ async function cmdProve(opts) {
   const publicInputs = buildPublicInputs({
     blockNumber,
     blockHashBytes,
-    blockHeaderRlpBytes,
     chainId,
-    noteIndex,
     claimAmount: derived.claimAmount,
     recipientBytes: derived.claimRecipientBytes,
-    nullifierBytes: derived.nullifier,
-    powDigestBytes: derived.powDigest
+    nullifierBytes: derived.nullifier
   });
 
   const noteProof = {
-    version: "v1",
+    version: "v2",
     depositFile: depositProofPath,
     blockNumber: blockNumber.toString(),
+    blockHash: bytesToHex(blockHashBytes),
     chainId: chainId.toString(),
     noteIndex: String(noteIndex),
     amount: derived.claimAmount.toString(),
@@ -327,31 +347,34 @@ async function cmdVerify(opts) {
 
 async function cmdClaim(opts) {
   const proofPath = requireOpt(opts, "proof");
-  const shadowAddressRaw = requireOpt(opts, "shadow");
-  const rpcUrl = requireOpt(opts, "rpc");
   const privateKey = requireOpt(opts, "private-key");
 
+  const noteProof = loadJson(proofPath);
+  const chainId = Number(noteProof.chainId);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[chainId];
+  const shadowAddressRaw = opts.shadow || DEFAULT_SHADOW[chainId];
+
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
+  if (!shadowAddressRaw) {
+    throw new Error(`No default Shadow contract for chainId ${chainId}. Pass --shadow <address>`);
+  }
   if (!isAddress(shadowAddressRaw)) {
     throw new Error(`invalid --shadow address: ${shadowAddressRaw}`);
   }
   const shadowAddress = getAddress(shadowAddressRaw);
 
-  const noteProof = loadJson(proofPath);
-  const { proof, publicInputs } = extractVerificationPayload(noteProof, proofPath);
-  const pis = publicInputs.map((x) => BigInt(x));
+  const { proof } = extractVerificationPayload(noteProof, proofPath);
 
-  const blockHash = bytes32FromPublicInputs(pis, IDX.STATE_ROOT);
-  const powDigest = bytes32FromPublicInputs(pis, IDX.POW_DIGEST);
-
+  // IShadow.PublicInput struct: (uint48 blockNumber, uint256 chainId, uint256 amount, address recipient, bytes32 nullifier)
+  // Note: stateRoot is NOT part of the calldata - it's fetched on-chain from checkpoint store
   const input = [
     BigInt(noteProof.blockNumber),
-    blockHash,
     BigInt(noteProof.chainId),
-    BigInt(noteProof.noteIndex),
     BigInt(noteProof.amount),
     getAddress(noteProof.recipient),
-    noteProof.nullifier,
-    powDigest
+    noteProof.nullifier
   ];
 
   const provider = new JsonRpcProvider(rpcUrl);
@@ -360,7 +383,7 @@ async function cmdClaim(opts) {
     shadowAddress,
     [
       "function isConsumed(bytes32 _nullifier) view returns (bool)",
-      "function claim(bytes _proof, (uint48 blockNumber, bytes32 blockHash, uint256 chainId, uint256 noteIndex, uint256 amount, address recipient, bytes32 nullifier, bytes32 powDigest) _input)"
+      "function claim(bytes _proof, (uint48 blockNumber, uint256 chainId, uint256 amount, address recipient, bytes32 nullifier) _input)"
     ],
     wallet
   );
@@ -376,6 +399,98 @@ async function cmdClaim(opts) {
   console.log("tx:", tx.hash);
   await tx.wait();
   console.log("status: confirmed");
+}
+
+async function cmdProveAll(opts) {
+  const depositPath = requireOpt(opts, "deposit");
+  const deposit = loadDeposit(depositPath);
+  const chainId = resolveChainIdFromDeposit(deposit);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[Number(chainId)];
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
+
+  const verbose = opts.verbose === true;
+  const noteCount = deposit.notes.length;
+
+  console.log(`Generating proofs for ${noteCount} note(s)...`);
+  console.log(`Chain ID: ${chainId}`);
+  console.log(`RPC: ${rpcUrl}`);
+
+  const proofPaths = [];
+  for (let i = 0; i < noteCount; i++) {
+    console.log(`\n=== Note ${i + 1}/${noteCount} ===`);
+    const noteOpts = {
+      ...opts,
+      rpc: rpcUrl,
+      "note-index": String(i)
+    };
+    await cmdProve(noteOpts);
+    const depositAbsPath = resolvePath(depositPath);
+    proofPaths.push(path.join(path.dirname(depositAbsPath), `note-${i}.proof.json`));
+  }
+
+  console.log(`\n=== All proofs generated ===`);
+  for (const p of proofPaths) {
+    console.log(`  ${p}`);
+  }
+}
+
+async function cmdClaimAll(opts) {
+  const depositPath = requireOpt(opts, "deposit");
+  const privateKey = requireOpt(opts, "private-key");
+  const deposit = loadDeposit(depositPath);
+  const chainId = resolveChainIdFromDeposit(deposit);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[Number(chainId)];
+  const shadowAddress = opts.shadow || DEFAULT_SHADOW[Number(chainId)];
+
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
+  if (!shadowAddress) {
+    throw new Error(`No default Shadow contract for chainId ${chainId}. Pass --shadow <address>`);
+  }
+
+  const depositAbsPath = resolvePath(depositPath);
+  const noteCount = deposit.notes.length;
+
+  console.log(`Claiming ${noteCount} note(s)...`);
+  console.log(`Chain ID: ${chainId}`);
+  console.log(`Shadow: ${shadowAddress}`);
+
+  let claimed = 0;
+  let skipped = 0;
+
+  for (let i = 0; i < noteCount; i++) {
+    const proofPath = path.join(path.dirname(depositAbsPath), `note-${i}.proof.json`);
+    if (!fs.existsSync(proofPath)) {
+      console.log(`Note ${i}: proof not found at ${proofPath}, skipping`);
+      skipped++;
+      continue;
+    }
+
+    console.log(`\n=== Note ${i + 1}/${noteCount} ===`);
+    try {
+      await cmdClaim({
+        proof: proofPath,
+        shadow: shadowAddress,
+        rpc: rpcUrl,
+        "private-key": privateKey
+      });
+      claimed++;
+    } catch (err) {
+      if (err.message && err.message.includes("nullifier already consumed")) {
+        console.log(`Note ${i}: already claimed, skipping`);
+        skipped++;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  console.log(`\n=== Summary ===`);
+  console.log(`  Claimed: ${claimed}`);
+  console.log(`  Skipped: ${skipped}`);
 }
 
 function cmdVerifyOffchain(opts, noteProof, proofPath) {
@@ -421,18 +536,6 @@ function resolveOffchainReceiptPath(cliReceipt, noteProof) {
     return defaultReceipt;
   }
   return null;
-}
-
-function bytes32FromPublicInputs(publicInputs, offset) {
-  let hex = "0x";
-  for (let i = 0; i < 32; i++) {
-    const b = Number(publicInputs[offset + i]);
-    if (!Number.isInteger(b) || b < 0 || b > 255) {
-      throw new Error(`public input byte out of range at ${offset + i}: ${publicInputs[offset + i]}`);
-    }
-    hex += b.toString(16).padStart(2, "0");
-  }
-  return hex;
 }
 
 function materializeEmbeddedReceipt(noteProof) {
@@ -571,6 +674,7 @@ function deriveFromDeposit(deposit, chainId, noteIndex) {
 function buildLegacyClaimInput({
   blockNumber,
   blockHashBytes,
+  stateRootBytes,
   blockHeaderRlpBytes,
   chainId,
   noteIndex,
@@ -623,6 +727,7 @@ function buildLegacyClaimInput({
   return {
     blockNumber: blockNumber.toString(),
     blockHash: bytesToDecStrings(blockHashBytes),
+    stateRoot: bytesToDecStrings(stateRootBytes),
     blockHeaderRlp: bytesToDecStrings(blockHeaderRlpBytes),
     chainId: chainId.toString(),
     noteIndex: String(noteIndex),
@@ -643,21 +748,17 @@ function buildPublicInputs({
   blockNumber,
   blockHashBytes,
   chainId,
-  noteIndex,
   claimAmount,
   recipientBytes,
-  nullifierBytes,
-  powDigestBytes
+  nullifierBytes
 }) {
-  const out = new Array(120).fill(0n);
+  const out = new Array(87).fill(0n);
   out[IDX.BLOCK_NUMBER] = blockNumber;
-  writeBytes(out, IDX.STATE_ROOT, blockHashBytes);
+  writeBytes(out, IDX.BLOCK_HASH, blockHashBytes);
   out[IDX.CHAIN_ID] = chainId;
-  out[IDX.NOTE_INDEX] = BigInt(noteIndex);
   out[IDX.AMOUNT] = claimAmount;
   writeBytes(out, IDX.RECIPIENT, recipientBytes);
   writeBytes(out, IDX.NULLIFIER, nullifierBytes);
-  writeBytes(out, IDX.POW_DIGEST, powDigestBytes);
   return out;
 }
 
@@ -665,6 +766,21 @@ function writeBytes(target, offset, bytes) {
   for (let i = 0; i < bytes.length; i++) {
     target[offset + i] = BigInt(bytes[i]);
   }
+}
+
+function bytes32FromPublicInputs(inputs, offset) {
+  if (inputs.length < offset + 32) {
+    throw new Error("publicInputs too short for bytes32 extraction");
+  }
+  let hex = "";
+  for (let i = 0; i < 32; i++) {
+    const value = BigInt(inputs[offset + i]);
+    if (value < 0n || value > 0xffn) {
+      throw new Error(`publicInputs[${offset + i}] is not a byte value`);
+    }
+    hex += value.toString(16).padStart(2, "0");
+  }
+  return `0x${hex}`;
 }
 
 function computeRecipientHash(recipientBytes) {
@@ -859,6 +975,33 @@ function parseRpcNumber(value) {
   return parseDec(String(value), "blockNumber");
 }
 
+function encodeBlockHeaderFromJson(block) {
+  const toQty = (value) => normalizeQuantity(value ?? "0x0");
+
+  // Hoodi/Shasta are Shanghai-only: 16 London fields + withdrawalsRoot.
+  const header = [
+    normalizeHex(block.parentHash),
+    normalizeHex(block.sha3Uncles),
+    normalizeHex(block.miner),
+    normalizeHex(block.stateRoot),
+    normalizeHex(block.transactionsRoot),
+    normalizeHex(block.receiptsRoot),
+    normalizeHex(block.logsBloom),
+    toQty(block.difficulty),
+    toQty(block.number),
+    toQty(block.gasLimit),
+    toQty(block.gasUsed),
+    toQty(block.timestamp),
+    normalizeHex(block.extraData),
+    normalizeHex(block.mixHash),
+    normalizeHex(block.nonce),
+    toQty(block.baseFeePerGas ?? block.baseFee),
+    normalizeHex(block.withdrawalsRoot ?? "0x"),
+  ];
+
+  return hexToBytes(encodeRlp(header));
+}
+
 
 function extractHeaderRlp(rawBlockBytes) {
   if (!(rawBlockBytes instanceof Uint8Array) || rawBlockBytes.length === 0) {
@@ -913,6 +1056,68 @@ function readBeNumber(bytes, offset, len) {
   let out = 0;
   for (let i = 0; i < len; i++) out = out * 256 + bytes[offset + i];
   return out;
+}
+
+function normalizeHex(value) {
+  if (value === null || value === undefined) {
+    return "0x";
+  }
+  if (typeof value === "number") {
+    if (value === 0) return "0x";
+    const hex = value.toString(16);
+    return hex.length % 2 === 1 ? `0x0${hex}` : `0x${hex}`;
+  }
+  if (typeof value === "bigint") {
+    if (value === 0n) return "0x";
+    const hex = value.toString(16);
+    return hex.length % 2 === 1 ? `0x0${hex}` : `0x${hex}`;
+  }
+  if (typeof value === "string") {
+    if (value.length === 0) {
+      return "0x";
+    }
+    let hex = value.startsWith("0x") ? value : `0x${value}`;
+    if (hex !== "0x" && hex.length % 2 === 1) {
+      hex = `0x0${hex.slice(2)}`;
+    }
+    return hex;
+  }
+  throw new Error(`unsupported header field type: ${typeof value}`);
+}
+
+function normalizeQuantity(value) {
+  if (value === null || value === undefined) {
+    return "0x";
+  }
+  let bn;
+  if (typeof value === "bigint") {
+    bn = value;
+  } else if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("quantity number must be finite");
+    }
+    bn = BigInt(value);
+  } else if (typeof value === "string") {
+    if (value.length === 0) {
+      return "0x";
+    }
+    let hex = value.startsWith("0x") ? value.slice(2) : value;
+    hex = hex.replace(/^0+/, "");
+    if (hex.length === 0) {
+      return "0x";
+    }
+    bn = BigInt(`0x${hex}`);
+  } else {
+    bn = BigInt(normalizeHex(value));
+  }
+  if (bn === 0n) {
+    return "0x";
+  }
+  let hex = bn.toString(16);
+  if (hex.length % 2 === 1) {
+    hex = `0${hex}`;
+  }
+  return `0x${hex}`;
 }
 
 function parseRpcBigInt(value) {
@@ -1001,4 +1206,3 @@ function formatErr(err) {
 function toRpcQuantity(value) {
   return `0x${BigInt(value).toString(16)}`;
 }
-
