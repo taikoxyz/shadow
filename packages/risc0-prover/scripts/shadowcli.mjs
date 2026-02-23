@@ -35,19 +35,28 @@ const IDX = {
   NULLIFIER: 55
 };
 
-const usage = `Usage:
-  node scripts/shadowcli.mjs validate --deposit <DEPOSIT.json> [--rpc <url>] [--note-index <n>]
-  node scripts/shadowcli.mjs prove --deposit <DEPOSIT.json> --rpc <url> [--note-index <n>] [--proof-out <note-x.proof.json>] [--receipt-kind groth16|succinct|composite] [--keep-intermediate-files] [--verbose]
-  node scripts/shadowcli.mjs verify --proof <note-x.proof.json> [--verifier <address|deployed_verifier.json> --rpc <url>] [--receipt <receipt.bin>] [--host-bin <path>]
-  node scripts/shadowcli.mjs claim --proof <note-x.proof.json> --shadow <address> --rpc <url> --private-key <0x...>
+// Default RPC URLs by chain ID
+const DEFAULT_RPC = {
+  167013: "https://rpc.hoodi.taiko.xyz"
+};
 
-Notes:
-  - DEPOSIT file must conform to packages/docs/data/schema/deposit.schema.json
-  - prove writes a self-contained note proof file with ABI-encoded proof payload
-  - prove deletes intermediate files by default (claim input, receipt, journal, exported proof payload)
-  - pass --verbose to stream host/docker logs
-  - verify with --verifier performs on-chain view verification via verifyProof(bytes,uint256[])
-  - verify without --verifier performs local receipt verification (uses --receipt or build/risc0/receipt.bin)
+// Default Shadow contract addresses by chain ID
+const DEFAULT_SHADOW = {
+  167013: "0xCd45084D91bC488239184EEF39dd20bCb710e7C2"
+};
+
+const usage = `Shadow Protocol CLI
+
+Usage:
+  shadowcli prove-all --deposit <file.json>     Generate proofs for all notes
+  shadowcli claim-all --deposit <file.json> --private-key <0x...>  Claim all unclaimed notes
+  shadowcli prove --deposit <file.json> --note-index <n>           Generate proof for one note
+  shadowcli claim --proof <file.json> --private-key <0x...>        Claim one note
+
+Options:
+  --rpc <url>       RPC endpoint (default: auto-detect from chainId)
+  --shadow <addr>   Shadow contract (default: auto-detect from chainId)
+  --verbose         Show detailed output
 `;
 
 main().catch((err) => {
@@ -64,12 +73,18 @@ async function main() {
     case "prove":
       await cmdProve(opts);
       return;
+    case "prove-all":
+      await cmdProveAll(opts);
+      return;
     case "verify":
     case "verify-onchain":
       await cmdVerify(opts);
       return;
     case "claim":
       await cmdClaim(opts);
+      return;
+    case "claim-all":
+      await cmdClaimAll(opts);
       return;
     default:
       console.error(usage);
@@ -140,13 +155,16 @@ async function cmdProve(opts) {
   const depositPath = requireOpt(opts, "deposit");
   const depositAbsPath = resolvePath(depositPath);
   const depositProofPath = tryRelativizePath(depositAbsPath) || depositAbsPath;
-  const rpcUrl = requireOpt(opts, "rpc");
   const deposit = loadDeposit(depositPath);
+  const chainId = resolveChainIdFromDeposit(deposit);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[Number(chainId)];
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
 
   const rpcChainId = await fetchChainId(rpcUrl);
-  const chainId = resolveChainIdFromDeposit(deposit);
   if (chainId !== rpcChainId) {
-    throw new Error(`RPC chainId (${rpcChainId}) does not match resolved chainId (${chainId})`);
+    throw new Error(`RPC chainId (${rpcChainId}) does not match deposit chainId (${chainId})`);
   }
 
   const noteIndex = resolveNoteIndex(opts["note-index"], deposit);
@@ -329,16 +347,24 @@ async function cmdVerify(opts) {
 
 async function cmdClaim(opts) {
   const proofPath = requireOpt(opts, "proof");
-  const shadowAddressRaw = requireOpt(opts, "shadow");
-  const rpcUrl = requireOpt(opts, "rpc");
   const privateKey = requireOpt(opts, "private-key");
 
+  const noteProof = loadJson(proofPath);
+  const chainId = Number(noteProof.chainId);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[chainId];
+  const shadowAddressRaw = opts.shadow || DEFAULT_SHADOW[chainId];
+
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
+  if (!shadowAddressRaw) {
+    throw new Error(`No default Shadow contract for chainId ${chainId}. Pass --shadow <address>`);
+  }
   if (!isAddress(shadowAddressRaw)) {
     throw new Error(`invalid --shadow address: ${shadowAddressRaw}`);
   }
   const shadowAddress = getAddress(shadowAddressRaw);
 
-  const noteProof = loadJson(proofPath);
   const { proof } = extractVerificationPayload(noteProof, proofPath);
 
   // IShadow.PublicInput struct: (uint48 blockNumber, uint256 chainId, uint256 amount, address recipient, bytes32 nullifier)
@@ -373,6 +399,98 @@ async function cmdClaim(opts) {
   console.log("tx:", tx.hash);
   await tx.wait();
   console.log("status: confirmed");
+}
+
+async function cmdProveAll(opts) {
+  const depositPath = requireOpt(opts, "deposit");
+  const deposit = loadDeposit(depositPath);
+  const chainId = resolveChainIdFromDeposit(deposit);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[Number(chainId)];
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
+
+  const verbose = opts.verbose === true;
+  const noteCount = deposit.notes.length;
+
+  console.log(`Generating proofs for ${noteCount} note(s)...`);
+  console.log(`Chain ID: ${chainId}`);
+  console.log(`RPC: ${rpcUrl}`);
+
+  const proofPaths = [];
+  for (let i = 0; i < noteCount; i++) {
+    console.log(`\n=== Note ${i + 1}/${noteCount} ===`);
+    const noteOpts = {
+      ...opts,
+      rpc: rpcUrl,
+      "note-index": String(i)
+    };
+    await cmdProve(noteOpts);
+    const depositAbsPath = resolvePath(depositPath);
+    proofPaths.push(path.join(path.dirname(depositAbsPath), `note-${i}.proof.json`));
+  }
+
+  console.log(`\n=== All proofs generated ===`);
+  for (const p of proofPaths) {
+    console.log(`  ${p}`);
+  }
+}
+
+async function cmdClaimAll(opts) {
+  const depositPath = requireOpt(opts, "deposit");
+  const privateKey = requireOpt(opts, "private-key");
+  const deposit = loadDeposit(depositPath);
+  const chainId = resolveChainIdFromDeposit(deposit);
+  const rpcUrl = opts.rpc || DEFAULT_RPC[Number(chainId)];
+  const shadowAddress = opts.shadow || DEFAULT_SHADOW[Number(chainId)];
+
+  if (!rpcUrl) {
+    throw new Error(`No default RPC for chainId ${chainId}. Pass --rpc <url>`);
+  }
+  if (!shadowAddress) {
+    throw new Error(`No default Shadow contract for chainId ${chainId}. Pass --shadow <address>`);
+  }
+
+  const depositAbsPath = resolvePath(depositPath);
+  const noteCount = deposit.notes.length;
+
+  console.log(`Claiming ${noteCount} note(s)...`);
+  console.log(`Chain ID: ${chainId}`);
+  console.log(`Shadow: ${shadowAddress}`);
+
+  let claimed = 0;
+  let skipped = 0;
+
+  for (let i = 0; i < noteCount; i++) {
+    const proofPath = path.join(path.dirname(depositAbsPath), `note-${i}.proof.json`);
+    if (!fs.existsSync(proofPath)) {
+      console.log(`Note ${i}: proof not found at ${proofPath}, skipping`);
+      skipped++;
+      continue;
+    }
+
+    console.log(`\n=== Note ${i + 1}/${noteCount} ===`);
+    try {
+      await cmdClaim({
+        proof: proofPath,
+        shadow: shadowAddress,
+        rpc: rpcUrl,
+        "private-key": privateKey
+      });
+      claimed++;
+    } catch (err) {
+      if (err.message && err.message.includes("nullifier already consumed")) {
+        console.log(`Note ${i}: already claimed, skipping`);
+        skipped++;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  console.log(`\n=== Summary ===`);
+  console.log(`  Claimed: ${claimed}`);
+  console.log(`  Skipped: ${skipped}`);
 }
 
 function cmdVerifyOffchain(opts, noteProof, proofPath) {

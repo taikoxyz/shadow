@@ -18,11 +18,5 @@ contract DummyEtherMinterTest is Test {
         emit EthMinted(address(0xBEEF), 123);
         minter.mintEth(address(0xBEEF), 123);
     }
-
-    function test_mintEther_emitsEvent() external {
-        vm.expectEmit(true, false, false, true, address(minter));
-        emit EthMinted(address(0xBEEF), 456);
-        minter.mintEther(address(0xBEEF), 456);
-    }
 }
 

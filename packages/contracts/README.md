@@ -23,7 +23,7 @@
 
 ### Interfaces (`src/iface/`)
 - `IShadow`, `IShadowVerifier` – Core protocol interfaces
-- `IEtherMinter`, `ICircuitVerifier` – External dependency interfaces
+- `IEthMinter`, `ICircuitVerifier` – External dependency interfaces
 
 ### Public input layout
 - `docs/public-inputs.md` – Flattened public input ordering and byte layout.

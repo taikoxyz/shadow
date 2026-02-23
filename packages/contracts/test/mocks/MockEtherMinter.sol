@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
-import {IEtherMinter} from "../../src/iface/IEtherMinter.sol";
+import {IEthMinter} from "../../src/iface/IEthMinter.sol";
 
-contract MockEtherMinter is IEtherMinter {
+contract MockEtherMinter is IEthMinter {
     address public lastRecipient;
     uint256 public lastAmount;
     uint256 public mintCount;
@@ -24,11 +24,7 @@ contract MockEtherMinter is IEtherMinter {
         revertOnMintNumber = _n;
     }
 
-    function mintEther(address _recipient, uint256 _amount) external {
-        mintEth(_recipient, _amount);
-    }
-
-    function mintEth(address _recipient, uint256 _amount) public {
+    function mintEth(address _recipient, uint256 _amount) external {
         uint256 nextMintNumber = mintCount + 1;
         if (shouldRevert) revert MintFailed();
         if (revertOnMintNumber != 0 && nextMintNumber == revertOnMintNumber) revert MintFailed();
