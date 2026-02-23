@@ -41,18 +41,11 @@ node scripts/shadowcli.mjs claim-all \
   --private-key 0x...
 ```
 
-## Deployed Contracts (Taiko Hoodi)
-
-| Contract | Address |
-|----------|---------|
-| Shadow (proxy) | [`0xCd45084D91bC488239184EEF39dd20bCb710e7C2`](https://hoodi.taikoscan.io/address/0xCd45084D91bC488239184EEF39dd20bCb710e7C2) |
-| ShadowVerifier | [`0x0B98084BD3e775d0c5Fa61C9E59383D7b7a45B96`](https://hoodi.taikoscan.io/address/0x0B98084BD3e775d0c5Fa61C9E59383D7b7a45B96) |
-
 ## Documentation
 
 - [Protocol Specification](PRD.md) - Core protocol design
 - [Privacy Model](PRIVACY.md) - Privacy guarantees and limitations
-- [Contract Verification](how_to_verify.md) - How to verify contracts on Taikoscan
+- [Deployments](deployments.md) - Deployed contract addresses
 
 ## Development
 
