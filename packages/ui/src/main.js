@@ -24,7 +24,7 @@ const DEFAULT_SHADOW_ADDRESS = "";
 const PUBLIC_INPUTS_LEN = 87;
 const PUBLIC_INPUT_IDX = {
   BLOCK_NUMBER: 0,
-  STATE_ROOT: 1,
+  BLOCK_HASH: 1,  // Changed from STATE_ROOT - circuit now commits blockHash
   CHAIN_ID: 33,
   AMOUNT: 34,
   RECIPIENT: 35,
@@ -1070,7 +1070,7 @@ function bindClaim() {
             `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
             `Recipient: ${prepared.claimInput.recipient}`,
             `Nullifier: ${prepared.claimInput.nullifier}`,
-            prepared.stateRoot ? `Checkpoint stateRoot: ${prepared.stateRoot}` : null,
+            prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
             `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
             `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
             `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
@@ -1211,12 +1211,12 @@ function prepareClaimPayload(proof) {
   const recipient = normalizeAddress(proof.recipient ?? fromPublicInputs?.recipient, "recipient");
 
   const nullifier = String(proof.nullifier ?? fromPublicInputs?.nullifier ?? "");
-  let stateRoot = proof.stateRoot !== undefined ? String(proof.stateRoot) : null;
-  const derivedStateRoot = fromPublicInputs?.stateRoot ?? null;
+  let blockHash = proof.blockHash !== undefined ? String(proof.blockHash) : null;
+  const derivedBlockHash = fromPublicInputs?.blockHash ?? null;
 
   assertHex(nullifier, 32, "nullifier");
-  if (stateRoot !== null) {
-    assertHex(stateRoot, 32, "stateRoot");
+  if (blockHash !== null) {
+    assertHex(blockHash, 32, "blockHash");
   }
 
   if (blockNumber > (1n << 48n) - 1n) {
@@ -1232,17 +1232,17 @@ function prepareClaimPayload(proof) {
     assertDerivedFieldMatch("amount", amount, fromPublicInputs.amount);
     assertDerivedFieldMatch("recipient", recipient, fromPublicInputs.recipient);
     assertDerivedFieldMatch("nullifier", nullifier.toLowerCase(), fromPublicInputs.nullifier.toLowerCase());
-    if (stateRoot !== null) {
-      assertDerivedFieldMatch("stateRoot", stateRoot.toLowerCase(), fromPublicInputs.stateRoot.toLowerCase());
+    if (blockHash !== null) {
+      assertDerivedFieldMatch("blockHash", blockHash.toLowerCase(), fromPublicInputs.blockHash.toLowerCase());
     }
   }
 
-  if (derivedStateRoot) stateRoot = derivedStateRoot;
+  if (derivedBlockHash) blockHash = derivedBlockHash;
 
   return {
     proof: proofHex,
     chainId,
-    stateRoot,
+    blockHash,
     claimInput: {
       blockNumber,
       chainId,
@@ -1278,7 +1278,7 @@ function deriveClaimFieldsFromPublicInputs(publicInputs) {
     amount: parseBigIntField(publicInputs[PUBLIC_INPUT_IDX.AMOUNT], "publicInputs.amount"),
     recipient: normalizeAddress(bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.RECIPIENT, 20))),
     nullifier: bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.NULLIFIER, 32)),
-    stateRoot: bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.STATE_ROOT, 32))
+    blockHash: bytesToHex(readPublicInputBytes(publicInputs, PUBLIC_INPUT_IDX.BLOCK_HASH, 32))
   };
 }
 

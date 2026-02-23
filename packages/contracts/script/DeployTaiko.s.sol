@@ -16,7 +16,8 @@ contract DeployTaiko is Script {
     address internal constant HOODI_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
     address internal constant HOODI_ANCHOR = 0x1670130000000000000000000000000000010001;
 
-    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x7b8be5005af6a6a78b6030fbb3015b8a8a99bff941eb2908eaed4b0289305ffa;
+    // Image ID from risc0-prover build (must match the prover's SHADOW_CLAIM_GUEST_ID)
+    bytes32 internal constant HOODI_SHADOW_CLAIM_GUEST_ID = 0x37a5e85c934ec15f7752cfced2f407f40e6c28978dffcb3b895dc100a76acaf8;
 
     struct Deployment {
         address etherMinter;
