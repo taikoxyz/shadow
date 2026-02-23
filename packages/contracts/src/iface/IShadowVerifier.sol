@@ -6,7 +6,7 @@ import {IShadow} from "./IShadow.sol";
 /// @custom:security-contact security@taiko.xyz
 
 interface IShadowVerifier {
-    error CheckpointNotFound(uint48 blockNumber);
+    error BlockHashNotFound(uint48 blockNumber);
     error ProofVerificationFailed();
     error ZeroAddress();
 

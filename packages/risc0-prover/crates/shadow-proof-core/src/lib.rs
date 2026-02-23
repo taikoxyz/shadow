@@ -37,7 +37,10 @@ pub struct ClaimInput {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaimJournal {
     pub block_number: u64,
-    pub state_root: [u8; 32],
+    /// The block hash that was verified against the RLP-encoded block header.
+    /// The stateRoot is derived in-circuit from this block header; we commit
+    /// to blockHash because that's what the on-chain Anchor contract provides.
+    pub block_hash: [u8; 32],
     pub chain_id: u64,
     pub amount: u128,
     pub recipient: [u8; 20],
@@ -46,7 +49,7 @@ pub struct ClaimJournal {
 
 // Packed journal layout (little-endian fields, fixed widths):
 // - block_number: u64 (8)
-// - state_root: bytes32 (32)
+// - block_hash: bytes32 (32)
 // - chain_id: u64 (8)
 // - amount: u128 (16)
 // - recipient: address (20)
@@ -84,7 +87,7 @@ pub fn pack_journal(journal: &ClaimJournal) -> [u8; PACKED_JOURNAL_LEN] {
     let mut out = [0u8; PACKED_JOURNAL_LEN];
 
     out[0..8].copy_from_slice(&journal.block_number.to_le_bytes());
-    out[8..40].copy_from_slice(&journal.state_root);
+    out[8..40].copy_from_slice(&journal.block_hash);
     out[40..48].copy_from_slice(&journal.chain_id.to_le_bytes());
     out[48..64].copy_from_slice(&journal.amount.to_le_bytes());
     out[64..84].copy_from_slice(&journal.recipient);
@@ -99,7 +102,7 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
     }
 
     let block_number = u64::from_le_bytes(copy_array::<8>(&bytes[0..8]));
-    let state_root = copy_array::<32>(&bytes[8..40]);
+    let block_hash = copy_array::<32>(&bytes[8..40]);
     let chain_id = u64::from_le_bytes(copy_array::<8>(&bytes[40..48]));
     let amount = u128::from_le_bytes(copy_array::<16>(&bytes[48..64]));
     let recipient = copy_array::<20>(&bytes[64..84]);
@@ -107,7 +110,7 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
 
     Ok(ClaimJournal {
         block_number,
-        state_root,
+        block_hash,
         chain_id,
         amount,
         recipient,
@@ -244,9 +247,11 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::InvalidPowDigest);
     }
 
+    // Note: stateRoot is derived in-circuit from block_header_rlp and verified against
+    // input.block_hash. We commit to block_hash because that's what TaikoAnchor provides.
     Ok(ClaimJournal {
         block_number: input.block_number,
-        state_root,
+        block_hash: input.block_hash,
         chain_id: input.chain_id,
         amount: input.amount,
         recipient: input.recipient,
