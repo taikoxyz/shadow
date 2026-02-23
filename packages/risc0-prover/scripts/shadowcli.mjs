@@ -28,7 +28,7 @@ const MAX_TOTAL_WEI = 32000000000000000000n;
 
 const IDX = {
   BLOCK_NUMBER: 0,
-  STATE_ROOT: 1,  // Was BLOCK_HASH - matches ShadowPublicInputs.sol layout
+  BLOCK_HASH: 1,  // Matches ShadowPublicInputs.sol layout - stateRoot is derived in-circuit
   CHAIN_ID: 33,
   AMOUNT: 34,
   RECIPIENT: 35,
@@ -251,7 +251,7 @@ async function cmdProve(opts) {
 
   const publicInputs = buildPublicInputs({
     blockNumber,
-    stateRootBytes,
+    blockHashBytes,
     chainId,
     claimAmount: derived.claimAmount,
     recipientBytes: derived.claimRecipientBytes,
@@ -628,7 +628,7 @@ function buildLegacyClaimInput({
 
 function buildPublicInputs({
   blockNumber,
-  stateRootBytes,
+  blockHashBytes,
   chainId,
   claimAmount,
   recipientBytes,
@@ -636,7 +636,7 @@ function buildPublicInputs({
 }) {
   const out = new Array(87).fill(0n);
   out[IDX.BLOCK_NUMBER] = blockNumber;
-  writeBytes(out, IDX.STATE_ROOT, stateRootBytes);
+  writeBytes(out, IDX.BLOCK_HASH, blockHashBytes);
   out[IDX.CHAIN_ID] = chainId;
   out[IDX.AMOUNT] = claimAmount;
   writeBytes(out, IDX.RECIPIENT, recipientBytes);
