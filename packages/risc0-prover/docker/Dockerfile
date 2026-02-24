@@ -97,7 +97,7 @@ COPY --from=builder /workspace/packages ./packages
 COPY --from=builder /workspace/node_modules ./node_modules
 
 # Copy entrypoint script
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY packages/risc0-prover/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Labels for container registry
