@@ -21,7 +21,7 @@ const MAX_NOTES = 5;
 const MAX_TOTAL_WEI = 32000000000000000000n;
 const HOODI_MAX_TX_SIZE_BYTES = 131072;
 // Default Shadow proxy address for Taiko Hoodi (deployed 2026-02-24, commit 38d8ca1)
-const DEFAULT_SHADOW_ADDRESS = "0x173B0eC386C80E6786D4ce9f00C2fd680eF74A8D";
+const DEFAULT_SHADOW_ADDRESS = "0x77cdA0575e66A5FC95404fdA856615AD507d8A07";
 const PUBLIC_INPUTS_LEN = 87;
 const PUBLIC_INPUT_IDX = {
   BLOCK_NUMBER: 0,
@@ -1309,10 +1309,35 @@ function maybeEnableClaimButton() {
   );
 }
 
-function showProofSelector(proofs) {
+async function showProofSelector(proofs) {
   const selector = document.querySelector("#claim-proof-selector");
   const list = document.querySelector("#claim-proof-list");
   list.innerHTML = "";
+
+  // Check which nullifiers are already consumed
+  const consumedStatus = await Promise.all(
+    proofs.map(async (proof) => {
+      if (!DEFAULT_SHADOW_ADDRESS || !window.ethereum) return false;
+      const nullifier = Array.isArray(proof.journal?.nullifier)
+        ? bytesToHex(new Uint8Array(proof.journal.nullifier))
+        : null;
+      if (!nullifier) return false;
+      try {
+        const data = encodeFunctionData({
+          abi: [{ type: "function", name: "isConsumed", inputs: [{ type: "bytes32" }], outputs: [{ type: "bool" }] }],
+          functionName: "isConsumed",
+          args: [nullifier]
+        });
+        const result = await window.ethereum.request({
+          method: "eth_call",
+          params: [{ to: DEFAULT_SHADOW_ADDRESS, data }, "latest"]
+        });
+        return result !== "0x0000000000000000000000000000000000000000000000000000000000000000";
+      } catch {
+        return false;
+      }
+    })
+  );
 
   proofs.forEach((proof, idx) => {
     const journal = proof.journal || {};
@@ -1322,17 +1347,22 @@ function showProofSelector(proofs) {
       ? normalizeAddress(bytesToHex(new Uint8Array(journal.recipient)))
       : "unknown";
     const [first, last] = shortAddressParts(recipient);
+    const isClaimed = consumedStatus[idx];
 
     const item = document.createElement("button");
     item.type = "button";
-    item.className = "proof-item";
+    item.className = isClaimed ? "proof-item proof-item-claimed" : "proof-item";
     item.dataset.index = idx;
+    item.disabled = isClaimed;
     item.innerHTML = `
       <span class="proof-item-index">#${proof.noteIndex}</span>
       <span class="proof-item-amount">${amountEth} ETH</span>
       <span class="proof-item-recipient">to 0x${first}...${last}</span>
+      ${isClaimed ? '<span class="proof-item-status">Claimed</span>' : ""}
     `;
-    item.addEventListener("click", () => selectProofFromMulti(idx));
+    if (!isClaimed) {
+      item.addEventListener("click", () => selectProofFromMulti(idx));
+    }
     list.appendChild(item);
   });
 
