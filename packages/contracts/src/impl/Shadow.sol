@@ -5,10 +5,13 @@ import {IEthMinter} from "../iface/IEthMinter.sol";
 import {IShadow} from "../iface/IShadow.sol";
 import {IShadowVerifier} from "../iface/IShadowVerifier.sol";
 import {OwnableUpgradeable} from "../lib/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 /// @custom:security-contact security@taiko.xyz
 
-contract Shadow is IShadow, OwnableUpgradeable {
+contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     IShadowVerifier public immutable verifier;
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
@@ -41,6 +44,8 @@ contract Shadow is IShadow, OwnableUpgradeable {
     /// @notice Initializes the contract.
     function initialize(address _owner) external initializer {
         __OwnableUpgradeable_init(_owner);
+        __Pausable_init();
+        __ReentrancyGuard_init();
     }
 
     /// @notice Returns whether the nullifier has been consumed.
@@ -48,9 +53,49 @@ contract Shadow is IShadow, OwnableUpgradeable {
         _isConsumed_ = _consumed[_nullifier];
     }
 
+    /// @notice Pauses the contract, disabling new claims.
+    /// @dev Only callable by the contract owner. Use in emergencies to halt ETH minting.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpauses the contract, re-enabling claims.
+    /// @dev Only callable by the contract owner.
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     /// @notice Submits a proof and public inputs to mint ETH via the configured minter hook.
     /// @dev Applies a 0.1% claim fee (`amount / 1000`) to feeRecipient.
-    function claim(bytes calldata _proof, PublicInput calldata _input) external {
+    /// @dev Protected by `whenNotPaused`: the owner can halt all new claims in an emergency
+    ///      (e.g., if a critical vulnerability is discovered in the verifier or minter).
+    ///
+    /// @dev **Proof-of-Work (PoW) anti-spam rationale:**
+    ///      Each deposit secret is required to satisfy a 24-bit PoW constraint: the last
+    ///      3 bytes of SHA-256(notesHash || secret) must all be zero.  This corresponds
+    ///      to ~16 million SHA-256 iterations on average (2^24 ≈ 16.7 M hashes, typically
+    ///      found in < 1 second on modern hardware).
+    ///
+    ///      The primary cost barrier for spam is *ZK proof generation*: producing a valid
+    ///      RISC Zero Groth16 receipt takes several minutes on consumer hardware and
+    ///      significant cloud compute (~USD 0.10–1.00 per proof at current rates).
+    ///      The PoW serves as a lightweight *secondary* deterrent that:
+    ///        1. Forces the depositor to commit CPU work before publishing a target address,
+    ///           making Sybil attacks marginally more expensive at zero on-chain gas cost.
+    ///        2. Binds the secret to the note set (notesHash), preventing trivial reuse of
+    ///           pre-mined secrets across different note configurations.
+    ///        3. Is verified entirely inside the ZK circuit (not on-chain), so it adds no
+    ///           marginal gas cost to the claim transaction.
+    ///
+    ///      24 bits is deliberately kept low because the ZK proof cost already dominates.
+    ///      Raising the PoW to 32+ bits would only slow down legitimate users while
+    ///      providing negligible additional protection against well-resourced adversaries
+    ///      who can afford ZK proof generation anyway.
+    ///
+    ///      There is no on-chain EIP/ERC standard for PoW anti-spam deposits; this design
+    ///      draws inspiration from the general Hashcash concept (Adam Back, 1997) applied
+    ///      to commitment schemes.
+    function claim(bytes calldata _proof, PublicInput calldata _input) external whenNotPaused nonReentrant {
         require(_input.chainId == block.chainid, ChainIdMismatch(_input.chainId, block.chainid));
         require(_input.amount > 0, InvalidAmount(_input.amount));
         require(_input.recipient != address(0), InvalidRecipient(_input.recipient));

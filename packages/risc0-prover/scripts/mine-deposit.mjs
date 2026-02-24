@@ -11,7 +11,45 @@ const MAGIC = {
 };
 
 const MAX_NOTES = 5;
-const TARGET_ZERO_BYTES = 3; // 24 trailing zero bits
+
+/**
+ * Proof-of-Work difficulty: number of trailing zero *bytes* required in the PoW digest.
+ *
+ * The PoW digest is SHA-256(notesHash || secret).  Requiring the last TARGET_ZERO_BYTES
+ * bytes to be 0x00 forces an expected 2^(8 * TARGET_ZERO_BYTES) hash iterations:
+ *
+ *   TARGET_ZERO_BYTES = 3  →  2^24 ≈ 16.7 million iterations  ≈ < 1 second on modern CPUs
+ *
+ * ## Why PoW?
+ * Shadow uses a privacy-preserving deposit flow: a depositor derives a deterministic
+ * "target address" from their secret and funds it before claiming via ZK proof.
+ * Without any friction, an adversary could flood the chain with dust deposits across
+ * millions of generated target addresses (Sybil / denial-of-service).
+ *
+ * The PoW acts as a lightweight *commitment cost* at deposit time (off-chain, zero gas):
+ *   1. The miner must expend CPU before publishing their target address, making bulk
+ *      address generation non-trivial.
+ *   2. The secret is *bound* to the note set via notesHash, so a pre-mined secret cannot
+ *      be reused across different note configurations.
+ *   3. PoW validation is performed entirely inside the RISC Zero ZK circuit, adding
+ *      zero marginal on-chain gas cost to the claim transaction.
+ *
+ * ## Why 24 bits (3 bytes) is sufficient
+ * The *dominant* cost for any attacker is ZK proof generation — producing one valid
+ * RISC Zero Groth16 receipt takes several minutes on consumer hardware and meaningful
+ * cloud compute cost (~$0.10–$1.00 per proof at current rates).  That cost already
+ * dwarfs 16M SHA-256 hashes (~0.001 seconds).
+ *
+ * Raising PoW difficulty further (e.g., 32 bits) would disproportionately slow
+ * legitimate users while providing negligible additional protection against adversaries
+ * capable of funding ZK proof generation.
+ *
+ * ## Design lineage
+ * This approach draws conceptual inspiration from Hashcash (Adam Back, 1997) applied
+ * to cryptographic commitment schemes.  There is no on-chain EIP/ERC standard for
+ * PoW anti-spam deposits; the design is custom to Shadow Protocol.
+ */
+const TARGET_ZERO_BYTES = 3; // 24 trailing zero bits → ~16.7M SHA-256 hashes expected
 
 function padMagicLabel(label) {
   const raw = new TextEncoder().encode(label);
