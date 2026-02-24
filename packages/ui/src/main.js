@@ -1,4 +1,5 @@
 import {
+  encodeAbiParameters,
   encodeFunctionData,
   formatEther,
   fromHex,
@@ -1411,9 +1412,24 @@ function convertDockerProofToClaim(proofEntry, chainId) {
     ? bytesToHex(new Uint8Array(journal.nullifier))
     : null;
 
+  // The circuit verifier expects the proof to be ABI-encoded as (bytes seal, bytes journal)
+  // Docker outputs seal_hex and journal_hex separately, so we need to combine them
+  const sealHex = proofEntry.seal_hex;
+  const journalHex = proofEntry.journal_hex;
+
+  if (!sealHex || !journalHex) {
+    throw new Error("Docker proof missing seal_hex or journal_hex");
+  }
+
+  // ABI-encode (seal, journal) as the proof payload
+  const encodedProof = encodeAbiParameters(
+    [{ type: "bytes" }, { type: "bytes" }],
+    [sealHex, journalHex]
+  );
+
   return {
     version: "1.0",
-    seal_hex: proofEntry.seal_hex,
+    proofHex: encodedProof,
     chainId: chainId || journal.chain_id?.toString(),
     blockNumber: journal.block_number,
     blockHash,
