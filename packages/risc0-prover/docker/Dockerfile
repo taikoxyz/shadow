@@ -8,7 +8,8 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Builder - Compile Rust binaries and prepare Node.js dependencies
 # -----------------------------------------------------------------------------
-FROM node:20-bookworm AS builder
+# Force x86_64 platform - RISC0 only provides x86_64 binaries
+FROM --platform=linux/amd64 node:20-bookworm AS builder
 
 ENV PNPM_HOME=/root/.pnpm
 ENV PATH="/root/.cargo/bin:/root/.risc0/bin:${PNPM_HOME}:${PATH}"
@@ -50,7 +51,8 @@ RUN cargo build --manifest-path packages/risc0-prover/Cargo.toml --release -p sh
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime - Minimal image for running the prover
 # -----------------------------------------------------------------------------
-FROM node:20-bookworm-slim AS runtime
+# Force x86_64 platform - RISC0 only provides x86_64 binaries
+FROM --platform=linux/amd64 node:20-bookworm-slim AS runtime
 
 ENV PNPM_HOME=/root/.pnpm
 ENV PATH="/root/.cargo/bin:/root/.risc0/bin:${PNPM_HOME}:${PATH}"
