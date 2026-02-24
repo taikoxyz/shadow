@@ -37,7 +37,8 @@ const IDX = {
 
 // Default RPC URLs by chain ID
 const DEFAULT_RPC = {
-  167013: "https://rpc.hoodi.taiko.xyz"
+  167000: "https://rpc.taiko.xyz",       // Taiko Mainnet
+  167013: "https://rpc.hoodi.taiko.xyz"  // Taiko Hoodi Testnet
 };
 
 // Default Shadow contract addresses by chain ID
