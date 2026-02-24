@@ -165,6 +165,11 @@ app.innerHTML = `
         <button id="claim-parse-paste" type="button" class="secondary">Parse Pasted JSON</button>
       </div>
 
+      <div id="claim-proof-selector" class="proof-selector hidden">
+        <p class="selector-label">Select proof to claim:</p>
+        <div id="claim-proof-list" class="proof-list"></div>
+      </div>
+
       <div class="cta-row">
         <button id="claim-connect" type="button">Connect Wallet</button>
         <button id="claim-submit" type="button" disabled>Claim</button>
@@ -234,7 +239,9 @@ const state = {
     account: "",
     proofJson: null,
     proofPayload: null,
-    proofFileName: ""
+    proofFileName: "",
+    multiProofFile: null,
+    selectedProofIndex: null
   }
 };
 
@@ -1095,40 +1102,78 @@ function renderProveNotes() {
 }
 
 function bindClaim() {
+  const processProofFile = (parsed, fileName) => {
+    // Handle multi-proof files (from Docker output)
+    if (Array.isArray(parsed.proofs) && parsed.proofs.length > 0) {
+      state.claim.multiProofFile = parsed;
+      state.claim.proofFileName = fileName;
+
+      const lines = [
+        `Loaded multi-proof file: ${fileName}`,
+        `Version: ${parsed.version || "unknown"}`,
+        `Phase: ${parsed.phase || "unknown"}`,
+        `Chain ID: ${parsed.chainId}`,
+        `Notes: ${parsed.proofs.length}`,
+        "",
+        "Available proofs:"
+      ];
+
+      parsed.proofs.forEach((p, idx) => {
+        const amount = p.journal?.amount ?? "unknown";
+        const recipient = p.journal?.recipient
+          ? bytesToHex(new Uint8Array(p.journal.recipient))
+          : "unknown";
+        lines.push(`  [${idx}] Note ${p.noteIndex}: ${amount} wei to ${recipient}`);
+      });
+
+      lines.push("");
+      lines.push("Select a proof index below to claim:");
+
+      setOutput("claim-output", lines.join("\n"));
+      showProofSelector(parsed.proofs);
+      return;
+    }
+
+    // Single proof file
+    const prepared = prepareClaimPayload(parsed);
+    const grossWei = prepared.claimInput.amount;
+    const feeWei = grossWei / 1000n;
+    const netWei = grossWei - feeWei;
+    const proofBytes = hexDataByteLength(prepared.proof);
+    state.claim.proofJson = parsed;
+    state.claim.proofPayload = prepared;
+    state.claim.proofFileName = fileName;
+    state.claim.multiProofFile = null;
+    maybeEnableClaimButton();
+    hideProofSelector();
+    setOutput(
+      "claim-output",
+      [
+        `Loaded proof file: ${fileName}`,
+        `Proof version: ${String(parsed.version || "unknown")}`,
+        `Chain ID: ${prepared.chainId.toString()}`,
+        `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
+        `Recipient: ${prepared.claimInput.recipient}`,
+        `Nullifier: ${prepared.claimInput.nullifier}`,
+        prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
+        `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
+        `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
+        `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
+        `Proof bytes: ${proofBytes.toLocaleString()}`,
+        proofBytes > HOODI_MAX_TX_SIZE_BYTES
+          ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
+          : "Tx-size check: within Hoodi limit."
+      ].filter(Boolean).join("\n")
+    );
+  };
+
   wireDropZone({
     zone: document.querySelector("#claim-drop-zone"),
     fileInput: document.querySelector("#claim-file-input"),
     onFile: async (file) => {
       try {
         const parsed = await readJsonFile(file);
-        const prepared = prepareClaimPayload(parsed);
-        const grossWei = prepared.claimInput.amount;
-        const feeWei = grossWei / 1000n;
-        const netWei = grossWei - feeWei;
-        const proofBytes = hexDataByteLength(prepared.proof);
-        state.claim.proofJson = parsed;
-        state.claim.proofPayload = prepared;
-        state.claim.proofFileName = file.name;
-        maybeEnableClaimButton();
-        setOutput(
-          "claim-output",
-          [
-            `Loaded proof file: ${file.name}`,
-            `Proof version: ${String(parsed.version || "unknown")}`,
-            `Chain ID: ${prepared.chainId.toString()}`,
-            `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
-            `Recipient: ${prepared.claimInput.recipient}`,
-            `Nullifier: ${prepared.claimInput.nullifier}`,
-            prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
-            `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
-            `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
-            `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
-            `Proof bytes: ${proofBytes.toLocaleString()}`,
-            proofBytes > HOODI_MAX_TX_SIZE_BYTES
-              ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
-              : "Tx-size check: within Hoodi limit."
-          ].filter(Boolean).join("\n")
-        );
+        processProofFile(parsed, file.name);
       } catch (error) {
         setOutput("claim-output", errorMessage(error));
       }
@@ -1243,34 +1288,8 @@ function bindClaim() {
         throw new Error("Invalid JSON. Check syntax and try again.");
       }
 
-      const prepared = prepareClaimPayload(parsed);
-      const grossWei = prepared.claimInput.amount;
-      const feeWei = grossWei / 1000n;
-      const netWei = grossWei - feeWei;
-      const proofBytes = hexDataByteLength(prepared.proof);
-      state.claim.proofJson = parsed;
-      state.claim.proofPayload = prepared;
-      state.claim.proofFileName = "(pasted)";
-      maybeEnableClaimButton();
-      setOutput(
-        "claim-output",
-        [
-          `Loaded proof from pasted JSON`,
-          `Proof version: ${String(parsed.version || "unknown")}`,
-          `Chain ID: ${prepared.chainId.toString()}`,
-          `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
-          `Recipient: ${prepared.claimInput.recipient}`,
-          `Nullifier: ${prepared.claimInput.nullifier}`,
-          prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
-          `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
-          `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
-          `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
-          `Proof bytes: ${proofBytes.toLocaleString()}`,
-          proofBytes > HOODI_MAX_TX_SIZE_BYTES
-            ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
-            : "Tx-size check: within Hoodi limit."
-        ].filter(Boolean).join("\n")
-      );
+      // Use the same processing logic as file drop
+      processProofFile(parsed, "(pasted)");
     } catch (error) {
       setOutput("claim-output", errorMessage(error));
     }
@@ -1287,6 +1306,121 @@ function maybeEnableClaimButton() {
     state.claim.account &&
     onSupportedChain
   );
+}
+
+function showProofSelector(proofs) {
+  const selector = document.querySelector("#claim-proof-selector");
+  const list = document.querySelector("#claim-proof-list");
+  list.innerHTML = "";
+
+  proofs.forEach((proof, idx) => {
+    const journal = proof.journal || {};
+    const amount = journal.amount ?? "unknown";
+    const amountEth = typeof amount === "number" ? formatEther(BigInt(amount)) : "?";
+    const recipient = Array.isArray(journal.recipient)
+      ? normalizeAddress(bytesToHex(new Uint8Array(journal.recipient)))
+      : "unknown";
+    const [first, last] = shortAddressParts(recipient);
+
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "proof-item";
+    item.dataset.index = idx;
+    item.innerHTML = `
+      <span class="proof-item-index">#${proof.noteIndex}</span>
+      <span class="proof-item-amount">${amountEth} ETH</span>
+      <span class="proof-item-recipient">to 0x${first}...${last}</span>
+    `;
+    item.addEventListener("click", () => selectProofFromMulti(idx));
+    list.appendChild(item);
+  });
+
+  selector.classList.remove("hidden");
+}
+
+function hideProofSelector() {
+  document.querySelector("#claim-proof-selector").classList.add("hidden");
+  document.querySelector("#claim-proof-list").innerHTML = "";
+}
+
+function selectProofFromMulti(index) {
+  const multiFile = state.claim.multiProofFile;
+  if (!multiFile || !Array.isArray(multiFile.proofs)) {
+    setOutput("claim-output", "No multi-proof file loaded.");
+    return;
+  }
+
+  const proofEntry = multiFile.proofs[index];
+  if (!proofEntry) {
+    setOutput("claim-output", `Invalid proof index: ${index}`);
+    return;
+  }
+
+  state.claim.selectedProofIndex = index;
+
+  // Convert Docker proof format to claim-compatible format
+  const converted = convertDockerProofToClaim(proofEntry, multiFile.chainId);
+
+  try {
+    const prepared = prepareClaimPayload(converted);
+    const grossWei = prepared.claimInput.amount;
+    const feeWei = grossWei / 1000n;
+    const netWei = grossWei - feeWei;
+    const proofBytes = hexDataByteLength(prepared.proof);
+
+    state.claim.proofJson = converted;
+    state.claim.proofPayload = prepared;
+    maybeEnableClaimButton();
+    hideProofSelector();
+
+    setOutput(
+      "claim-output",
+      [
+        `Selected proof #${proofEntry.noteIndex} from multi-proof file`,
+        `Proof file: ${state.claim.proofFileName}`,
+        `Chain ID: ${prepared.chainId.toString()}`,
+        `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
+        `Recipient: ${prepared.claimInput.recipient}`,
+        `Nullifier: ${prepared.claimInput.nullifier}`,
+        prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
+        `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
+        `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
+        `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
+        `Proof bytes: ${proofBytes.toLocaleString()}`,
+        proofBytes > HOODI_MAX_TX_SIZE_BYTES
+          ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
+          : "Tx-size check: within Hoodi limit."
+      ].filter(Boolean).join("\n")
+    );
+  } catch (error) {
+    setOutput("claim-output", errorMessage(error));
+  }
+}
+
+function convertDockerProofToClaim(proofEntry, chainId) {
+  const journal = proofEntry.journal || {};
+
+  // Convert byte arrays to hex strings
+  const blockHash = Array.isArray(journal.block_hash)
+    ? bytesToHex(new Uint8Array(journal.block_hash))
+    : null;
+  const recipient = Array.isArray(journal.recipient)
+    ? bytesToHex(new Uint8Array(journal.recipient))
+    : null;
+  const nullifier = Array.isArray(journal.nullifier)
+    ? bytesToHex(new Uint8Array(journal.nullifier))
+    : null;
+
+  return {
+    version: "1.0",
+    seal_hex: proofEntry.seal_hex,
+    chainId: chainId || journal.chain_id?.toString(),
+    blockNumber: journal.block_number,
+    blockHash,
+    amount: journal.amount?.toString(),
+    recipient,
+    nullifier
+  };
 }
 
 function prepareClaimPayload(proof) {
@@ -1350,9 +1484,10 @@ function prepareClaimPayload(proof) {
 }
 
 function resolveProofHex(proof) {
-  const value = proof?.risc0?.proof ?? proof?.proofHex ?? proof?.risc0?.proofHex;
+  // Support multiple formats: risc0.proof, proofHex, seal_hex (from Docker output)
+  const value = proof?.risc0?.proof ?? proof?.proofHex ?? proof?.risc0?.proofHex ?? proof?.seal_hex;
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value) || value.length % 2 !== 0) {
-    throw new Error("Invalid proof file: missing valid proof bytes (risc0.proof or proofHex)");
+    throw new Error("Invalid proof file: missing valid proof bytes (risc0.proof, proofHex, or seal_hex)");
   }
   return value;
 }

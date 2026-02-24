@@ -361,6 +361,66 @@ button.danger:hover {
   margin-top: 8px;
 }
 
+/* Proof Selector */
+.proof-selector {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #2a5442;
+  background: linear-gradient(180deg, #0a1814, #071110);
+}
+
+.selector-label {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: #9fd7c0;
+}
+
+.proof-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proof-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #1f3b31;
+  background: rgba(6, 14, 11, 0.8);
+  text-align: left;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.proof-item:hover {
+  border-color: var(--brand);
+  background: rgba(10, 24, 20, 0.9);
+  transform: none;
+  box-shadow: 0 0 14px rgba(57, 255, 184, 0.12);
+}
+
+.proof-item-index {
+  color: var(--brand);
+  font-weight: 700;
+  min-width: 2em;
+}
+
+.proof-item-amount {
+  color: #bfffe0;
+  font-weight: 700;
+}
+
+.proof-item-recipient {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .cta-row {
   margin-top: 14px;
   display: flex;
