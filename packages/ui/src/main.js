@@ -35,6 +35,10 @@ const encoder = new TextEncoder();
 const HOODI_CHAIN_ID = 167013n;
 const HOODI_CHAIN_HEX = "0x28c65";
 const HOODI_RPC_HOST = "rpc.hoodi.taiko.xyz";
+// Docker image must match the deployed contract's imageId
+// See DEPLOYMENT.md for current deployment details
+const DOCKER_IMAGE = "ghcr.io/taikoxyz/taiko-shadow:dev";
+const DEPLOYED_IMAGE_ID = "0xd598228081d1cbc4817e7be03aad1a2fdf6f1bb26b75dae0cddf5e597bfec091";
 const HOODI_RPC_URL = `https://${HOODI_RPC_HOST}`;
 const HOODI_CHAIN_PARAMS = {
   chainId: HOODI_CHAIN_HEX,
@@ -1035,7 +1039,8 @@ function renderProveCommand() {
   }
 
   wrap.classList.remove("hidden");
-  document.querySelector("#prove-command").textContent = text;
+  const header = `# Docker image: ${DOCKER_IMAGE}\n# ImageId: ${DEPLOYED_IMAGE_ID}\n# Proofs generated with this image are compatible with the deployed contract\n\n`;
+  document.querySelector("#prove-command").textContent = header + text;
 }
 
 function buildProveCommand() {
@@ -1046,7 +1051,7 @@ function buildProveCommand() {
   const depositJson = JSON.stringify(state.prove.depositJson);
   const platformFlag = state.prove.platformEmulation ? "--platform linux/amd64 " : "";
   const verboseFlag = state.prove.verboseOutput ? "-e VERBOSE=true " : "";
-  const dockerImage = "ghcr.io/taikoxyz/taiko-shadow:dev";
+  const dockerImage = DOCKER_IMAGE;
 
   // Phase 1: Generate succinct STARK proofs (no Docker socket needed)
   const phase1 = `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName}`;
