@@ -1080,7 +1080,7 @@ function buildProveCommand() {
   const dockerImage = `${DOCKER_IMAGE_BASE}@${dockerDigest}`;
 
   // Pull exact image by digest to ensure compatibility with deployed contract
-  const pullCmd = `docker pull ${dockerImage}`;
+  const pullCmd = `docker pull ${platformFlag}${dockerImage}`;
   // Phase 1: Generate succinct STARK proofs (no Docker socket needed)
   const phase1 = `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName}`;
   // Phase 2: Compress to Groth16 (requires Docker socket AND RISC0_WORK_DIR for Docker-in-Docker path translation)
