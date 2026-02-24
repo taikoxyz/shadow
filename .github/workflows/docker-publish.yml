@@ -1,14 +1,10 @@
 name: Build and Publish Docker Image
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
-    paths:
-      - 'packages/risc0-prover/**'
-      - '.github/workflows/docker-publish.yml'
+  # Trigger when "rebuild-docker-image" label is added to a PR
+  pull_request:
+    types: [labeled]
+  # Manual trigger
   workflow_dispatch:
     inputs:
       tag:
@@ -23,6 +19,12 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Only run if:
+    # 1. Label "rebuild-docker-image" was added to a PR, OR
+    # 2. Manually triggered via workflow_dispatch
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'rebuild-docker-image')
     permissions:
       contents: read
       packages: write
@@ -51,11 +53,10 @@ jobs:
           tags: |
             # For workflow_dispatch, use the input tag
             type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
-            # For pushes to main, tag as latest
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-            # For version tags (v1.0.0), use the version
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            # For PR builds, tag as pr-<number>
+            type=raw,value=pr-${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' }}
+            # Tag as latest for workflow_dispatch with 'latest' input
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag == 'latest' }}
             # Always include the short SHA
             type=sha,prefix=
 

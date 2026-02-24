@@ -30,13 +30,7 @@ RUN apt-get update && \
 # Install Rust and RISC Zero toolchain
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
 RUN cargo install rzup --locked
-RUN arch=$(uname -m) && \
-    if [ "$arch" = "aarch64" ]; then \
-      rzup install rust --platform x86_64-unknown-linux-gnu && \
-      rzup install risc0-groth16 --platform x86_64-unknown-linux-gnu; \
-    else \
-      rzup install; \
-    fi
+RUN rzup install
 
 # Install pnpm
 RUN npm install -g pnpm@9
