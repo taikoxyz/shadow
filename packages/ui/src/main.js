@@ -35,10 +35,12 @@ const encoder = new TextEncoder();
 const HOODI_CHAIN_ID = 167013n;
 const HOODI_CHAIN_HEX = "0x28c65";
 const HOODI_RPC_HOST = "rpc.hoodi.taiko.xyz";
-// Docker image must match the deployed contract's imageId
-// See DEPLOYMENT.md for current deployment details
-const DOCKER_IMAGE = "ghcr.io/taikoxyz/taiko-shadow:dev";
-const DEPLOYED_IMAGE_ID = "0xd598228081d1cbc4817e7be03aad1a2fdf6f1bb26b75dae0cddf5e597bfec091";
+// Docker image base - the actual digest is looked up via GitHub API based on on-chain imageId
+const DOCKER_IMAGE_BASE = "ghcr.io/taikoxyz/taiko-shadow";
+// Mapping from RISC0 imageId to Docker image digest (updated when new images are deployed)
+const IMAGE_ID_TO_DOCKER_DIGEST = {
+  "0xd598228081d1cbc4817e7be03aad1a2fdf6f1bb26b75dae0cddf5e597bfec091": "sha256:fc1c022e2af538a828a5eb594378148b25db3651e4376d78c4fdda983e46aff0"
+};
 const HOODI_RPC_URL = `https://${HOODI_RPC_HOST}`;
 const HOODI_CHAIN_PARAMS = {
   chainId: HOODI_CHAIN_HEX,
@@ -238,7 +240,8 @@ const state = {
     selectedNoteIndex: null,
     sufficientBalance: false,
     platformEmulation: true,
-    verboseOutput: false
+    verboseOutput: false,
+    onChainImageId: null
   },
   claim: {
     account: "",
@@ -833,6 +836,17 @@ function bindProve() {
 
     const shadowAddress = DEFAULT_SHADOW_ADDRESS ? normalizeAddress(DEFAULT_SHADOW_ADDRESS) : "";
 
+    // Fetch imageId from on-chain to determine correct Docker image
+    if (shadowAddress) {
+      try {
+        const imageId = await fetchImageIdFromChain(rpcUrl, shadowAddress);
+        state.prove.onChainImageId = imageId;
+      } catch (e) {
+        console.warn("Failed to fetch imageId from chain:", e);
+        state.prove.onChainImageId = null;
+      }
+    }
+
     const noteStatuses = await Promise.all(
       derived.notes.map(async (note) => {
         if (!shadowAddress) {
@@ -859,9 +873,13 @@ function bindProve() {
     renderProveNotes();
 
     const unclaimedCount = noteStatuses.filter((note) => !note.claimed).length;
+    const imageIdDisplay = state.prove.onChainImageId
+      ? `ImageId: ${state.prove.onChainImageId}`
+      : "ImageId: (not found)";
     const lines = [
       `Target address: ${derived.targetAddress}`,
       `Chain ID: ${resolvedChainId.toString()}`,
+      imageIdDisplay,
       `Target balance: ${targetBalance.toString()} wei (${formatEther(targetBalance)} ETH)`,
       `Required: ${derived.totalAmount.toString()} wei (${formatEther(derived.totalAmount)} ETH)`,
       `Balance sufficient: ${sufficientBalance ? "yes" : "no"}`,
@@ -1039,8 +1057,7 @@ function renderProveCommand() {
   }
 
   wrap.classList.remove("hidden");
-  const header = `# Docker image: ${DOCKER_IMAGE}\n# ImageId: ${DEPLOYED_IMAGE_ID}\n# Proofs generated with this image are compatible with the deployed contract\n\n`;
-  document.querySelector("#prove-command").textContent = header + text;
+  document.querySelector("#prove-command").textContent = text;
 }
 
 function buildProveCommand() {
@@ -1051,8 +1068,19 @@ function buildProveCommand() {
   const depositJson = JSON.stringify(state.prove.depositJson);
   const platformFlag = state.prove.platformEmulation ? "--platform linux/amd64 " : "";
   const verboseFlag = state.prove.verboseOutput ? "-e VERBOSE=true " : "";
-  const dockerImage = DOCKER_IMAGE;
 
+  // Use on-chain imageId to determine Docker image digest
+  const imageId = state.prove.onChainImageId;
+  const dockerDigest = imageId ? IMAGE_ID_TO_DOCKER_DIGEST[imageId.toLowerCase()] : null;
+
+  if (!dockerDigest) {
+    return `# ERROR: No Docker image found for on-chain imageId: ${imageId || "unknown"}\n# Please check DEPLOYMENT.md for supported imageIds`;
+  }
+
+  const dockerImage = `${DOCKER_IMAGE_BASE}@${dockerDigest}`;
+
+  // Pull exact image by digest to ensure compatibility with deployed contract
+  const pullCmd = `docker pull ${dockerImage}`;
   // Phase 1: Generate succinct STARK proofs (no Docker socket needed)
   const phase1 = `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName}`;
   // Phase 2: Compress to Groth16 (requires Docker socket AND RISC0_WORK_DIR for Docker-in-Docker path translation)
@@ -1060,6 +1088,8 @@ function buildProveCommand() {
 
   // Generate single-line executable command using echo instead of heredoc
   return [
+    `# On-chain ImageId: ${imageId}`,
+    pullCmd,
     `rm -f ./${depositFileName} ./${succinctFileName} ./${proofFileName}`,
     `echo '${depositJson.replace(/'/g, "'\\''")}' > ./${depositFileName}`,
     phase1,
@@ -1822,6 +1852,20 @@ async function checkConsumed(rpcUrl, shadowAddress, nullifier) {
   const data = `0x6346e832${nullifier.slice(2)}`;
   const result = await rpcCall(rpcUrl, "eth_call", [{ to: shadowAddress, data }, "latest"]);
   return BigInt(result) !== 0n;
+}
+
+async function fetchImageIdFromChain(rpcUrl, shadowAddress) {
+  // Shadow.verifier() -> ShadowVerifier address
+  const verifierResult = await rpcCall(rpcUrl, "eth_call", [{ to: shadowAddress, data: "0x2b7ac3f3" }, "latest"]);
+  const shadowVerifierAddress = "0x" + verifierResult.slice(26);
+
+  // ShadowVerifier.circuitVerifier() -> Risc0CircuitVerifier address
+  const circuitResult = await rpcCall(rpcUrl, "eth_call", [{ to: shadowVerifierAddress, data: "0xd0ea9ff0" }, "latest"]);
+  const circuitVerifierAddress = "0x" + circuitResult.slice(26);
+
+  // Risc0CircuitVerifier.imageId() -> bytes32
+  const imageIdResult = await rpcCall(rpcUrl, "eth_call", [{ to: circuitVerifierAddress, data: "0xef3f7dd5" }, "latest"]);
+  return imageIdResult; // Already a bytes32 hex string
 }
 
 async function rpcCall(rpcUrl, method, params) {
