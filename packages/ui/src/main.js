@@ -159,6 +159,12 @@ app.innerHTML = `
       </div>
       <input id="claim-file-input" type="file" accept="application/json,.json,.proof" hidden />
 
+      <div class="paste-section">
+        <p class="paste-label">Or paste proof JSON:</p>
+        <textarea id="claim-paste-input" rows="4" placeholder='{"version":"1.0","phase":"groth16",...}'></textarea>
+        <button id="claim-parse-paste" type="button" class="secondary">Parse Pasted JSON</button>
+      </div>
+
       <div class="cta-row">
         <button id="claim-connect" type="button">Connect Wallet</button>
         <button id="claim-submit" type="button" disabled>Claim</button>
@@ -1215,6 +1221,55 @@ function bindClaim() {
           `Proof file: ${state.claim.proofFileName}`,
           `Contract: ${shadowAddress}`
         ].join("\n")
+      );
+    } catch (error) {
+      setOutput("claim-output", errorMessage(error));
+    }
+  });
+
+  document.querySelector("#claim-parse-paste").addEventListener("click", () => {
+    try {
+      const pasteInput = document.querySelector("#claim-paste-input");
+      const text = pasteInput.value.trim();
+      if (!text) {
+        setOutput("claim-output", "Paste proof JSON into the textarea first.");
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error("Invalid JSON. Check syntax and try again.");
+      }
+
+      const prepared = prepareClaimPayload(parsed);
+      const grossWei = prepared.claimInput.amount;
+      const feeWei = grossWei / 1000n;
+      const netWei = grossWei - feeWei;
+      const proofBytes = hexDataByteLength(prepared.proof);
+      state.claim.proofJson = parsed;
+      state.claim.proofPayload = prepared;
+      state.claim.proofFileName = "(pasted)";
+      maybeEnableClaimButton();
+      setOutput(
+        "claim-output",
+        [
+          `Loaded proof from pasted JSON`,
+          `Proof version: ${String(parsed.version || "unknown")}`,
+          `Chain ID: ${prepared.chainId.toString()}`,
+          `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
+          `Recipient: ${prepared.claimInput.recipient}`,
+          `Nullifier: ${prepared.claimInput.nullifier}`,
+          prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
+          `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
+          `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
+          `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
+          `Proof bytes: ${proofBytes.toLocaleString()}`,
+          proofBytes > HOODI_MAX_TX_SIZE_BYTES
+            ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
+            : "Tx-size check: within Hoodi limit."
+        ].filter(Boolean).join("\n")
       );
     } catch (error) {
       setOutput("claim-output", errorMessage(error));
