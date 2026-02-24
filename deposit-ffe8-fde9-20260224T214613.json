@@ -1,0 +1,18 @@
+{
+  "version": "v2",
+  "chainId": "167013",
+  "secret": "0x06b308bd8eb10644e5bcf853fe01df4eea536b4e9be81009de492808a0cc6f4b",
+  "notes": [
+    {
+      "recipient": "0x0F026a3efE44E0Fe34B87375EFe69b16c05D0438",
+      "amount": "100000000000000",
+      "label": "note #0"
+    },
+    {
+      "recipient": "0xe36C0F16d5fB473CC5181f5fb86b6Eb3299aD9cb",
+      "amount": "200000000000000",
+      "label": "note #1"
+    }
+  ],
+  "targetAddress": "0xfFE86a7E98a2eF77CCF734e7CcD9b6a3109efDE9"
+}
