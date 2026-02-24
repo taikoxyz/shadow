@@ -12,6 +12,11 @@ on:
         required: false
         default: 'dev'
 
+# Cancel in-progress runs when a new run is triggered on the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/taiko-shadow
