@@ -30,7 +30,12 @@ RUN apt-get update && \
 # Install Rust and RISC Zero toolchain
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
 RUN cargo install rzup --locked
-RUN rzup install
+# Install RISC Zero toolchain with retries for network resilience
+RUN for i in 1 2 3 4 5; do \
+      echo "Attempt $i: Installing RISC Zero toolchain..." && \
+      rzup install && break || \
+      (echo "Attempt $i failed, retrying in 10s..." && sleep 10); \
+    done
 
 # Install pnpm
 RUN npm install -g pnpm@9
