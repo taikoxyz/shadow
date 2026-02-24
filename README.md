@@ -41,6 +41,22 @@ node scripts/shadowcli.mjs claim-all \
   --private-key 0x...
 ```
 
+## Docker (Easiest)
+
+Generate proofs without installing any dependencies:
+
+```bash
+# Pull the pre-built image
+docker pull ghcr.io/taikoxyz/taiko-shadow:latest
+
+# Generate proofs for all notes
+docker run --rm -v $(pwd):/data ghcr.io/taikoxyz/taiko-shadow:latest /data/my-deposit.json
+```
+
+Output: `my-deposit-proofs.json` (contains all proofs bundled)
+
+See [Docker README](packages/risc0-prover/docker/README.md) for more options.
+
 ## Documentation
 
 - [Protocol Specification](PRD.md) - Core protocol design
