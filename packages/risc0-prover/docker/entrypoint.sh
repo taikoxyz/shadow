@@ -217,24 +217,17 @@ run_prove() {
     log "  Note $((i + 1)) complete (succinct)"
   done
 
-  # Merge all receipt entries into array
-  log ""
-  log "Merging receipt entries..."
-  RECEIPTS_ARRAY=$(node -e "
-    const fs = require('fs');
-    const receipts = [];
-    for (let i = 0; i < ${NOTE_COUNT}; i++) {
-      const entry = JSON.parse(fs.readFileSync('${TEMP_DIR}/receipt-entry-' + i + '.json', 'utf8'));
-      receipts.push(entry);
-    }
-    console.log(JSON.stringify(receipts));
-  ")
-
-  # Create consolidated output
+  # Create consolidated output (merge receipt entries directly to file)
   log ""
   log "Creating succinct receipts file..."
 
   node -e "
+const fs = require('fs');
+const receipts = [];
+for (let i = 0; i < ${NOTE_COUNT}; i++) {
+  const entry = JSON.parse(fs.readFileSync('${TEMP_DIR}/receipt-entry-' + i + '.json', 'utf8'));
+  receipts.push(entry);
+}
 const output = {
   version: '1.0',
   phase: 'succinct',
@@ -242,9 +235,9 @@ const output = {
   network: '${NETWORK_NAME}',
   generatedAt: '${GENERATED_AT}',
   noteCount: ${NOTE_COUNT},
-  receipts: ${RECEIPTS_ARRAY}
+  receipts: receipts
 };
-require('fs').writeFileSync('${OUTPUT_FILE}', JSON.stringify(output, null, 2));
+fs.writeFileSync('${OUTPUT_FILE}', JSON.stringify(output, null, 2));
 "
 
   log ""
