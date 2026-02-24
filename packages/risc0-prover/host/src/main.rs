@@ -50,6 +50,14 @@ enum Command {
         #[arg(long, default_value = "build/risc0/proof.json")]
         out: PathBuf,
     },
+    /// Compress a succinct receipt to Groth16 for on-chain verification.
+    /// This step requires Docker to be available.
+    Compress {
+        #[arg(long)]
+        receipt: PathBuf,
+        #[arg(long, default_value = "build/risc0/groth16-receipt.bin")]
+        out: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -67,6 +75,7 @@ fn main() -> Result<()> {
         Command::Verify { receipt } => cmd_verify(&receipt),
         Command::Inspect { input } => cmd_inspect(&input),
         Command::ExportProof { receipt, out } => cmd_export_proof(&receipt, &out),
+        Command::Compress { receipt, out } => cmd_compress(&receipt, &out),
     }
 }
 
@@ -224,6 +233,43 @@ fn cmd_export_proof(receipt_path: &Path, out_path: &Path) -> Result<()> {
     };
     write_json(out_path, &exported)?;
     println!("Exported proof payload: {}", out_path.display());
+    Ok(())
+}
+
+fn cmd_compress(receipt_path: &Path, out_path: &Path) -> Result<()> {
+    let receipt = read_receipt(receipt_path)?;
+
+    // Verify it's a succinct receipt
+    match &receipt.inner {
+        InnerReceipt::Succinct(_) => {}
+        InnerReceipt::Groth16(_) => bail!("Receipt is already Groth16"),
+        InnerReceipt::Composite(_) => bail!(
+            "Cannot compress composite receipt directly to Groth16; use --receipt-kind succinct first"
+        ),
+        _ => bail!("Unsupported receipt type for compression"),
+    }
+
+    println!("Compressing succinct receipt to Groth16...");
+    println!("This step requires Docker and may take several minutes.");
+
+    let started = Instant::now();
+    let prover = default_prover();
+    let compressed = prover
+        .compress(&ProverOpts::groth16(), &receipt)
+        .context("failed to compress receipt to Groth16")?;
+    let elapsed = started.elapsed();
+
+    // Verify the compressed receipt
+    compressed
+        .verify(SHADOW_CLAIM_GUEST_ID)
+        .context("compressed receipt verification failed")?;
+
+    write_receipt(out_path, &compressed)?;
+
+    println!("Compressed to Groth16 in {:.2?}", elapsed);
+    println!("Output: {}", out_path.display());
+    println!("Receipt kind: {}", describe_receipt_kind(&compressed.inner));
+
     Ok(())
 }
 

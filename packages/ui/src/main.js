@@ -19,8 +19,8 @@ const MAGIC = {
 const MAX_NOTES = 5;
 const MAX_TOTAL_WEI = 32000000000000000000n;
 const HOODI_MAX_TX_SIZE_BYTES = 131072;
-// Intentionally empty: the correct address depends on the current deployment (image ID).
-const DEFAULT_SHADOW_ADDRESS = "";
+// Default Shadow proxy address for Taiko Hoodi (deployed 2026-02-24, commit 38d8ca1)
+const DEFAULT_SHADOW_ADDRESS = "0xE02bbD05475a7C18e7e4AB785bB597592068302a";
 const PUBLIC_INPUTS_LEN = 87;
 const PUBLIC_INPUT_IDX = {
   BLOCK_NUMBER: 0,
@@ -35,10 +35,6 @@ const HOODI_CHAIN_ID = 167013n;
 const HOODI_CHAIN_HEX = "0x28c65";
 const HOODI_RPC_HOST = "rpc.hoodi.taiko.xyz";
 const HOODI_RPC_URL = `https://${HOODI_RPC_HOST}`;
-const HOODI_L1_CHAIN_ID = 560048n;
-const HOODI_L1_CHAIN_HEX = "0x88bb0";
-const HOODI_L1_RPC_HOST = "ethereum-hoodi-rpc.publicnode.com";
-const HOODI_L1_RPC_URL = `https://${HOODI_L1_RPC_HOST}`;
 const HOODI_CHAIN_PARAMS = {
   chainId: HOODI_CHAIN_HEX,
   chainName: "Taiko Hoodi",
@@ -51,16 +47,6 @@ const HOODI_CHAIN_PARAMS = {
   blockExplorerUrls: ["https://hoodi.taikoscan.io"]
 };
 
-const HOODI_L1_CHAIN_PARAMS = {
-  chainId: HOODI_L1_CHAIN_HEX,
-  chainName: "Taiko Hoodi L1",
-  nativeCurrency: {
-    name: "Ether",
-    symbol: "ETH",
-    decimals: 18
-  },
-  rpcUrls: [HOODI_L1_RPC_URL]
-};
 
 const app = document.querySelector("#app");
 app.innerHTML = `
@@ -71,8 +57,7 @@ app.innerHTML = `
       <p class="sub">Minimal local-first UI for DEPOSIT file generation, prove command prep, and claim tx submission.</p>
       <div class="wallet-bar">
         <button id="wallet-connect" type="button">Connect Wallet</button>
-        <button id="wallet-switch-l2" class="hidden" type="button">Switch to Hoodi L2 (167013)</button>
-        <button id="wallet-switch-l1" class="hidden" type="button">Switch to Hoodi L1 (560048)</button>
+        <button id="wallet-switch-network" class="hidden" type="button">Switch to Taiko Hoodi (167013)</button>
         <p id="wallet-status" class="wallet-status">Wallet: not connected</p>
       </div>
     </header>
@@ -98,6 +83,7 @@ app.innerHTML = `
 
       <div id="deposit-generate-row" class="cta-row">
         <button id="deposit-download" type="button">Generate Deposit File</button>
+        <button id="deposit-start-over" type="button" class="secondary">Start Over</button>
       </div>
 
       <section id="deposit-generated" class="generated hidden">
@@ -105,19 +91,13 @@ app.innerHTML = `
         <div class="generated-grid">
           <p><strong>Target</strong><span id="deposit-generated-target"></span></p>
           <p><strong>Total</strong><span id="deposit-generated-total"></span></p>
-          <p>
-            <strong>File path</strong>
-            <span class="path-row">
-              <span id="deposit-generated-path"></span>
-              <button id="deposit-save-as" class="link-btn" type="button">Save As</button>
-            </span>
-          </p>
+          <p><strong>File</strong><span id="deposit-generated-path"></span></p>
         </div>
       </section>
       <div id="deposit-generated-actions" class="generated-actions hidden">
         <div class="cta-row">
-          <button id="deposit-send-ether" type="button" disabled>Deposit Ether (L1)</button>
-          <button id="deposit-reset" type="button">Reset</button>
+          <button id="deposit-save" type="button">Save Deposit File</button>
+          <button id="deposit-send-ether" type="button" disabled>Deposit Ether</button>
         </div>
         <div class="tx-row">
           <a id="deposit-tx-link" class="tx-link hidden" href="#" target="_blank" rel="noopener noreferrer">View transaction</a>
@@ -129,20 +109,10 @@ app.innerHTML = `
     </section>
 
     <section class="panel" id="tab-prove">
-      <div class="grid two">
-        <label>
-          L2 RPC URL (Hoodi)
-          <input id="prove-rpc" type="text" value="${HOODI_RPC_HOST}" placeholder="${HOODI_RPC_HOST}" />
-        </label>
-        <label>
-          L1 RPC URL (Hoodi L1)
-          <input id="prove-l1-rpc" type="text" value="${HOODI_L1_RPC_HOST}" placeholder="${HOODI_L1_RPC_HOST}" />
-        </label>
+      <div id="prove-recent-deposit" class="recent-deposit hidden">
+        <p>Recent deposit files:</p>
+        <div id="prove-recent-list" class="recent-deposit-list"></div>
       </div>
-      <label>
-        Shadow contract (optional, for unclaimed check)
-        <input id="prove-shadow-address" type="text" value="${DEFAULT_SHADOW_ADDRESS}" placeholder="0x..." />
-      </label>
 
       <div id="prove-drop-zone" class="drop-zone" role="button" tabindex="0">
         Drop DEPOSIT file here or click to choose
@@ -153,31 +123,37 @@ app.innerHTML = `
         <div class="generated-grid">
           <p><strong>Target</strong><span id="prove-summary-target"></span></p>
           <p><strong>Total</strong><span id="prove-summary-total"></span></p>
-          <p><strong>File path</strong><span id="prove-summary-path"></span></p>
+          <p><strong>File</strong><span id="prove-summary-path"></span></p>
         </div>
       </section>
 
       <div id="prove-note-select-wrap" class="hidden">
-        <h2>Select One Unclaimed Note</h2>
+        <h2>Unclaimed Notes</h2>
         <div id="prove-note-list"></div>
       </div>
       <section id="prove-command-wrap" class="generated hidden">
         <div class="command-head">
-          <h2>Generate Proof Command</h2>
+          <h2>Generate Proofs (Docker)</h2>
           <button id="prove-command-copy" class="link-btn tiny-btn" type="button">Copy</button>
         </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="prove-platform-emulation" checked />
+          <span>Platform emulation (required for Apple Silicon / ARM)</span>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="prove-verbose-output" />
+          <span>Verbose output (show detailed proof generation logs)</span>
+        </label>
         <pre id="prove-command" class="output command-output"></pre>
       </section>
 
       <pre id="prove-output" class="output"></pre>
+      <div id="prove-check-again-wrap" class="cta-row hidden">
+        <button id="prove-check-again" type="button" class="secondary">Check Again</button>
+      </div>
     </section>
 
     <section class="panel" id="tab-claim">
-      <label>
-        Shadow contract address
-        <input id="claim-shadow-address" type="text" value="${DEFAULT_SHADOW_ADDRESS}" placeholder="0x..." />
-      </label>
-
       <div id="claim-drop-zone" class="drop-zone" role="button" tabindex="0">
         Drop proof file here or click to choose
       </div>
@@ -190,10 +166,33 @@ app.innerHTML = `
 
       <pre id="claim-output" class="output"></pre>
     </section>
+
+    <footer class="app-footer">
+      <div class="footer-info">
+        <p>RPC: <span id="footer-rpc">${HOODI_RPC_HOST}</span></p>
+        <p>Shadow: <span id="footer-shadow">${DEFAULT_SHADOW_ADDRESS || "(not set)"}</span></p>
+      </div>
+      <button id="footer-settings" type="button" class="link-btn">Settings</button>
+    </footer>
+
+    <dialog id="settings-dialog">
+      <h2>Settings</h2>
+      <label>
+        RPC URL
+        <input id="settings-rpc" type="text" value="${HOODI_RPC_HOST}" placeholder="${HOODI_RPC_HOST}" />
+      </label>
+      <div class="cta-row">
+        <button id="settings-save" type="button">Save</button>
+        <button id="settings-cancel" type="button" class="secondary">Cancel</button>
+      </div>
+    </dialog>
   </main>
 `;
 
 const state = {
+  settings: {
+    rpcUrl: HOODI_RPC_URL
+  },
   wallet: {
     account: "",
     chainId: null
@@ -201,7 +200,10 @@ const state = {
   deposit: {
     chainId: HOODI_CHAIN_ID.toString(),
     isGenerating: false,
+    abortController: null,
     generated: null,
+    fileSaved: false,
+    savedFilePath: "",
     tx: null,
     nextNoteId: 1,
     notes: [newNote(0)]
@@ -218,7 +220,9 @@ const state = {
     totalAmount: 0n,
     noteStatuses: [],
     selectedNoteIndex: null,
-    sufficientBalance: false
+    sufficientBalance: false,
+    platformEmulation: true,
+    verboseOutput: false
   },
   claim: {
     account: "",
@@ -233,6 +237,9 @@ bindWallet();
 bindDeposit();
 bindProve();
 bindClaim();
+bindSettings();
+loadSettingsFromStorage();
+loadDepositFromStorage();
 renderDepositNotes();
 renderDepositGenerated();
 renderProveLoadedSummary();
@@ -254,8 +261,7 @@ function bindTabs() {
 
 function bindWallet() {
   const connectBtn = document.querySelector("#wallet-connect");
-  const switchL2Btn = document.querySelector("#wallet-switch-l2");
-  const switchL1Btn = document.querySelector("#wallet-switch-l1");
+  const switchNetworkBtn = document.querySelector("#wallet-switch-network");
 
   connectBtn.addEventListener("click", async () => {
     try {
@@ -265,17 +271,9 @@ function bindWallet() {
     }
   });
 
-  switchL2Btn.addEventListener("click", async () => {
+  switchNetworkBtn.addEventListener("click", async () => {
     try {
-      await switchToHoodiL2();
-    } catch (error) {
-      setWalletStatus(`Switch error: ${errorMessage(error)}`);
-    }
-  });
-
-  switchL1Btn.addEventListener("click", async () => {
-    try {
-      await switchToHoodiL1();
+      await switchToHoodi();
     } catch (error) {
       setWalletStatus(`Switch error: ${errorMessage(error)}`);
     }
@@ -295,7 +293,7 @@ function bindWallet() {
       }
       updateWalletUi();
       maybeEnableClaimButton();
-      maybeEnableDepositSendButton();
+      renderDepositGenerated();
     })
     .catch(() => {
       updateWalletUi();
@@ -307,7 +305,7 @@ function bindWallet() {
       state.wallet.chainId = BigInt(chainIdHex);
       updateWalletUi();
       maybeEnableClaimButton();
-      maybeEnableDepositSendButton();
+      renderDepositGenerated();
     })
     .catch(() => {
       updateWalletUi();
@@ -318,14 +316,14 @@ function bindWallet() {
     state.claim.account = state.wallet.account;
     updateWalletUi();
     maybeEnableClaimButton();
-    maybeEnableDepositSendButton();
+    renderDepositGenerated();
   });
 
   window.ethereum.on?.("chainChanged", (chainIdHex) => {
     state.wallet.chainId = BigInt(chainIdHex);
     updateWalletUi();
     maybeEnableClaimButton();
-    maybeEnableDepositSendButton();
+    renderDepositGenerated();
   });
 }
 
@@ -349,10 +347,10 @@ async function connectWallet() {
   state.claim.account = state.wallet.account;
   updateWalletUi();
   maybeEnableClaimButton();
-  maybeEnableDepositSendButton();
+  renderDepositGenerated();
 }
 
-async function switchToHoodiL2() {
+async function switchToHoodi() {
   if (!window.ethereum) {
     throw new Error("No injected wallet detected. Install MetaMask or another EIP-1193 wallet.");
   }
@@ -381,51 +379,17 @@ async function switchToHoodiL2() {
   state.wallet.chainId = BigInt(chainIdHex);
   updateWalletUi();
   maybeEnableClaimButton();
-  maybeEnableDepositSendButton();
-}
-
-async function switchToHoodiL1() {
-  if (!window.ethereum) {
-    throw new Error("No injected wallet detected. Install MetaMask or another EIP-1193 wallet.");
-  }
-
-  try {
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: HOODI_L1_CHAIN_HEX }]
-    });
-  } catch (error) {
-    const code = Number(error?.code);
-    if (code !== 4902) {
-      throw error;
-    }
-    await window.ethereum.request({
-      method: "wallet_addEthereumChain",
-      params: [HOODI_L1_CHAIN_PARAMS]
-    });
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: HOODI_L1_CHAIN_HEX }]
-    });
-  }
-
-  const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
-  state.wallet.chainId = BigInt(chainIdHex);
-  updateWalletUi();
-  maybeEnableClaimButton();
-  maybeEnableDepositSendButton();
+  renderDepositGenerated();
 }
 
 function updateWalletUi() {
   const connectBtn = document.querySelector("#wallet-connect");
-  const switchL2Btn = document.querySelector("#wallet-switch-l2");
-  const switchL1Btn = document.querySelector("#wallet-switch-l1");
+  const switchNetworkBtn = document.querySelector("#wallet-switch-network");
   const status = document.querySelector("#wallet-status");
 
   if (!window.ethereum) {
     connectBtn.disabled = true;
-    switchL2Btn.classList.add("hidden");
-    switchL1Btn.classList.add("hidden");
+    switchNetworkBtn.classList.add("hidden");
     setWalletStatus("Wallet: not detected (install MetaMask)");
     return;
   }
@@ -436,8 +400,7 @@ function updateWalletUi() {
 
   if (!account) {
     connectBtn.textContent = "Connect Wallet";
-    switchL2Btn.classList.add("hidden");
-    switchL1Btn.classList.add("hidden");
+    switchNetworkBtn.classList.add("hidden");
     setWalletStatus("Wallet: not connected");
     return;
   }
@@ -445,10 +408,8 @@ function updateWalletUi() {
   const [first, last] = shortAddressParts(account);
   connectBtn.textContent = "Wallet Connected";
 
-  if (chainId && chainId !== HOODI_CHAIN_ID) switchL2Btn.classList.remove("hidden");
-  else switchL2Btn.classList.add("hidden");
-  if (chainId && chainId !== HOODI_L1_CHAIN_ID) switchL1Btn.classList.remove("hidden");
-  else switchL1Btn.classList.add("hidden");
+  if (chainId && chainId !== HOODI_CHAIN_ID) switchNetworkBtn.classList.remove("hidden");
+  else switchNetworkBtn.classList.add("hidden");
 
   const chainText = chainId ? chainId.toString() : "unknown";
   status.textContent = `Wallet: 0x${first}...${last}  |  Chain: ${chainText}`;
@@ -462,9 +423,9 @@ function setWalletStatus(text) {
 function bindDeposit() {
   const generateBtn = document.querySelector("#deposit-download");
   const addNoteBtn = document.querySelector("#deposit-add-note");
+  const saveBtn = document.querySelector("#deposit-save");
   const sendEtherBtn = document.querySelector("#deposit-send-ether");
-  const resetBtn = document.querySelector("#deposit-reset");
-  const saveAsBtn = document.querySelector("#deposit-save-as");
+  const startOverBtn = document.querySelector("#deposit-start-over");
 
   addNoteBtn.addEventListener("click", () => {
     if (state.deposit.isGenerating || state.deposit.generated) return;
@@ -474,7 +435,50 @@ function bindDeposit() {
     }
     state.deposit.notes.push(newNote(state.deposit.nextNoteId));
     state.deposit.nextNoteId += 1;
+    saveDepositToStorage();
     renderDepositNotes();
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    try {
+      const generated = state.deposit.generated;
+      if (!generated?.depositJson) {
+        throw new Error("Generate deposit file first.");
+      }
+      const savedPath = await saveDepositFileAs(generated);
+      if (savedPath) {
+        state.deposit.fileSaved = true;
+        state.deposit.savedFilePath = savedPath;
+        state.deposit.generated.filePath = savedPath;
+        // Cache in localStorage for future reference (up to 5 recent files)
+        try {
+          const recentDeposits = JSON.parse(localStorage.getItem("shadow.recentDeposits") || "[]");
+          // Remove if already exists (to move to front)
+          const filtered = recentDeposits.filter((d) => d.path !== savedPath);
+          // Add to front
+          filtered.unshift({
+            path: savedPath,
+            json: generated.depositJson,
+            savedAt: Date.now()
+          });
+          // Keep only 5 most recent
+          const trimmed = filtered.slice(0, 5);
+          localStorage.setItem("shadow.recentDeposits", JSON.stringify(trimmed));
+          // Update prove tab with new file list
+          checkRecentDeposit();
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+        renderDepositGenerated();
+        clearDepositOutput();
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        clearDepositOutput();
+        return;
+      }
+      setDepositOutput(errorMessage(error));
+    }
   });
 
   sendEtherBtn.addEventListener("click", async () => {
@@ -482,11 +486,14 @@ function bindDeposit() {
       if (!state.deposit.generated) {
         throw new Error("Generate deposit first.");
       }
+      if (!state.deposit.fileSaved) {
+        throw new Error("Save deposit file first.");
+      }
       if (!state.wallet.account) {
         throw new Error("Connect wallet first.");
       }
-      if (state.wallet.chainId !== HOODI_L1_CHAIN_ID) {
-        throw new Error(`Switch wallet to Hoodi L1 (${HOODI_L1_CHAIN_ID.toString()}) first.`);
+      if (state.wallet.chainId !== HOODI_CHAIN_ID) {
+        throw new Error(`Switch wallet to Hoodi (${HOODI_CHAIN_ID.toString()}) first.`);
       }
       if (!window.ethereum) {
         throw new Error("No injected wallet detected.");
@@ -514,38 +521,26 @@ function bindDeposit() {
       trackDepositTransaction(txHash);
     } catch (error) {
       setDepositOutput(errorMessage(error));
-      maybeEnableDepositSendButton();
+      renderDepositGenerated();
     }
   });
 
-  saveAsBtn.addEventListener("click", async () => {
-    try {
-      const generated = state.deposit.generated;
-      if (!generated?.depositJson) {
-        throw new Error("Generate deposit file first.");
-      }
-      const savedName = await saveDepositFileAs(generated);
-      if (savedName) {
-        state.deposit.generated.filePath = savedName;
-        renderDepositGenerated();
-      }
-      clearDepositOutput();
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        clearDepositOutput();
-        return;
-      }
-      setDepositOutput(errorMessage(error));
+  startOverBtn.addEventListener("click", () => {
+    // Abort any ongoing generation
+    if (state.deposit.abortController) {
+      state.deposit.abortController.abort();
+      state.deposit.abortController = null;
     }
-  });
-
-  resetBtn.addEventListener("click", () => {
     state.deposit.generated = null;
+    state.deposit.fileSaved = false;
+    state.deposit.savedFilePath = "";
     state.deposit.tx = null;
     state.deposit.isGenerating = false;
+    state.deposit.notes = [newNote(0)];
+    state.deposit.nextNoteId = 1;
+    saveDepositToStorage();
     renderDepositGenerated();
     renderDepositNotes();
-    maybeEnableDepositSendButton();
     clearDepositOutput();
   });
 
@@ -554,12 +549,13 @@ function bindDeposit() {
     generateBtn.disabled = true;
     addNoteBtn.disabled = true;
     state.deposit.isGenerating = true;
+    state.deposit.abortController = new AbortController();
     renderDepositNotes();
-    maybeEnableDepositSendButton();
     try {
       setDepositOutput("Generating PoW-valid secret and building deposit...");
       const built = await buildDepositPayload(state.deposit, {
         minePowSecret: true,
+        signal: state.deposit.abortController.signal,
         onMiningProgress: (attempts) => {
           setDepositOutput(
             `Generating PoW-valid secret and building deposit... attempts: ${attempts.toLocaleString()}`
@@ -569,16 +565,16 @@ function bindDeposit() {
       const stamp = timestampForFilename();
       const [first, last] = shortAddressParts(built.targetAddress);
       const fileName = `deposit-${first}-${last}-${stamp}.json`;
-      const filePath = `Downloads/${fileName}`;
 
-      downloadJson(fileName, built.depositJson);
       state.deposit.generated = {
         fileName,
-        filePath,
+        filePath: "(not saved yet)",
         targetAddress: built.targetAddress,
         totalWei: built.totalWei,
         depositJson: built.depositJson
       };
+      state.deposit.fileSaved = false;
+      state.deposit.savedFilePath = "";
       state.deposit.tx = null;
       renderDepositGenerated();
       clearDepositOutput();
@@ -586,10 +582,10 @@ function bindDeposit() {
       setDepositOutput(errorMessage(error));
     } finally {
       state.deposit.isGenerating = false;
+      state.deposit.abortController = null;
       renderDepositNotes();
       addNoteBtn.disabled = Boolean(state.deposit.generated);
       generateBtn.disabled = false;
-      maybeEnableDepositSendButton();
     }
   });
 }
@@ -597,6 +593,12 @@ function bindDeposit() {
 function renderDepositNotes() {
   const container = document.querySelector("#deposit-note-list");
   container.innerHTML = "";
+
+  // Ensure at least one note exists
+  if (state.deposit.notes.length === 0) {
+    state.deposit.notes = [newNote(0)];
+    state.deposit.nextNoteId = 1;
+  }
 
   state.deposit.notes.forEach((note, index) => {
     const canRemove = state.deposit.notes.length > 1;
@@ -615,6 +617,7 @@ function renderDepositNotes() {
         const idx = Number(event.target.dataset.index);
         const key = event.target.dataset.key;
         state.deposit.notes[idx][key] = event.target.value.trim();
+        saveDepositToStorage();
       });
     });
 
@@ -622,6 +625,7 @@ function renderDepositNotes() {
       if (!canRemove) return;
       const idx = Number(event.target.dataset.index);
       state.deposit.notes.splice(idx, 1);
+      saveDepositToStorage();
       renderDepositNotes();
     });
 
@@ -632,33 +636,56 @@ function renderDepositNotes() {
 function renderDepositGenerated() {
   const generatedWrap = document.querySelector("#deposit-generated");
   const actionsWrap = document.querySelector("#deposit-generated-actions");
-  const generateRow = document.querySelector("#deposit-generate-row");
+  const generateBtn = document.querySelector("#deposit-download");
   const addNoteBtn = document.querySelector("#deposit-add-note");
+  const saveBtn = document.querySelector("#deposit-save");
+  const sendEtherBtn = document.querySelector("#deposit-send-ether");
   const generated = state.deposit.generated;
+  const fileSaved = state.deposit.fileSaved;
+  const txConfirmed = state.deposit.tx?.status === "confirmed";
+  const txPending = state.deposit.tx?.status === "pending";
+
   addNoteBtn.disabled = state.deposit.isGenerating || Boolean(generated);
 
   if (!generated) {
     generatedWrap.classList.add("hidden");
     actionsWrap.classList.add("hidden");
-    generateRow.classList.remove("hidden");
+    generateBtn.classList.remove("hidden");
     document.querySelector("#deposit-generated-target").textContent = "";
     document.querySelector("#deposit-generated-total").textContent = "";
     document.querySelector("#deposit-generated-path").textContent = "";
-    document.querySelector("#deposit-save-as").disabled = true;
     updateDepositTxUi();
     return;
   }
 
   generatedWrap.classList.remove("hidden");
   actionsWrap.classList.remove("hidden");
-  generateRow.classList.add("hidden");
+  generateBtn.classList.add("hidden");
   document.querySelector("#deposit-generated-target").textContent = generated.targetAddress;
   document.querySelector("#deposit-generated-total").textContent =
     `${generated.totalWei.toString()} wei (${formatEther(generated.totalWei)} ETH)`;
   document.querySelector("#deposit-generated-path").textContent = generated.filePath;
-  document.querySelector("#deposit-save-as").disabled = false;
+
+  // Button visibility logic:
+  // 1. Not saved yet: show Save button only
+  // 2. Saved but no tx: show Deposit Ether button
+  // 3. Tx pending: show disabled Deposit Ether button
+  // 4. Tx confirmed: hide Save and Deposit Ether
+
+  if (txConfirmed) {
+    saveBtn.classList.add("hidden");
+    sendEtherBtn.classList.add("hidden");
+  } else if (fileSaved) {
+    saveBtn.classList.add("hidden");
+    sendEtherBtn.classList.remove("hidden");
+    sendEtherBtn.disabled = txPending;
+  } else {
+    saveBtn.classList.remove("hidden");
+    saveBtn.disabled = false;
+    sendEtherBtn.classList.add("hidden");
+  }
+
   updateDepositTxUi();
-  maybeEnableDepositSendButton();
 }
 
 function updateDepositTxUi() {
@@ -673,19 +700,9 @@ function updateDepositTxUi() {
     return;
   }
 
-  if (tx.chainId === HOODI_CHAIN_ID) {
-    link.classList.remove("hidden");
-    link.href = `https://hoodi.taikoscan.io/tx/${tx.hash}`;
-    link.textContent = "View transaction (L2)";
-  } else {
-    // L1 explorer URL is not configured; show status with the tx hash instead.
-    link.classList.add("hidden");
-    link.href = "#";
-  }
-
-  const chainLabel =
-    tx.chainId === HOODI_L1_CHAIN_ID ? "L1" : tx.chainId === HOODI_CHAIN_ID ? "L2" : "tx";
-  const hashSuffix = tx.chainId === HOODI_L1_CHAIN_ID ? ` (${tx.hash})` : "";
+  link.classList.remove("hidden");
+  link.href = `https://hoodi.taikoscan.io/tx/${tx.hash}`;
+  link.textContent = "View transaction";
 
   if (tx.status === "confirmed") {
     status.textContent = `${chainLabel} Confirmed${hashSuffix}`;
@@ -694,17 +711,6 @@ function updateDepositTxUi() {
   } else {
     status.textContent = `${chainLabel} Confirming...${hashSuffix}`;
   }
-}
-
-function maybeEnableDepositSendButton() {
-  const btn = document.querySelector("#deposit-send-ether");
-  if (!btn) return;
-
-  const hasGenerated = Boolean(state.deposit.generated);
-  const walletReady = Boolean(state.wallet.account) && state.wallet.chainId === HOODI_L1_CHAIN_ID;
-  const txPending = state.deposit.tx?.status === "pending";
-  const txConfirmed = state.deposit.tx?.status === "confirmed";
-  btn.disabled = !(hasGenerated && walletReady) || txPending || txConfirmed;
 }
 
 async function trackDepositTransaction(txHash) {
@@ -719,8 +725,7 @@ async function trackDepositTransaction(txHash) {
 
       if (receipt) {
         state.deposit.tx.status = receipt.status === "0x1" ? "confirmed" : "failed";
-        updateDepositTxUi();
-        maybeEnableDepositSendButton();
+        renderDepositGenerated();
         return;
       }
     } catch (error) {
@@ -736,12 +741,15 @@ function bindProve() {
   const copyBtn = document.querySelector("#prove-command-copy");
   const noteSelectWrap = document.querySelector("#prove-note-select-wrap");
 
+  bindRecentDeposit();
+
   const validateLoadedDeposit = async (options = {}) => {
     if (!state.prove.depositJson) {
       throw new Error("Load a DEPOSIT file first.");
     }
 
     setOutput("prove-output", "Validating deposit...");
+    document.querySelector("#prove-check-again-wrap").classList.add("hidden");
     state.prove.selectedNoteIndex = null;
     state.prove.noteStatuses = [];
     state.prove.sufficientBalance = false;
@@ -750,13 +758,8 @@ function bindProve() {
     renderProveCommand();
     noteSelectWrap.classList.add("hidden");
 
-    const rpcRaw = document.querySelector("#prove-rpc").value.trim();
-    if (!rpcRaw) throw new Error("L2 RPC URL is required.");
-    const rpcUrl = normalizeRpcUrl(rpcRaw);
-
-    const l1RpcRaw = document.querySelector("#prove-l1-rpc").value.trim();
-    if (!l1RpcRaw) throw new Error("L1 RPC URL is required.");
-    const l1RpcUrl = normalizeRpcUrl(l1RpcRaw);
+    const rpcUrl = state.settings.rpcUrl;
+    if (!rpcUrl) throw new Error("RPC URL is required. Configure it in Settings.");
 
     const rpcChainId = await fetchChainId(rpcUrl);
     let resolvedChainId = rpcChainId;
@@ -770,14 +773,7 @@ function bindProve() {
       }
     }
     if (resolvedChainId !== HOODI_CHAIN_ID) {
-      throw new Error(`Only Hoodi (167013) is supported. Resolved chainId=${resolvedChainId.toString()}`);
-    }
-
-    const l1ChainId = await fetchChainId(l1RpcUrl);
-    if (l1ChainId !== HOODI_L1_CHAIN_ID) {
-      throw new Error(
-        `L1 chainId mismatch: expected=${HOODI_L1_CHAIN_ID.toString()} rpc=${l1ChainId.toString()}`
-      );
+      throw new Error(`Only Taiko Hoodi (167013) is supported. Resolved chainId=${resolvedChainId.toString()}`);
     }
 
     const usePrecomputed =
@@ -791,8 +787,8 @@ function bindProve() {
         throw new Error(`targetAddress mismatch: deposit=${expected} derived=${derived.targetAddress}`);
       }
     }
-    const l1Balance = await fetchBalanceWei(l1RpcUrl, derived.targetAddress);
-    const sufficientBalance = l1Balance >= derived.totalAmount;
+    const targetBalance = await fetchBalanceWei(rpcUrl, derived.targetAddress);
+    const sufficientBalance = targetBalance >= derived.totalAmount;
 
     state.prove.targetAddress = derived.targetAddress;
     state.prove.totalAmount = derived.totalAmount;
@@ -804,17 +800,17 @@ function bindProve() {
         "prove-output",
         [
           `Target address: ${derived.targetAddress}`,
-          `Resolved L2 chainId: ${resolvedChainId.toString()}`,
-          `L1 balance: ${l1Balance.toString()} wei (${formatEther(l1Balance)} ETH)`,
+          `Chain ID: ${resolvedChainId.toString()}`,
+          `Target balance: ${targetBalance.toString()} wei (${formatEther(targetBalance)} ETH)`,
           `Required: ${derived.totalAmount.toString()} wei (${formatEther(derived.totalAmount)} ETH)`,
           "Balance sufficient: no"
         ].join("\n")
       );
+      document.querySelector("#prove-check-again-wrap").classList.remove("hidden");
       return;
     }
 
-    const shadowAddressRaw = document.querySelector("#prove-shadow-address").value.trim();
-    const shadowAddress = shadowAddressRaw ? normalizeAddress(shadowAddressRaw) : "";
+    const shadowAddress = DEFAULT_SHADOW_ADDRESS ? normalizeAddress(DEFAULT_SHADOW_ADDRESS) : "";
 
     const noteStatuses = await Promise.all(
       derived.notes.map(async (note) => {
@@ -844,8 +840,8 @@ function bindProve() {
     const unclaimedCount = noteStatuses.filter((note) => !note.claimed).length;
     const lines = [
       `Target address: ${derived.targetAddress}`,
-      `Resolved L2 chainId: ${resolvedChainId.toString()}`,
-      `L1 balance: ${l1Balance.toString()} wei (${formatEther(l1Balance)} ETH)`,
+      `Chain ID: ${resolvedChainId.toString()}`,
+      `Target balance: ${targetBalance.toString()} wei (${formatEther(targetBalance)} ETH)`,
       `Required: ${derived.totalAmount.toString()} wei (${formatEther(derived.totalAmount)} ETH)`,
       `Balance sufficient: ${sufficientBalance ? "yes" : "no"}`,
       shadowAddress
@@ -854,8 +850,8 @@ function bindProve() {
     ];
 
     setOutput("prove-output", lines.join("\n"));
-    if (sufficientBalance && unclaimedCount > 0 && state.prove.selectedNoteIndex !== null) {
-      state.prove.commandText = buildProveCommand(state.prove.selectedNoteIndex);
+    if (sufficientBalance && unclaimedCount > 0) {
+      state.prove.commandText = buildProveCommand();
     } else {
       state.prove.commandText = "";
     }
@@ -869,6 +865,30 @@ function bindProve() {
       setOutput("prove-output", "Proof command copied.");
     } catch (error) {
       setOutput("prove-output", `Copy failed: ${errorMessage(error)}`);
+    }
+  });
+
+  document.querySelector("#prove-platform-emulation").addEventListener("change", (e) => {
+    state.prove.platformEmulation = e.target.checked;
+    if (state.prove.sufficientBalance) {
+      state.prove.commandText = buildProveCommand();
+      renderProveCommand();
+    }
+  });
+
+  document.querySelector("#prove-verbose-output").addEventListener("change", (e) => {
+    state.prove.verboseOutput = e.target.checked;
+    if (state.prove.sufficientBalance) {
+      state.prove.commandText = buildProveCommand();
+      renderProveCommand();
+    }
+  });
+
+  document.querySelector("#prove-check-again").addEventListener("click", async () => {
+    try {
+      await validateLoadedDeposit();
+    } catch (error) {
+      setOutput("prove-output", errorMessage(error));
     }
   });
 
@@ -941,6 +961,32 @@ function bindProve() {
       }
     }
   });
+
+  // Handle recent deposit selection
+  document.addEventListener("deposit-loaded", async () => {
+    try {
+      const normalized = normalizeDeposit(state.prove.depositJson);
+      const chainId = BigInt(normalized.chainId);
+      const derived = await deriveFromDeposit(normalized, chainId);
+
+      state.prove.loadedSummary = {
+        targetAddress: derived.targetAddress,
+        totalWei: derived.totalAmount,
+        filePath: state.prove.depositFilePath || state.prove.depositFileName
+      };
+      state.prove.targetAddress = derived.targetAddress;
+      state.prove.totalAmount = derived.totalAmount;
+      state.prove.resolvedChainId = chainId;
+      renderProveLoadedSummary();
+
+      await validateLoadedDeposit({
+        precomputedDerived: derived,
+        precomputedChainId: chainId
+      });
+    } catch (error) {
+      setOutput("prove-output", errorMessage(error));
+    }
+  });
 }
 
 function renderProveLoadedSummary() {
@@ -975,26 +1021,35 @@ function renderProveCommand() {
   document.querySelector("#prove-command").textContent = text;
 }
 
-function buildProveCommand(noteIndex) {
-  const rpcRaw = document.querySelector("#prove-rpc").value.trim();
-  const rpcUrl = normalizeRpcUrl(rpcRaw);
-  const l1RpcRaw = document.querySelector("#prove-l1-rpc").value.trim();
-  const l1RpcUrl = l1RpcRaw ? normalizeRpcUrl(l1RpcRaw) : HOODI_L1_RPC_URL;
-  const [first, last] = shortAddressParts(state.prove.targetAddress);
-  const stamp = state.prove.validationStamp || timestampForFilename();
-  const proofFileName = `deposit-${first}-${last}-${stamp}-${noteIndex}.proof.json`;
-  const depositFilePath = shellQuote(state.prove.depositFilePath || state.prove.depositFileName || "deposit.json");
+function buildProveCommand() {
+  const depositFileName = state.prove.depositFileName || "deposit.json";
+  const baseName = depositFileName.replace(/\.json$/i, "");
+  const succinctFileName = `${baseName}-succinct.json`;
+  const proofFileName = `${baseName}-proofs.json`;
+  const depositJson = JSON.stringify(state.prove.depositJson, null, 2);
+  const platformFlag = state.prove.platformEmulation ? "--platform linux/amd64 " : "";
+  const verboseFlag = state.prove.verboseOutput ? "-e VERBOSE=true " : "";
+  const dockerImage = "ghcr.io/taikoxyz/taiko-shadow:latest";
 
   return [
-    "# Run from repo root (shadow-gpt).",
-    "# Groth16 receipts require Docker (risc0-groth16 shrinkwrap).",
-    "node packages/risc0-prover/scripts/shadowcli.mjs prove \\",
-    `  --deposit ${depositFilePath} \\`,
-    `  --rpc "${rpcUrl}" \\`,
-    `  --l1-rpc "${l1RpcUrl}" \\`,
-    `  --note-index ${noteIndex} \\`,
-    "  --receipt-kind groth16 \\",
-    `  --proof-out "${proofFileName}"`
+    "# Two-phase proof generation for Shadow Protocol",
+    `rm -f ./${depositFileName} ./${succinctFileName} ./${proofFileName}`,
+    "",
+    "# Create deposit file",
+    `cat <<'EOF' > ./${depositFileName}`,
+    depositJson,
+    "EOF",
+    "",
+    "# Phase 1: Generate succinct STARK proofs (no Docker socket needed)",
+    `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName} && \\`,
+    "",
+    "# Phase 2: Compress to Groth16 (requires Docker socket for STARK-to-SNARK conversion)",
+    `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data -v /var/run/docker.sock:/var/run/docker.sock ${dockerImage} compress /data/${succinctFileName} && \\`,
+    "",
+    "# Cleanup intermediate file",
+    `rm -f ./${succinctFileName}`,
+    "",
+    `# Output: ./${proofFileName}`
   ].join("\n");
 }
 
@@ -1025,22 +1080,14 @@ function renderProveNotes() {
 
   wrap.classList.remove("hidden");
   unclaimed.forEach((note) => {
-    const item = document.createElement("label");
-    item.className = "note-choice";
+    const item = document.createElement("div");
+    item.className = "note-info";
     item.innerHTML = `
-      <span class="note-choice-content">
-        #${note.index} • ${formatEther(note.amountWei)} ETH (${note.amountWei.toString()} wei)
+      <span class="note-info-content">
+        #${note.index} • ${formatEther(note.amountWei)} ETH
         <small>Recipient: ${note.recipient}</small>
       </span>
-      <input type="radio" name="prove-note" value="${note.index}" ${note.index === state.prove.selectedNoteIndex ? "checked" : ""} />
     `;
-
-    item.querySelector("input").addEventListener("change", () => {
-      state.prove.selectedNoteIndex = note.index;
-      state.prove.commandText = buildProveCommand(note.index);
-      renderProveCommand();
-    });
-
     list.appendChild(item);
   });
 }
@@ -1101,17 +1148,18 @@ function bindClaim() {
       if (!state.claim.account) throw new Error("Connect wallet first.");
       if (!state.claim.proofPayload) throw new Error("Load proof file first.");
 
-      const shadowAddress = normalizeAddress(
-        document.querySelector("#claim-shadow-address").value.trim()
-      );
+      if (!DEFAULT_SHADOW_ADDRESS) {
+        throw new Error("Shadow contract not deployed.");
+      }
+      const shadowAddress = normalizeAddress(DEFAULT_SHADOW_ADDRESS);
 
       const walletChainId = BigInt(await window.ethereum.request({ method: "eth_chainId" }));
       const proofChainId = state.claim.proofPayload.chainId;
       if (walletChainId !== HOODI_CHAIN_ID) {
-        throw new Error(`Only Hoodi (167013) is supported. Wallet chainId is ${walletChainId.toString()}.`);
+        throw new Error(`Only Taiko Hoodi (167013) is supported. Wallet chainId is ${walletChainId.toString()}.`);
       }
       if (proofChainId !== HOODI_CHAIN_ID) {
-        throw new Error(`Only Hoodi (167013) proofs are supported. Proof chainId is ${proofChainId.toString()}.`);
+        throw new Error(`Only Taiko Hoodi (167013) proofs are supported. Proof chainId is ${proofChainId.toString()}.`);
       }
       if (walletChainId !== proofChainId) {
         throw new Error(
@@ -1131,7 +1179,7 @@ function bindClaim() {
                 name: "_input",
                 type: "tuple",
                 components: [
-                  { name: "blockNumber", type: "uint48" },
+                  { name: "blockNumber", type: "uint64" },
                   { name: "chainId", type: "uint256" },
                   { name: "amount", type: "uint256" },
                   { name: "recipient", type: "address" },
@@ -1177,13 +1225,10 @@ function bindClaim() {
     }
   });
 
-  document.querySelector("#claim-shadow-address").addEventListener("input", () => {
-    maybeEnableClaimButton();
-  });
 }
 
 function maybeEnableClaimButton() {
-  const hasContract = Boolean(document.querySelector("#claim-shadow-address").value.trim());
+  const hasContract = Boolean(DEFAULT_SHADOW_ADDRESS);
   const onSupportedChain = state.wallet.chainId === HOODI_CHAIN_ID;
   document.querySelector("#claim-submit").disabled = !(
     hasContract &&
@@ -1219,8 +1264,8 @@ function prepareClaimPayload(proof) {
     assertHex(blockHash, 32, "blockHash");
   }
 
-  if (blockNumber > (1n << 48n) - 1n) {
-    throw new Error("blockNumber exceeds uint48 range");
+  if (blockNumber > (1n << 64n) - 1n) {
+    throw new Error("blockNumber exceeds uint64 range");
   }
   if (amount <= 0n) {
     throw new Error("amount must be > 0");
@@ -1453,7 +1498,7 @@ async function buildDepositPayload(input, options = {}) {
     );
     const notesHash = await computeNotesHash(noteAmounts, recipientHashes);
 
-    const mined = await minePowValidSecret(notesHash, options.onMiningProgress);
+    const mined = await minePowValidSecret(notesHash, options.onMiningProgress, options.signal);
     secretHex = mined.secretHex;
     powAttempts = mined.attempts;
   }
@@ -1669,10 +1714,14 @@ function normalizeAddress(value, fieldName = "address") {
   return getAddress(value);
 }
 
-async function minePowValidSecret(notesHash, onProgress) {
+async function minePowValidSecret(notesHash, onProgress, signal) {
   let attempts = 0;
 
   while (true) {
+    if (signal?.aborted) {
+      throw new Error("Generation aborted");
+    }
+
     const secret = crypto.getRandomValues(new Uint8Array(32));
     const digest = sha256Sync(concatBytes(notesHash, secret));
     attempts += 1;
@@ -1732,6 +1781,17 @@ async function saveDepositFileAs(generated) {
     const writable = await handle.createWritable();
     await writable.write(jsonText);
     await writable.close();
+
+    // Try to get full path (available in some environments like Electron)
+    try {
+      const file = await handle.getFile();
+      if (file.path) {
+        return file.path;
+      }
+    } catch (e) {
+      // Ignore - fall back to name
+    }
+
     return handle.name || generated.fileName;
   }
 
@@ -1788,4 +1848,187 @@ function escapeAttr(value) {
 function errorMessage(error) {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function bindSettings() {
+  const dialog = document.querySelector("#settings-dialog");
+  const openBtn = document.querySelector("#footer-settings");
+  const saveBtn = document.querySelector("#settings-save");
+  const cancelBtn = document.querySelector("#settings-cancel");
+  const rpcInput = document.querySelector("#settings-rpc");
+
+  openBtn.addEventListener("click", () => {
+    rpcInput.value = state.settings.rpcUrl.replace(/^https?:\/\//, "");
+    dialog.showModal();
+  });
+
+  saveBtn.addEventListener("click", () => {
+    const rpcRaw = rpcInput.value.trim();
+
+    state.settings.rpcUrl = normalizeRpcUrl(rpcRaw);
+
+    try {
+      localStorage.setItem("shadow.rpcUrl", state.settings.rpcUrl);
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+
+    updateFooterInfo();
+    dialog.close();
+  });
+
+  cancelBtn.addEventListener("click", () => {
+    dialog.close();
+  });
+
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      dialog.close();
+    }
+  });
+}
+
+function loadSettingsFromStorage() {
+  try {
+    const rpc = localStorage.getItem("shadow.rpcUrl");
+    if (rpc) state.settings.rpcUrl = rpc;
+  } catch (e) {
+    // Ignore localStorage errors
+  }
+  updateFooterInfo();
+  checkRecentDeposit();
+}
+
+function saveDepositToStorage() {
+  try {
+    const data = {
+      notes: state.deposit.notes,
+      nextNoteId: state.deposit.nextNoteId
+    };
+    localStorage.setItem("shadow.depositDraft", JSON.stringify(data));
+  } catch (e) {
+    // Ignore localStorage errors
+  }
+}
+
+function loadDepositFromStorage() {
+  try {
+    const saved = localStorage.getItem("shadow.depositDraft");
+    if (saved) {
+      const data = JSON.parse(saved);
+      if (Array.isArray(data.notes) && data.notes.length > 0) {
+        state.deposit.notes = data.notes;
+        state.deposit.nextNoteId = data.nextNoteId || data.notes.length;
+      }
+    }
+  } catch (e) {
+    // Ignore localStorage errors
+  }
+}
+
+function updateFooterInfo() {
+  const rpcDisplay = state.settings.rpcUrl.replace(/^https?:\/\//, "");
+  document.querySelector("#footer-rpc").textContent = rpcDisplay;
+  document.querySelector("#footer-shadow").textContent = DEFAULT_SHADOW_ADDRESS || "(not deployed)";
+}
+
+function checkRecentDeposit() {
+  const recentWrap = document.querySelector("#prove-recent-deposit");
+  const dropZone = document.querySelector("#prove-drop-zone");
+  const recentList = document.querySelector("#prove-recent-list");
+
+  try {
+    const recentDeposits = JSON.parse(localStorage.getItem("shadow.recentDeposits") || "[]");
+
+    if (recentDeposits.length > 0) {
+      recentList.innerHTML = "";
+      recentDeposits.forEach((deposit, index) => {
+        const item = document.createElement("div");
+        item.className = "recent-deposit-item";
+        item.innerHTML = `
+          <span class="recent-deposit-path">${escapeAttr(deposit.path)}</span>
+          <div class="recent-deposit-actions">
+            <button data-index="${index}" data-action="open" type="button" class="link-btn">Open</button>
+            <button data-index="${index}" data-action="use" type="button" class="link-btn">Use</button>
+            <button data-index="${index}" data-action="remove" type="button" class="link-btn danger-link">Remove</button>
+          </div>
+        `;
+        item.querySelector('[data-action="use"]').addEventListener("click", () => {
+          loadRecentDeposit(index);
+        });
+        item.querySelector('[data-action="open"]').addEventListener("click", () => {
+          openRecentDeposit(index);
+        });
+        item.querySelector('[data-action="remove"]').addEventListener("click", () => {
+          removeRecentDeposit(index);
+        });
+        recentList.appendChild(item);
+      });
+      recentWrap.classList.remove("hidden");
+    } else {
+      recentList.innerHTML = "";
+      recentWrap.classList.add("hidden");
+    }
+    // Drop zone always visible
+    dropZone.classList.remove("hidden");
+  } catch (e) {
+    // Ignore localStorage errors
+  }
+}
+
+function loadRecentDeposit(index) {
+  try {
+    const recentDeposits = JSON.parse(localStorage.getItem("shadow.recentDeposits") || "[]");
+    const deposit = recentDeposits[index];
+
+    if (!deposit) {
+      throw new Error("Deposit not found.");
+    }
+
+    state.prove.depositJson = deposit.json;
+    state.prove.depositFileName = deposit.path.split("/").pop() || "deposit.json";
+    state.prove.depositFilePath = deposit.path;
+
+    document.querySelector("#prove-recent-deposit").classList.add("hidden");
+    document.querySelector("#prove-drop-zone").classList.add("hidden");
+
+    // Trigger validation
+    const event = new CustomEvent("deposit-loaded");
+    document.dispatchEvent(event);
+  } catch (error) {
+    setOutput("prove-output", errorMessage(error));
+  }
+}
+
+function openRecentDeposit(index) {
+  try {
+    const recentDeposits = JSON.parse(localStorage.getItem("shadow.recentDeposits") || "[]");
+    const deposit = recentDeposits[index];
+
+    if (!deposit) {
+      throw new Error("Deposit not found.");
+    }
+
+    const jsonText = JSON.stringify(deposit.json, null, 2);
+    const blob = new Blob([jsonText], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  } catch (error) {
+    setOutput("prove-output", errorMessage(error));
+  }
+}
+
+function removeRecentDeposit(index) {
+  try {
+    const recentDeposits = JSON.parse(localStorage.getItem("shadow.recentDeposits") || "[]");
+    recentDeposits.splice(index, 1);
+    localStorage.setItem("shadow.recentDeposits", JSON.stringify(recentDeposits));
+    checkRecentDeposit();
+  } catch (error) {
+    setOutput("prove-output", errorMessage(error));
+  }
+}
+
+function bindRecentDeposit() {
+  // Recent deposits and drop zone are now both visible
 }

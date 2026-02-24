@@ -188,6 +188,28 @@ label {
   color: #9fd7c0;
 }
 
+label.checkbox-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+label.checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+label.checkbox-row span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 input {
   width: 100%;
   border: 1px solid var(--line);
@@ -465,7 +487,8 @@ button.danger:hover {
   margin-top: 10px;
 }
 
-.note-choice {
+.note-choice,
+.note-info {
   margin-top: 8px;
   border: 1px solid #244839;
   border-radius: 0;
@@ -475,11 +498,15 @@ button.danger:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  cursor: pointer;
   background: rgba(6, 14, 11, 0.7);
 }
 
-.note-choice-content {
+.note-choice {
+  cursor: pointer;
+}
+
+.note-choice-content,
+.note-info-content {
   flex: 1;
   min-width: 0;
 }
@@ -491,7 +518,8 @@ button.danger:hover {
   accent-color: #1fffaa;
 }
 
-.note-choice small {
+.note-choice small,
+.note-info small {
   display: block;
   margin-top: 3px;
   color: #79ae98;
@@ -519,6 +547,134 @@ button.danger:hover {
   to {
     transform: translateY(10px);
   }
+}
+
+/* Footer */
+.app-footer {
+  margin-top: 24px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.footer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.footer-info p {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #5a8d78;
+  letter-spacing: 0.02em;
+}
+
+.footer-info span {
+  color: #79ae98;
+}
+
+/* Settings Dialog */
+#settings-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: linear-gradient(180deg, var(--panel), var(--panel-alt));
+  color: var(--text);
+  padding: 20px;
+  min-width: 340px;
+  max-width: 90vw;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+#settings-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+#settings-dialog h2 {
+  margin-bottom: 14px;
+}
+
+#settings-dialog label:first-of-type {
+  margin-top: 0;
+}
+
+/* Secondary Button */
+button.secondary {
+  background: linear-gradient(180deg, #1a2e28, #101e19);
+  border-color: #2f5c4a;
+  color: #8dc6af;
+}
+
+button.secondary:hover {
+  box-shadow: 0 0 18px rgba(57, 255, 184, 0.12);
+}
+
+/* Recent Deposit Section */
+.recent-deposit {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #2a5442;
+  background: linear-gradient(180deg, #0a1814, #071110);
+}
+
+.recent-deposit > p {
+  margin: 0 0 10px 0;
+  font-size: 0.82rem;
+  color: #9fd7c0;
+}
+
+.recent-deposit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.recent-deposit-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(6, 14, 11, 0.8);
+  border: 1px solid #1f3b31;
+}
+
+.recent-deposit-item:hover {
+  border-color: #2f5c4a;
+}
+
+.recent-deposit-path {
+  flex: 1;
+  font-size: 0.72rem;
+  color: #79ae98;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.recent-deposit-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.recent-deposit-actions .link-btn {
+  font-size: 0.72rem;
+}
+
+.link-btn.danger-link {
+  color: #ff8b9a;
+}
+
+.link-btn.danger-link:hover {
+  color: #ffb3be;
 }
 
 @media (max-width: 860px) {
@@ -552,5 +708,10 @@ button.danger:hover {
     gap: 10px;
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .app-footer {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
