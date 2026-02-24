@@ -1,4 +1,5 @@
 import {
+  encodeAbiParameters,
   encodeFunctionData,
   formatEther,
   fromHex,
@@ -20,7 +21,7 @@ const MAX_NOTES = 5;
 const MAX_TOTAL_WEI = 32000000000000000000n;
 const HOODI_MAX_TX_SIZE_BYTES = 131072;
 // Default Shadow proxy address for Taiko Hoodi (deployed 2026-02-24, commit 38d8ca1)
-const DEFAULT_SHADOW_ADDRESS = "0xE02bbD05475a7C18e7e4AB785bB597592068302a";
+const DEFAULT_SHADOW_ADDRESS = "0x77cdA0575e66A5FC95404fdA856615AD507d8A07";
 const PUBLIC_INPUTS_LEN = 87;
 const PUBLIC_INPUT_IDX = {
   BLOCK_NUMBER: 0,
@@ -34,6 +35,12 @@ const encoder = new TextEncoder();
 const HOODI_CHAIN_ID = 167013n;
 const HOODI_CHAIN_HEX = "0x28c65";
 const HOODI_RPC_HOST = "rpc.hoodi.taiko.xyz";
+// Docker image base - the actual digest is looked up via GitHub API based on on-chain imageId
+const DOCKER_IMAGE_BASE = "ghcr.io/taikoxyz/taiko-shadow";
+// Mapping from RISC0 imageId to Docker image digest (updated when new images are deployed)
+const IMAGE_ID_TO_DOCKER_DIGEST = {
+  "0xd598228081d1cbc4817e7be03aad1a2fdf6f1bb26b75dae0cddf5e597bfec091": "sha256:fc1c022e2af538a828a5eb594378148b25db3651e4376d78c4fdda983e46aff0"
+};
 const HOODI_RPC_URL = `https://${HOODI_RPC_HOST}`;
 const HOODI_CHAIN_PARAMS = {
   chainId: HOODI_CHAIN_HEX,
@@ -159,6 +166,17 @@ app.innerHTML = `
       </div>
       <input id="claim-file-input" type="file" accept="application/json,.json,.proof" hidden />
 
+      <div class="paste-section">
+        <p class="paste-label">Or paste proof JSON:</p>
+        <textarea id="claim-paste-input" rows="4" placeholder='{"version":"1.0","phase":"groth16",...}'></textarea>
+        <button id="claim-parse-paste" type="button" class="secondary">Parse Pasted JSON</button>
+      </div>
+
+      <div id="claim-proof-selector" class="proof-selector hidden">
+        <p class="selector-label">Select proof to claim:</p>
+        <div id="claim-proof-list" class="proof-list"></div>
+      </div>
+
       <div class="cta-row">
         <button id="claim-connect" type="button">Connect Wallet</button>
         <button id="claim-submit" type="button" disabled>Claim</button>
@@ -222,13 +240,16 @@ const state = {
     selectedNoteIndex: null,
     sufficientBalance: false,
     platformEmulation: true,
-    verboseOutput: false
+    verboseOutput: false,
+    onChainImageId: null
   },
   claim: {
     account: "",
     proofJson: null,
     proofPayload: null,
-    proofFileName: ""
+    proofFileName: "",
+    multiProofFile: null,
+    selectedProofIndex: null
   }
 };
 
@@ -704,12 +725,15 @@ function updateDepositTxUi() {
   link.href = `https://hoodi.taikoscan.io/tx/${tx.hash}`;
   link.textContent = "View transaction";
 
+  const [hashFirst, hashLast] = shortAddressParts(tx.hash);
+  const hashSuffix = ` (0x${hashFirst}...${hashLast})`;
+
   if (tx.status === "confirmed") {
-    status.textContent = `${chainLabel} Confirmed${hashSuffix}`;
+    status.textContent = `Confirmed${hashSuffix}`;
   } else if (tx.status === "failed") {
-    status.textContent = `${chainLabel} Failed${hashSuffix}`;
+    status.textContent = `Failed${hashSuffix}`;
   } else {
-    status.textContent = `${chainLabel} Confirming...${hashSuffix}`;
+    status.textContent = `Confirming...${hashSuffix}`;
   }
 }
 
@@ -812,6 +836,17 @@ function bindProve() {
 
     const shadowAddress = DEFAULT_SHADOW_ADDRESS ? normalizeAddress(DEFAULT_SHADOW_ADDRESS) : "";
 
+    // Fetch imageId from on-chain to determine correct Docker image
+    if (shadowAddress) {
+      try {
+        const imageId = await fetchImageIdFromChain(rpcUrl, shadowAddress);
+        state.prove.onChainImageId = imageId;
+      } catch (e) {
+        console.warn("Failed to fetch imageId from chain:", e);
+        state.prove.onChainImageId = null;
+      }
+    }
+
     const noteStatuses = await Promise.all(
       derived.notes.map(async (note) => {
         if (!shadowAddress) {
@@ -838,9 +873,13 @@ function bindProve() {
     renderProveNotes();
 
     const unclaimedCount = noteStatuses.filter((note) => !note.claimed).length;
+    const imageIdDisplay = state.prove.onChainImageId
+      ? `ImageId: ${state.prove.onChainImageId}`
+      : "ImageId: (not found)";
     const lines = [
       `Target address: ${derived.targetAddress}`,
       `Chain ID: ${resolvedChainId.toString()}`,
+      imageIdDisplay,
       `Target balance: ${targetBalance.toString()} wei (${formatEther(targetBalance)} ETH)`,
       `Required: ${derived.totalAmount.toString()} wei (${formatEther(derived.totalAmount)} ETH)`,
       `Balance sufficient: ${sufficientBalance ? "yes" : "no"}`,
@@ -1026,31 +1065,37 @@ function buildProveCommand() {
   const baseName = depositFileName.replace(/\.json$/i, "");
   const succinctFileName = `${baseName}-succinct.json`;
   const proofFileName = `${baseName}-proofs.json`;
-  const depositJson = JSON.stringify(state.prove.depositJson, null, 2);
+  const depositJson = JSON.stringify(state.prove.depositJson);
   const platformFlag = state.prove.platformEmulation ? "--platform linux/amd64 " : "";
   const verboseFlag = state.prove.verboseOutput ? "-e VERBOSE=true " : "";
-  const dockerImage = "ghcr.io/taikoxyz/taiko-shadow:latest";
 
+  // Use on-chain imageId to determine Docker image digest
+  const imageId = state.prove.onChainImageId;
+  const dockerDigest = imageId ? IMAGE_ID_TO_DOCKER_DIGEST[imageId.toLowerCase()] : null;
+
+  if (!dockerDigest) {
+    return `# ERROR: No Docker image found for on-chain imageId: ${imageId || "unknown"}\n# Please check DEPLOYMENT.md for supported imageIds`;
+  }
+
+  const dockerImage = `${DOCKER_IMAGE_BASE}@${dockerDigest}`;
+
+  // Pull exact image by digest to ensure compatibility with deployed contract
+  const pullCmd = `docker pull ${platformFlag}${dockerImage}`;
+  // Phase 1: Generate succinct STARK proofs (no Docker socket needed)
+  const phase1 = `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName}`;
+  // Phase 2: Compress to Groth16 (requires Docker socket AND RISC0_WORK_DIR for Docker-in-Docker path translation)
+  const phase2 = `docker run --rm ${platformFlag}${verboseFlag}-e RISC0_WORK_DIR="$(pwd)" -v "$(pwd)":"$(pwd)" -v /var/run/docker.sock:/var/run/docker.sock ${dockerImage} compress "$(pwd)"/${succinctFileName}`;
+
+  // Generate single-line executable command using echo instead of heredoc
   return [
-    "# Two-phase proof generation for Shadow Protocol",
+    `# On-chain ImageId: ${imageId}`,
+    pullCmd,
     `rm -f ./${depositFileName} ./${succinctFileName} ./${proofFileName}`,
-    "",
-    "# Create deposit file",
-    `cat <<'EOF' > ./${depositFileName}`,
-    depositJson,
-    "EOF",
-    "",
-    "# Phase 1: Generate succinct STARK proofs (no Docker socket needed)",
-    `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName} && \\`,
-    "",
-    "# Phase 2: Compress to Groth16 (requires Docker socket for STARK-to-SNARK conversion)",
-    `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data -v /var/run/docker.sock:/var/run/docker.sock ${dockerImage} compress /data/${succinctFileName} && \\`,
-    "",
-    "# Cleanup intermediate file",
-    `rm -f ./${succinctFileName}`,
-    "",
-    `# Output: ./${proofFileName}`
-  ].join("\n");
+    `echo '${depositJson.replace(/'/g, "'\\''")}' > ./${depositFileName}`,
+    phase1,
+    phase2,
+    `rm -f ./${succinctFileName} && echo "Done! Proof file: ./${proofFileName}"`
+  ].join(" && \\\n");
 }
 
 function resolveLocalFilePath(file) {
@@ -1093,40 +1138,78 @@ function renderProveNotes() {
 }
 
 function bindClaim() {
+  const processProofFile = (parsed, fileName) => {
+    // Handle multi-proof files (from Docker output)
+    if (Array.isArray(parsed.proofs) && parsed.proofs.length > 0) {
+      state.claim.multiProofFile = parsed;
+      state.claim.proofFileName = fileName;
+
+      const lines = [
+        `Loaded multi-proof file: ${fileName}`,
+        `Version: ${parsed.version || "unknown"}`,
+        `Phase: ${parsed.phase || "unknown"}`,
+        `Chain ID: ${parsed.chainId}`,
+        `Notes: ${parsed.proofs.length}`,
+        "",
+        "Available proofs:"
+      ];
+
+      parsed.proofs.forEach((p, idx) => {
+        const amount = p.journal?.amount ?? "unknown";
+        const recipient = p.journal?.recipient
+          ? bytesToHex(new Uint8Array(p.journal.recipient))
+          : "unknown";
+        lines.push(`  [${idx}] Note ${p.noteIndex}: ${amount} wei to ${recipient}`);
+      });
+
+      lines.push("");
+      lines.push("Select a proof index below to claim:");
+
+      setOutput("claim-output", lines.join("\n"));
+      showProofSelector(parsed.proofs);
+      return;
+    }
+
+    // Single proof file
+    const prepared = prepareClaimPayload(parsed);
+    const grossWei = prepared.claimInput.amount;
+    const feeWei = grossWei / 1000n;
+    const netWei = grossWei - feeWei;
+    const proofBytes = hexDataByteLength(prepared.proof);
+    state.claim.proofJson = parsed;
+    state.claim.proofPayload = prepared;
+    state.claim.proofFileName = fileName;
+    state.claim.multiProofFile = null;
+    maybeEnableClaimButton();
+    hideProofSelector();
+    setOutput(
+      "claim-output",
+      [
+        `Loaded proof file: ${fileName}`,
+        `Proof version: ${String(parsed.version || "unknown")}`,
+        `Chain ID: ${prepared.chainId.toString()}`,
+        `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
+        `Recipient: ${prepared.claimInput.recipient}`,
+        `Nullifier: ${prepared.claimInput.nullifier}`,
+        prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
+        `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
+        `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
+        `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
+        `Proof bytes: ${proofBytes.toLocaleString()}`,
+        proofBytes > HOODI_MAX_TX_SIZE_BYTES
+          ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
+          : "Tx-size check: within Hoodi limit."
+      ].filter(Boolean).join("\n")
+    );
+  };
+
   wireDropZone({
     zone: document.querySelector("#claim-drop-zone"),
     fileInput: document.querySelector("#claim-file-input"),
     onFile: async (file) => {
       try {
         const parsed = await readJsonFile(file);
-        const prepared = prepareClaimPayload(parsed);
-        const grossWei = prepared.claimInput.amount;
-        const feeWei = grossWei / 1000n;
-        const netWei = grossWei - feeWei;
-        const proofBytes = hexDataByteLength(prepared.proof);
-        state.claim.proofJson = parsed;
-        state.claim.proofPayload = prepared;
-        state.claim.proofFileName = file.name;
-        maybeEnableClaimButton();
-        setOutput(
-          "claim-output",
-          [
-            `Loaded proof file: ${file.name}`,
-            `Proof version: ${String(parsed.version || "unknown")}`,
-            `Chain ID: ${prepared.chainId.toString()}`,
-            `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
-            `Recipient: ${prepared.claimInput.recipient}`,
-            `Nullifier: ${prepared.claimInput.nullifier}`,
-            prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
-            `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
-            `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
-            `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
-            `Proof bytes: ${proofBytes.toLocaleString()}`,
-            proofBytes > HOODI_MAX_TX_SIZE_BYTES
-              ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
-              : "Tx-size check: within Hoodi limit."
-          ].filter(Boolean).join("\n")
-        );
+        processProofFile(parsed, file.name);
       } catch (error) {
         setOutput("claim-output", errorMessage(error));
       }
@@ -1225,6 +1308,29 @@ function bindClaim() {
     }
   });
 
+  document.querySelector("#claim-parse-paste").addEventListener("click", () => {
+    try {
+      const pasteInput = document.querySelector("#claim-paste-input");
+      const text = pasteInput.value.trim();
+      if (!text) {
+        setOutput("claim-output", "Paste proof JSON into the textarea first.");
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error("Invalid JSON. Check syntax and try again.");
+      }
+
+      // Use the same processing logic as file drop
+      processProofFile(parsed, "(pasted)");
+    } catch (error) {
+      setOutput("claim-output", errorMessage(error));
+    }
+  });
+
 }
 
 function maybeEnableClaimButton() {
@@ -1236,6 +1342,166 @@ function maybeEnableClaimButton() {
     state.claim.account &&
     onSupportedChain
   );
+}
+
+async function showProofSelector(proofs) {
+  const selector = document.querySelector("#claim-proof-selector");
+  const list = document.querySelector("#claim-proof-list");
+  list.innerHTML = "";
+
+  // Check which nullifiers are already consumed
+  const consumedStatus = await Promise.all(
+    proofs.map(async (proof) => {
+      if (!DEFAULT_SHADOW_ADDRESS || !window.ethereum) return false;
+      const nullifier = Array.isArray(proof.journal?.nullifier)
+        ? bytesToHex(new Uint8Array(proof.journal.nullifier))
+        : null;
+      if (!nullifier) return false;
+      try {
+        const data = encodeFunctionData({
+          abi: [{ type: "function", name: "isConsumed", inputs: [{ type: "bytes32" }], outputs: [{ type: "bool" }] }],
+          functionName: "isConsumed",
+          args: [nullifier]
+        });
+        const result = await window.ethereum.request({
+          method: "eth_call",
+          params: [{ to: DEFAULT_SHADOW_ADDRESS, data }, "latest"]
+        });
+        return result !== "0x0000000000000000000000000000000000000000000000000000000000000000";
+      } catch {
+        return false;
+      }
+    })
+  );
+
+  proofs.forEach((proof, idx) => {
+    const journal = proof.journal || {};
+    const amount = journal.amount ?? "unknown";
+    const amountEth = typeof amount === "number" ? formatEther(BigInt(amount)) : "?";
+    const recipient = Array.isArray(journal.recipient)
+      ? normalizeAddress(bytesToHex(new Uint8Array(journal.recipient)))
+      : "unknown";
+    const [first, last] = shortAddressParts(recipient);
+    const isClaimed = consumedStatus[idx];
+
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = isClaimed ? "proof-item proof-item-claimed" : "proof-item";
+    item.dataset.index = idx;
+    item.disabled = isClaimed;
+    item.innerHTML = `
+      <span class="proof-item-index">#${proof.noteIndex}</span>
+      <span class="proof-item-amount">${amountEth} ETH</span>
+      <span class="proof-item-recipient">to 0x${first}...${last}</span>
+      ${isClaimed ? '<span class="proof-item-status">Claimed</span>' : ""}
+    `;
+    if (!isClaimed) {
+      item.addEventListener("click", () => selectProofFromMulti(idx));
+    }
+    list.appendChild(item);
+  });
+
+  selector.classList.remove("hidden");
+}
+
+function hideProofSelector() {
+  document.querySelector("#claim-proof-selector").classList.add("hidden");
+  document.querySelector("#claim-proof-list").innerHTML = "";
+}
+
+function selectProofFromMulti(index) {
+  const multiFile = state.claim.multiProofFile;
+  if (!multiFile || !Array.isArray(multiFile.proofs)) {
+    setOutput("claim-output", "No multi-proof file loaded.");
+    return;
+  }
+
+  const proofEntry = multiFile.proofs[index];
+  if (!proofEntry) {
+    setOutput("claim-output", `Invalid proof index: ${index}`);
+    return;
+  }
+
+  state.claim.selectedProofIndex = index;
+
+  // Convert Docker proof format to claim-compatible format
+  const converted = convertDockerProofToClaim(proofEntry, multiFile.chainId);
+
+  try {
+    const prepared = prepareClaimPayload(converted);
+    const grossWei = prepared.claimInput.amount;
+    const feeWei = grossWei / 1000n;
+    const netWei = grossWei - feeWei;
+    const proofBytes = hexDataByteLength(prepared.proof);
+
+    state.claim.proofJson = converted;
+    state.claim.proofPayload = prepared;
+    maybeEnableClaimButton();
+    hideProofSelector();
+
+    setOutput(
+      "claim-output",
+      [
+        `Selected proof #${proofEntry.noteIndex} from multi-proof file`,
+        `Proof file: ${state.claim.proofFileName}`,
+        `Chain ID: ${prepared.chainId.toString()}`,
+        `Checkpoint block: ${prepared.claimInput.blockNumber.toString()}`,
+        `Recipient: ${prepared.claimInput.recipient}`,
+        `Nullifier: ${prepared.claimInput.nullifier}`,
+        prepared.blockHash ? `Checkpoint blockHash: ${prepared.blockHash}` : null,
+        `Gross amount: ${grossWei.toString()} wei (${formatEther(grossWei)} ETH)`,
+        `Fee (0.1%): ${feeWei.toString()} wei (${formatEther(feeWei)} ETH)`,
+        `Net to recipient: ${netWei.toString()} wei (${formatEther(netWei)} ETH)`,
+        `Proof bytes: ${proofBytes.toLocaleString()}`,
+        proofBytes > HOODI_MAX_TX_SIZE_BYTES
+          ? `Tx-size warning: proof bytes exceed Hoodi limit (${HOODI_MAX_TX_SIZE_BYTES}).`
+          : "Tx-size check: within Hoodi limit."
+      ].filter(Boolean).join("\n")
+    );
+  } catch (error) {
+    setOutput("claim-output", errorMessage(error));
+  }
+}
+
+function convertDockerProofToClaim(proofEntry, chainId) {
+  const journal = proofEntry.journal || {};
+
+  // Convert byte arrays to hex strings
+  const blockHash = Array.isArray(journal.block_hash)
+    ? bytesToHex(new Uint8Array(journal.block_hash))
+    : null;
+  const recipient = Array.isArray(journal.recipient)
+    ? bytesToHex(new Uint8Array(journal.recipient))
+    : null;
+  const nullifier = Array.isArray(journal.nullifier)
+    ? bytesToHex(new Uint8Array(journal.nullifier))
+    : null;
+
+  // The circuit verifier expects the proof to be ABI-encoded as (bytes seal, bytes journal)
+  // Docker outputs seal_hex and journal_hex separately, so we need to combine them
+  const sealHex = proofEntry.seal_hex;
+  const journalHex = proofEntry.journal_hex;
+
+  if (!sealHex || !journalHex) {
+    throw new Error("Docker proof missing seal_hex or journal_hex");
+  }
+
+  // ABI-encode (seal, journal) as the proof payload
+  const encodedProof = encodeAbiParameters(
+    [{ type: "bytes" }, { type: "bytes" }],
+    [sealHex, journalHex]
+  );
+
+  return {
+    version: "1.0",
+    proofHex: encodedProof,
+    chainId: chainId || journal.chain_id?.toString(),
+    blockNumber: journal.block_number,
+    blockHash,
+    amount: journal.amount?.toString(),
+    recipient,
+    nullifier
+  };
 }
 
 function prepareClaimPayload(proof) {
@@ -1299,9 +1565,10 @@ function prepareClaimPayload(proof) {
 }
 
 function resolveProofHex(proof) {
-  const value = proof?.risc0?.proof ?? proof?.proofHex ?? proof?.risc0?.proofHex;
+  // Support multiple formats: risc0.proof, proofHex, seal_hex (from Docker output)
+  const value = proof?.risc0?.proof ?? proof?.proofHex ?? proof?.risc0?.proofHex ?? proof?.seal_hex;
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value) || value.length % 2 !== 0) {
-    throw new Error("Invalid proof file: missing valid proof bytes (risc0.proof or proofHex)");
+    throw new Error("Invalid proof file: missing valid proof bytes (risc0.proof, proofHex, or seal_hex)");
   }
   return value;
 }
@@ -1585,6 +1852,20 @@ async function checkConsumed(rpcUrl, shadowAddress, nullifier) {
   const data = `0x6346e832${nullifier.slice(2)}`;
   const result = await rpcCall(rpcUrl, "eth_call", [{ to: shadowAddress, data }, "latest"]);
   return BigInt(result) !== 0n;
+}
+
+async function fetchImageIdFromChain(rpcUrl, shadowAddress) {
+  // Shadow.verifier() -> ShadowVerifier address
+  const verifierResult = await rpcCall(rpcUrl, "eth_call", [{ to: shadowAddress, data: "0x2b7ac3f3" }, "latest"]);
+  const shadowVerifierAddress = "0x" + verifierResult.slice(26);
+
+  // ShadowVerifier.circuitVerifier() -> Risc0CircuitVerifier address
+  const circuitResult = await rpcCall(rpcUrl, "eth_call", [{ to: shadowVerifierAddress, data: "0xd0ea9ff0" }, "latest"]);
+  const circuitVerifierAddress = "0x" + circuitResult.slice(26);
+
+  // Risc0CircuitVerifier.imageId() -> bytes32
+  const imageIdResult = await rpcCall(rpcUrl, "eth_call", [{ to: circuitVerifierAddress, data: "0xef3f7dd5" }, "latest"]);
+  return imageIdResult; // Already a bytes32 hex string
 }
 
 async function rpcCall(rpcUrl, method, params) {

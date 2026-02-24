@@ -11,9 +11,10 @@
 #   # Phase 1: Generate succinct proofs
 #   docker run --rm -v $(pwd):/data ghcr.io/taikoxyz/taiko-shadow prove /data/deposit.json
 #
-#   # Phase 2: Compress to Groth16
-#   docker run --rm -v $(pwd):/data -v /var/run/docker.sock:/var/run/docker.sock \
-#     ghcr.io/taikoxyz/taiko-shadow compress /data/deposit-succinct.json
+#   # Phase 2: Compress to Groth16 (requires Docker socket AND RISC0_WORK_DIR)
+#   docker run --rm -e RISC0_WORK_DIR=$(pwd) -v $(pwd):$(pwd) \
+#     -v /var/run/docker.sock:/var/run/docker.sock \
+#     ghcr.io/taikoxyz/taiko-shadow compress $(pwd)/deposit-succinct.json
 # =============================================================================
 
 set -euo pipefail
@@ -26,6 +27,7 @@ MODE="${1:-}"
 INPUT_FILE="${2:-}"
 RPC_URL="${RPC_URL:-}"
 VERBOSE="${VERBOSE:-false}"
+ALLOW_INSUFFICIENT_BALANCE="${ALLOW_INSUFFICIENT_BALANCE:-false}"
 
 # Network defaults
 declare -A DEFAULT_RPCS=(
@@ -59,17 +61,20 @@ Usage:
   # Phase 1: Generate succinct STARK proofs (no Docker socket needed)
   docker run --rm -v \$(pwd):/data ghcr.io/taikoxyz/taiko-shadow prove /data/deposit.json
 
-  # Phase 2: Compress to Groth16 (requires Docker socket)
-  docker run --rm -v \$(pwd):/data -v /var/run/docker.sock:/var/run/docker.sock \\
-    ghcr.io/taikoxyz/taiko-shadow compress /data/deposit-succinct.json
+  # Phase 2: Compress to Groth16 (requires Docker socket AND RISC0_WORK_DIR)
+  docker run --rm -e RISC0_WORK_DIR=\$(pwd) -v \$(pwd):\$(pwd) \\
+    -v /var/run/docker.sock:/var/run/docker.sock \\
+    ghcr.io/taikoxyz/taiko-shadow compress \$(pwd)/deposit-succinct.json
 
 Commands:
   prove     Generate succinct STARK proofs for all notes in a deposit
   compress  Convert succinct proofs to Groth16 for on-chain verification
 
 Environment Variables:
-  RPC_URL   Override the default RPC endpoint
-  VERBOSE   Enable verbose output (default: false)
+  RPC_URL                    Override the default RPC endpoint
+  VERBOSE                    Enable verbose output (default: false)
+  ALLOW_INSUFFICIENT_BALANCE Skip balance verification (for testing, default: false)
+  RISC0_WORK_DIR             Host path for Docker-in-Docker (required for compress)
 
 Output:
   prove:    Creates <deposit>-succinct.json with STARK receipts
@@ -146,11 +151,14 @@ run_prove() {
   DEPOSIT_BASENAME=$(basename "${DEPOSIT_FILE}" .json)
   OUTPUT_FILE="${DEPOSIT_DIR}/${DEPOSIT_BASENAME}-succinct.json"
 
-  log "Phase 1: Generating succinct STARK proofs..."
-  log "  Network: ${NETWORK_NAME} (chain ${CHAIN_ID})"
-  log "  Notes: ${NOTE_COUNT}"
-  log "  Input: ${DEPOSIT_FILE}"
-  log "  Output: ${OUTPUT_FILE}"
+  log "=============================================="
+  log "Phase 1: Generating succinct STARK proofs"
+  log "=============================================="
+  log "Network:     ${NETWORK_NAME} (chain ${CHAIN_ID})"
+  log "Notes:       ${NOTE_COUNT}"
+  log "Input file:  ${DEPOSIT_FILE}"
+  log "Output file: ${OUTPUT_FILE}"
+  log "=============================================="
   echo ""
 
   TEMP_DIR=$(mktemp -d)
@@ -173,7 +181,12 @@ run_prove() {
       --receipt-kind succinct
       --receipt-out "${TEMP_RECEIPT}"
       --journal-out "${TEMP_JOURNAL}"
+      --keep-intermediate-files
     )
+
+    if [[ "${ALLOW_INSUFFICIENT_BALANCE}" == "true" ]]; then
+      cmd+=(--allow-insufficient-balance)
+    fi
 
     if [[ "${VERBOSE}" == "true" ]]; then
       cmd+=(--verbose)
@@ -186,31 +199,35 @@ run_prove() {
       error "Failed to generate proof for note ${i}"
     fi
 
-    # Read journal and encode receipt as base64
-    JOURNAL_CONTENT=$(cat "${TEMP_JOURNAL}")
-    RECEIPT_B64=$(base64 -w0 "${TEMP_RECEIPT}" 2>/dev/null || base64 "${TEMP_RECEIPT}")
-
-    # Add to receipts array
-    RECEIPTS_ARRAY=$(node -e "
-      const receipts = ${RECEIPTS_ARRAY};
-      const journal = ${JOURNAL_CONTENT};
-      receipts.push({
+    # Write receipt entry to temp file (avoids "argument list too long" for large receipts)
+    RECEIPT_ENTRY="${TEMP_DIR}/receipt-entry-${i}.json"
+    node -e "
+      const fs = require('fs');
+      const journal = JSON.parse(fs.readFileSync('${TEMP_JOURNAL}', 'utf8'));
+      const receiptB64 = fs.readFileSync('${TEMP_RECEIPT}').toString('base64');
+      const entry = {
         noteIndex: ${i},
         receiptKind: 'succinct',
-        receiptBase64: '${RECEIPT_B64}',
+        receiptBase64: receiptB64,
         journal: journal
-      });
-      console.log(JSON.stringify(receipts));
-    ")
+      };
+      fs.writeFileSync('${RECEIPT_ENTRY}', JSON.stringify(entry));
+    "
 
     log "  Note $((i + 1)) complete (succinct)"
   done
 
-  # Create consolidated output
+  # Create consolidated output (merge receipt entries directly to file)
   log ""
   log "Creating succinct receipts file..."
 
   node -e "
+const fs = require('fs');
+const receipts = [];
+for (let i = 0; i < ${NOTE_COUNT}; i++) {
+  const entry = JSON.parse(fs.readFileSync('${TEMP_DIR}/receipt-entry-' + i + '.json', 'utf8'));
+  receipts.push(entry);
+}
 const output = {
   version: '1.0',
   phase: 'succinct',
@@ -218,13 +235,16 @@ const output = {
   network: '${NETWORK_NAME}',
   generatedAt: '${GENERATED_AT}',
   noteCount: ${NOTE_COUNT},
-  receipts: ${RECEIPTS_ARRAY}
+  receipts: receipts
 };
-require('fs').writeFileSync('${OUTPUT_FILE}', JSON.stringify(output, null, 2));
+fs.writeFileSync('${OUTPUT_FILE}', JSON.stringify(output, null, 2));
 "
 
   log ""
-  log "Phase 1 complete! Succinct receipts: ${OUTPUT_FILE}"
+  log "=============================================="
+  log "Phase 1 complete!"
+  log "=============================================="
+  log "OUTPUT: ${OUTPUT_FILE}"
   log ""
   log "Next step: Run 'compress' to convert to Groth16 for on-chain verification."
   log ""
@@ -260,16 +280,28 @@ run_compress() {
   BASE_NAME="${SUCCINCT_BASENAME%-succinct}"
   OUTPUT_FILE="${SUCCINCT_DIR}/${BASE_NAME}-proofs.json"
 
-  log "Phase 2: Compressing to Groth16..."
-  log "  Network: ${NETWORK_NAME} (chain ${CHAIN_ID})"
-  log "  Notes: ${NOTE_COUNT}"
-  log "  Input: ${SUCCINCT_FILE}"
-  log "  Output: ${OUTPUT_FILE}"
+  log "=============================================="
+  log "Phase 2: Compressing to Groth16"
+  log "=============================================="
+  log "Network:     ${NETWORK_NAME} (chain ${CHAIN_ID})"
+  log "Notes:       ${NOTE_COUNT}"
+  log "Input file:  ${SUCCINCT_FILE}"
+  log "Output file: ${OUTPUT_FILE}"
+  log "=============================================="
   log ""
   log "Note: Groth16 compression requires Docker and may take several minutes per note."
   echo ""
 
-  TEMP_DIR=$(mktemp -d)
+  # RISC0_WORK_DIR is required for Docker-in-Docker path translation
+  # The nested Docker container needs paths that exist on the HOST, not inside this container
+  if [[ -z "${RISC0_WORK_DIR:-}" ]]; then
+    error "RISC0_WORK_DIR must be set to the HOST path of your mounted data directory.
+Example: docker run ... -e RISC0_WORK_DIR=\$(pwd) -v \$(pwd):\$(pwd) ..."
+  fi
+
+  TEMP_SUBDIR="shadow-compress-$(date +%s)-$$"
+  TEMP_DIR="${RISC0_WORK_DIR}/${TEMP_SUBDIR}"
+  mkdir -p "${TEMP_DIR}"
   trap 'rm -rf "${TEMP_DIR}"' EXIT
 
   PROOFS_ARRAY="[]"
@@ -349,7 +381,10 @@ require('fs').writeFileSync('${OUTPUT_FILE}', JSON.stringify(output, null, 2));
 "
 
   log ""
-  log "Phase 2 complete! Groth16 proofs: ${OUTPUT_FILE}"
+  log "=============================================="
+  log "Phase 2 complete!"
+  log "=============================================="
+  log "OUTPUT: ${OUTPUT_FILE}"
   log ""
   log "Ready for on-chain claim submission!"
   log ""

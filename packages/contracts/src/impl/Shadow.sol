@@ -27,8 +27,6 @@ contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable, ReentrancyG
     /// @dev Reserved storage gap for future upgrades.
     uint256[49] private __gap;
 
-    event NullifierConsumed(bytes32 indexed nullifier);
-
     uint256 internal constant _FEE_DIVISOR = 1000; // 0.1%
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -106,7 +104,6 @@ contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable, ReentrancyG
         require(verifier.verifyProof(_proof, _input), ProofVerificationFailed());
 
         _consumed[_input.nullifier] = true;
-        emit NullifierConsumed(_input.nullifier);
 
         uint256 fee = _input.amount / _FEE_DIVISOR;
         uint256 netAmount = _input.amount - fee;
