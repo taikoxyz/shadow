@@ -704,12 +704,15 @@ function updateDepositTxUi() {
   link.href = `https://hoodi.taikoscan.io/tx/${tx.hash}`;
   link.textContent = "View transaction";
 
+  const [hashFirst, hashLast] = shortAddressParts(tx.hash);
+  const hashSuffix = ` (0x${hashFirst}...${hashLast})`;
+
   if (tx.status === "confirmed") {
-    status.textContent = `${chainLabel} Confirmed${hashSuffix}`;
+    status.textContent = `Confirmed${hashSuffix}`;
   } else if (tx.status === "failed") {
-    status.textContent = `${chainLabel} Failed${hashSuffix}`;
+    status.textContent = `Failed${hashSuffix}`;
   } else {
-    status.textContent = `${chainLabel} Confirming...${hashSuffix}`;
+    status.textContent = `Confirming...${hashSuffix}`;
   }
 }
 
@@ -1026,31 +1029,24 @@ function buildProveCommand() {
   const baseName = depositFileName.replace(/\.json$/i, "");
   const succinctFileName = `${baseName}-succinct.json`;
   const proofFileName = `${baseName}-proofs.json`;
-  const depositJson = JSON.stringify(state.prove.depositJson, null, 2);
+  const depositJson = JSON.stringify(state.prove.depositJson);
   const platformFlag = state.prove.platformEmulation ? "--platform linux/amd64 " : "";
   const verboseFlag = state.prove.verboseOutput ? "-e VERBOSE=true " : "";
-  const dockerImage = "ghcr.io/taikoxyz/taiko-shadow:latest";
+  const dockerImage = "ghcr.io/taikoxyz/taiko-shadow:dev";
 
+  // Phase 1: Generate succinct STARK proofs (no Docker socket needed)
+  const phase1 = `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName}`;
+  // Phase 2: Compress to Groth16 (requires Docker socket AND RISC0_WORK_DIR for Docker-in-Docker path translation)
+  const phase2 = `docker run --rm ${platformFlag}${verboseFlag}-e RISC0_WORK_DIR="$(pwd)" -v "$(pwd)":"$(pwd)" -v /var/run/docker.sock:/var/run/docker.sock ${dockerImage} compress "$(pwd)"/${succinctFileName}`;
+
+  // Generate single-line executable command using echo instead of heredoc
   return [
-    "# Two-phase proof generation for Shadow Protocol",
     `rm -f ./${depositFileName} ./${succinctFileName} ./${proofFileName}`,
-    "",
-    "# Create deposit file",
-    `cat <<'EOF' > ./${depositFileName}`,
-    depositJson,
-    "EOF",
-    "",
-    "# Phase 1: Generate succinct STARK proofs (no Docker socket needed)",
-    `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data ${dockerImage} prove /data/${depositFileName} && \\`,
-    "",
-    "# Phase 2: Compress to Groth16 (requires Docker socket for STARK-to-SNARK conversion)",
-    `docker run --rm ${platformFlag}${verboseFlag}-v "$(pwd)":/data -v /var/run/docker.sock:/var/run/docker.sock ${dockerImage} compress /data/${succinctFileName} && \\`,
-    "",
-    "# Cleanup intermediate file",
-    `rm -f ./${succinctFileName}`,
-    "",
-    `# Output: ./${proofFileName}`
-  ].join("\n");
+    `echo '${depositJson.replace(/'/g, "'\\''")}' > ./${depositFileName}`,
+    phase1,
+    phase2,
+    `rm -f ./${succinctFileName} && echo "Done! Proof file: ./${proofFileName}"`
+  ].join(" && \\\n");
 }
 
 function resolveLocalFilePath(file) {
