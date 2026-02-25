@@ -3470,18 +3470,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "shadow-risc0-host"
+name = "shadow-prover-lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "clap",
  "hex",
  "risc0-zkvm",
  "serde",
  "serde_json",
  "shadow-proof-core",
  "shadow-risc0-methods",
+]
+
+[[package]]
+name = "shadow-risc0-host"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "shadow-proof-core",
+ "shadow-prover-lib",
 ]
 
 [[package]]

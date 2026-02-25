@@ -6,11 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-bincode.workspace = true
 clap.workspace = true
 hex.workspace = true
-risc0-zkvm = { workspace = true, features = ["client", "prove"] }
-serde.workspace = true
-serde_json.workspace = true
 shadow-proof-core = { path = "../crates/shadow-proof-core" }
-shadow-risc0-methods = { path = "../methods" }
+shadow-prover-lib = { path = "../crates/shadow-prover-lib" }

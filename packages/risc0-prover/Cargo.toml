@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/shadow-proof-core",
+  "crates/shadow-prover-lib",
   "methods",
   "methods/guest",
   "host",
