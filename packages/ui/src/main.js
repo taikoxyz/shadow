@@ -473,25 +473,9 @@ function render() {
 }
 
 
-function makeLogo() {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'logo';
-  wrapper.title = 'Shadow';
-  wrapper.setAttribute('role', 'img');
-  wrapper.setAttribute('aria-label', 'Shadow');
-  // Geometric mark: two overlapping squares rotated 45° with offset — abstract, grayscale
-  wrapper.innerHTML = `<svg viewBox="0 0 28 28" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="14" height="14" rx="1" transform="rotate(0 4 4)" stroke="var(--text-primary)" stroke-width="1.5" opacity="0.55"/>
-    <rect x="10" y="10" width="14" height="14" rx="1" fill="var(--text-primary)" fill-opacity="0.12" stroke="var(--text-primary)" stroke-width="1.5"/>
-    <line x1="14" y1="4" x2="24" y2="14" stroke="var(--text-primary)" stroke-width="1.5" opacity="0.3"/>
-  </svg>`;
-  wrapper.addEventListener('click', () => navigateTo('list'));
-  return wrapper;
-}
-
 function renderHeader() {
   const headerLeft = el('div', { className: 'header-left' }, [
-    makeLogo(),
+    el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
     el('span', { className: 'header-count' },
       `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`),
   ]);

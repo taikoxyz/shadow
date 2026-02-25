@@ -795,21 +795,6 @@ body {
   border-left: 2px solid var(--border);
 }
 
-/* --- Logo --- */
-
-.logo {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  padding: 2px;
-  transition: opacity 0.12s;
-}
-
-.logo:hover {
-  opacity: 0.8;
-}
-
 /* --- File row (inline buttons next to filename) --- */
 
 .file-row-value {
