@@ -3,6 +3,8 @@
 //! This crate extracts the proof generation pipeline from the `shadow-risc0-host` CLI
 //! so it can be shared between the CLI binary and the backend server.
 
+pub mod deposit;
+
 use std::{
     env,
     fs,
