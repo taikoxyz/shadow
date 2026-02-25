@@ -76,12 +76,16 @@ packages/
 - [ ] Create deposit file loader in `shadow-prover-lib` or `shadow-proof-core`:
   - `load_deposit(path: &Path) -> Result<DepositFile>`
   - `validate_deposit(deposit: &DepositFile) -> Result<()>`
-  - `derive_deposit_info(deposit: &DepositFile) -> DerivedInfo` (target address, nullifiers, etc.)
+  - `derive_deposit_info(deposit: &DepositFile) -> DerivedInfo` (target address, nullifiers for all notes, etc.)
 - [ ] Port JSON schema validation from JS to Rust (or use `jsonschema` crate)
 - [ ] Port RPC input construction logic (currently in `shadowcli.mjs`) to Rust:
   - `fetch_block_data(rpc_url, block_tag) -> Result<BlockData>`
   - `fetch_account_proof(rpc_url, address, block) -> Result<AccountProof>`
   - `build_claim_input(deposit, note_index, block_data, account_proof) -> Result<ClaimInput>`
+- [ ] Implement deposit filename generation:
+  - Format: `deposit-<first4hex>-<last4hex>-<YYYYMMDDTHHMMSS>.json`
+  - `<first4hex>`, `<last4hex>` derived from target address
+  - Timestamp is UTC creation time in compact ISO 8601
 
 ---
 
@@ -108,20 +112,21 @@ packages/
 ### 1.3 Workspace scanner
 
 - [ ] Implement `workspace::scanner`:
-  - Scan directory for files matching `deposit-*.json`
+  - Scan directory for files matching `deposit-*.json` (excluding `*.proof.json`)
   - Validate each file against deposit schema
-  - For each valid deposit, find matching proof files: `<deposit-stem>.note-<N>.proof.json`
+  - For each valid deposit, check for matching proof file: `<deposit-stem>.proof.json`
   - Also support legacy naming: `note-<N>.proof.json` (correlate via `depositFile` field in proof JSON)
   - Ignore proof files without corresponding deposit files
   - Return structured workspace index
 - [ ] Implement `workspace::deposit_file`:
   - Parse deposit JSON
   - Extract metadata (chainId, notes count, target address, total amount)
+  - Parse creation timestamp from filename
   - Derive all note nullifiers
 - [ ] Implement `workspace::proof_file`:
-  - Parse proof JSON
-  - Extract metadata (noteIndex, blockNumber, nullifier)
-  - Validate proof structure
+  - Parse bundled proof JSON (contains proofs for all notes)
+  - Extract per-note metadata (noteIndex, blockNumber, nullifier, etc.)
+  - Validate proof structure and note count matches deposit
 
 ### 1.4 Deposit REST API
 
@@ -135,6 +140,9 @@ packages/
       "targetAddress": "0x...",
       "totalAmount": "300000000000000",
       "noteCount": 2,
+      "createdAt": "2026-02-24T21:46:13Z",
+      "hasProof": true,
+      "proofFile": "deposit-ffe8-fde9-20260224T214613.proof.json",
       "notes": [
         {
           "index": 0,
@@ -145,34 +153,36 @@ packages/
           "claimStatus": "unclaimed|claimed|unknown"
         }
       ],
-      "proofCount": 1,
       "claimStatus": "partial"
     }
   ]
   ```
 - [ ] `GET /api/deposits/:id` — Full deposit details including derived info
-- [ ] `DELETE /api/deposits/:id` — Delete deposit file and optionally its proofs
-  - Query param `?include_proofs=true` to also delete associated proof files
-- [ ] `DELETE /api/deposits/:id/proofs/:noteIndex` — Delete specific proof file
+- [ ] `DELETE /api/deposits/:id` — Delete deposit file and optionally its proof
+  - Query param `?include_proof=true` to also delete associated proof file
+- [ ] `DELETE /api/deposits/:id/proof` — Delete the proof file for this deposit
 
 ### 1.5 Proof generation pipeline
 
 - [ ] Implement `prover::queue`:
   - Single-slot queue using `tokio::sync::mpsc` (capacity 1)
-  - Job struct: `{ deposit_id, note_index, status, progress }`
+  - Job struct: `{ deposit_id, status, current_note, total_notes, progress }`
   - States: `queued`, `running`, `completed`, `failed`, `cancelled`
-  - Only one proof generates at a time
+  - Only one deposit proves at a time (all its notes sequentially)
 - [ ] Implement `prover::pipeline`:
-  - Accept `(deposit_path, note_index, rpc_url)` as input
+  - Accept `(deposit_path, rpc_url)` as input — proves ALL notes in the deposit
   - Load and validate deposit file
-  - Derive target address, nullifier, amounts
+  - Derive target address, nullifiers, amounts for all notes
   - Fetch latest block via RPC
   - Fetch `eth_getProof` for target address
-  - Build `ClaimInput`
-  - Call `shadow-prover-lib::prove_claim()` in a `tokio::task::spawn_blocking` (CPU-intensive)
-  - Export proof
-  - Save proof file as `<deposit-stem>.note-<noteIndex>.proof.json` in workspace
-  - Report progress via WebSocket broadcast channel
+  - For each note (i = 0..note_count):
+    - Build `ClaimInput` for note i
+    - Call `shadow-prover-lib::prove_claim()` in `tokio::task::spawn_blocking`
+    - Export proof for note i
+    - Report per-note progress via WebSocket
+  - Bundle all note proofs into single proof file
+  - Save as `<deposit-stem>.proof-<YYYYMMDDTHHMMSS>.json` in workspace (timestamp = proof generation time)
+  - Report completion via WebSocket
 - [ ] Implement `prover::rpc`:
   - JSON-RPC client using `reqwest` or `alloy`
   - `eth_getBlockByNumber`
@@ -180,20 +190,23 @@ packages/
   - `eth_chainId`
   - Block header RLP encoding (port from `shadowcli.mjs`)
 - [ ] API endpoints:
-  - `POST /api/deposits/:id/prove/:noteIndex` — Queue proof generation
-  - `GET /api/queue` — Get queue status (current job, pending)
+  - `POST /api/deposits/:id/prove` — Queue proof generation for all notes in deposit
+  - `GET /api/queue` — Get queue status (current job, progress)
   - `DELETE /api/queue/current` — Cancel running job (best-effort)
 
 ### 1.6 On-chain status queries
 
 - [ ] Implement `chain::shadow_contract`:
-  - Read `Risc0CircuitVerifier.imageId()` → `bytes32`
+  - Read `Risc0CircuitVerifier.imageId()` → `bytes32` (we call this "circuit ID" — see terminology note below)
   - Read `Shadow.isConsumed(nullifier)` → `bool` for each note
   - Cache results with TTL (configurable, default 5 minutes)
 - [ ] API endpoints:
-  - `GET /api/config` — Returns image ID, chain config, server info
+  - `GET /api/config` — Returns circuit ID, chain config, Docker image info, server version
   - `POST /api/deposits/:id/notes/:noteIndex/refresh` — Force refresh nullifier status
   - `GET /api/deposits/:id/notes/:noteIndex/status` — Get cached claim status
+- [ ] **Terminology:** Use "circuit ID" (not "image ID") for the RISC Zero guest program hash to avoid confusion with Docker image digests. The `GET /api/config` response should clearly separate:
+  - `circuitId`: RISC Zero guest program hash (on-chain verifier parameter)
+  - `dockerImageDigest`: Docker image digest (if available from build metadata)
 
 ### 1.7 WebSocket support
 
@@ -202,9 +215,9 @@ packages/
   - Broadcast channel for proof generation events
   - Events:
     ```json
-    { "type": "proof:started", "depositId": "...", "noteIndex": 0 }
-    { "type": "proof:progress", "depositId": "...", "noteIndex": 0, "message": "Fetching block data..." }
-    { "type": "proof:completed", "depositId": "...", "noteIndex": 0, "proofFile": "..." }
+    { "type": "proof:started", "depositId": "..." }
+    { "type": "proof:note_progress", "depositId": "...", "noteIndex": 0, "totalNotes": 2, "message": "Proving note 1/2..." }
+    { "type": "proof:completed", "depositId": "...", "proofFile": "deposit-xxx.proof-20260225T103000.json" }
     { "type": "proof:failed", "depositId": "...", "noteIndex": 0, "error": "..." }
     { "type": "workspace:changed" }
     ```
@@ -216,6 +229,10 @@ packages/
 
 ### 2.1 UI architecture
 
+- [ ] **Remove existing UI styles entirely** — `packages/ui/src/style.css` and all inline styles will be deleted
+- [ ] Use [taste-skill](https://github.com/Leonxlnx/taste-skill) for UI re-styling and re-design
+  - Install and configure taste-skill for the project
+  - Apply taste-skill to generate a cohesive design system for the new UI
 - [ ] Decide framework: Preact (recommended for component model) or vanilla JS
 - [ ] Set up project structure:
   ```
@@ -240,9 +257,9 @@ packages/
 
 - [ ] Implement `api.js`:
   - REST client with `fetch()`:
-    - `getDeposits()`, `getDeposit(id)`, `deleteDeposit(id, includeProofs)`
-    - `deleteProof(depositId, noteIndex)`
-    - `startProof(depositId, noteIndex)`
+    - `getDeposits()`, `getDeposit(id)`, `deleteDeposit(id, includeProof)`
+    - `deleteProof(depositId)` — deletes the single proof file for this deposit
+    - `startProof(depositId)` — queues proof generation for all notes in deposit
     - `getQueueStatus()`
     - `getConfig()`
     - `refreshNoteStatus(depositId, noteIndex)`
@@ -257,49 +274,50 @@ packages/
   - Fetch deposits from `GET /api/deposits`
   - Display as a sortable list/table:
     - Filename (clickable → detail view)
+    - Creation timestamp (parsed from filename)
     - Chain ID
     - Total amount (formatted ETH)
     - Note count
     - Target address (truncated with copy button)
-    - Status badges: "No proofs", "1/2 proved", "All proved", "Claimed"
+    - Status badges: "No proof", "Proved", "All claimed", "Partially claimed"
   - Actions per row:
-    - Delete deposit (with confirmation)
-    - Delete all proofs for deposit
+    - Delete deposit and its proof (with confirmation)
+    - Delete proof only
   - Auto-refresh when WebSocket sends `workspace:changed`
 
 ### 2.4 Detail view
 
 - [ ] Implement `DepositDetail.js`:
-  - Header: filename, chainId, target address (full, copyable)
-  - Deposit metadata: version, total amount, creation date (from filename)
+  - Header: filename, chainId, target address (full, copyable), creation timestamp
+  - Deposit metadata: version, total amount
+  - Proof status banner: "No proof file", "Generating... (note 1/3)", "Proof ready"
+  - Single "Generate Proofs" button — proves ALL notes in the deposit at once
+  - "Delete Proof" button — removes the single proof file
   - Notes table:
 
-    | # | Recipient | Amount | Label | Proof | Claim Status | Actions |
-    |---|-----------|--------|-------|-------|-------------|---------|
-    | 0 | 0xabc...def | 0.001 ETH | note #0 | Ready | Unclaimed | [Generate] [Delete Proof] |
-    | 1 | 0x123...789 | 0.002 ETH | note #1 | Missing | — | [Generate] |
+    | # | Recipient | Amount | Label | Claim Status | Actions |
+    |---|-----------|--------|-------|-------------|---------|
+    | 0 | 0xabc...def | 0.001 ETH | note #0 | Unclaimed | [Claim] [Refresh] |
+    | 1 | 0x123...789 | 0.002 ETH | note #1 | Claimed | [Refresh] |
 
-  - Proof status: "Missing", "Generating...", "Ready"
-  - Claim status: "Unclaimed", "Claimed", "Unknown" + [Refresh] button
-  - Actions per note:
-    - Generate proof (disabled if proof exists or generation in progress)
-    - Delete proof (disabled if no proof)
-    - Refresh claim status (force on-chain check)
+  - Claim status per note: "Unclaimed", "Claimed", "Unknown" + [Refresh] button
+  - [Claim] button per note (uses wallet/MetaMask, enabled when proof exists + unclaimed)
   - Back button to return to list view
 
 ### 2.5 Proof generation progress
 
 - [ ] Implement `ProofProgress.js`:
-  - Shows when a proof is being generated
+  - Shows when proofs are being generated for a deposit
+  - Per-note progress: "Proving note 1/3...", "Proving note 2/3...", etc.
   - Real-time progress messages via WebSocket
-  - Progress stages: "Fetching block data", "Building input", "Running prover", "Exporting proof"
-  - Estimated progress (if measurable)
+  - Progress stages per note: "Fetching block data", "Building input", "Running prover", "Exporting proof"
+  - Overall progress bar (noteIndex / totalNotes)
   - Cancel button
 
 ### 2.6 Header / status bar
 
 - [ ] Implement `Header.js`:
-  - Image ID display (from `GET /api/config`)
+  - Circuit ID display (from `GET /api/config`) — clearly labeled as "Circuit ID" (not "Image ID")
   - Server status indicator (green/red)
   - Settings button
 
@@ -355,6 +373,11 @@ packages/
   # Copy UI assets
   COPY --from=ui-builder /build/dist /app/ui
 
+  # Publish circuit ID and chain metadata as Docker labels
+  LABEL org.taikoxyz.shadow.circuit-id="0xd598228081d1cbc4817e7be03aad1a2fdf6f1bb26b75dae0cddf5e597bfec091"
+  LABEL org.taikoxyz.shadow.chain-id="167013"
+  LABEL org.taikoxyz.shadow.risc0-version="3.0.1"
+
   ENV RISC0_PROVER=local
   EXPOSE 3000
   ENTRYPOINT ["/app/shadow-server"]
@@ -400,13 +423,17 @@ packages/
 
 ## Phase 4: Integration & File Convention
 
-### 4.1 Proof file naming convention
+### 4.1 File naming conventions
 
-- [ ] Implement new naming: `<deposit-stem>.note-<index>.proof.json`
-  - Example: `deposit-ffe8-fde9-20260224T214613.note-0.proof.json`
-- [ ] Backend scanner supports both new and legacy (`note-<index>.proof.json`) naming
-- [ ] Proof generation always uses new naming
-- [ ] Legacy proof files are still recognized via `depositFile` field in proof JSON
+- [ ] Deposit files: `deposit-<first4hex>-<last4hex>-<YYYYMMDDTHHMMSS>.json`
+  - Example: `deposit-ffe8-fde9-20260224T214613.json`
+  - Timestamp is UTC creation time
+- [ ] Proof files: `<deposit-stem>.proof-<YYYYMMDDTHHMMSS>.json` (two timestamps: deposit creation + proof generation)
+  - Example: `deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json`
+  - Contains proofs for ALL notes in the deposit (single bundled file)
+- [ ] Backend scanner matches proof to deposit via `<deposit-stem>.proof-*.json` glob pattern
+- [ ] Backend also supports legacy naming (`note-<index>.proof.json`) via `depositFile` field in proof JSON
+- [ ] Proof generation always uses new naming convention
 
 ### 4.2 Workspace validation on startup
 
@@ -434,36 +461,40 @@ packages/
 - [ ] `workspace::scanner` tests:
   - Scan empty directory → empty list
   - Scan with valid deposit files → correct count
-  - Scan with deposit + matching proofs → correct association
-  - Scan with orphaned proofs → proofs ignored
+  - Scan with deposit + matching proof file → correct 1:1 association
+  - Scan with orphaned proof files → proofs ignored
   - Scan with invalid deposit JSON → file skipped
-  - Scan with legacy proof naming → correct association via `depositFile` field
+  - Scan with legacy per-note proof naming → correct association via `depositFile` field
   - Scan with mixed naming conventions → all files found
+  - Deposit files with timestamps parsed correctly from filenames
 
 - [ ] `workspace::deposit_file` tests:
   - Parse valid v2 deposit → correct fields
   - Parse deposit with missing fields → error
   - Parse deposit with invalid schema → error
   - Derive target address matches known test vector
-  - Derive nullifiers match known test vectors
+  - Derive nullifiers for all notes match known test vectors
+  - Filename generation includes correct timestamp and hex identifiers
 
 - [ ] `workspace::proof_file` tests:
-  - Parse valid proof file → correct fields
-  - Parse proof with missing fields → error
-  - Extract noteIndex correctly
-  - Extract nullifier correctly
+  - Parse valid bundled proof file → correct fields for all notes
+  - Parse proof with missing notes → error
+  - Note count in proof matches deposit note count
+  - Extract per-note nullifiers correctly
+  - Proof file references correct deposit filename
 
 - [ ] `prover::pipeline` tests:
   - Build claim input from deposit + block data → correct structure
   - Block header RLP encoding matches JS implementation (cross-validate)
   - Account proof parsing
+  - Pipeline produces bundled proof with all notes
   - (Integration: actual proof generation — see E2E tests)
 
 - [ ] `prover::queue` tests:
   - Submit job → job becomes `running`
   - Submit second job while first running → second waits or returns "busy"
-  - Complete job → status becomes `completed`
-  - Cancel running job → status becomes `cancelled`
+  - Complete job → status becomes `completed`, proof file written
+  - Cancel running job → status becomes `cancelled`, no partial proof file
   - Queue empty after completion
 
 - [ ] `chain::shadow_contract` tests:
@@ -482,9 +513,10 @@ packages/
 ### 5.2 Unit tests — UI
 
 - [ ] API client tests (mock fetch):
-  - `getDeposits()` returns parsed deposit list
-  - `startProof()` sends correct POST request
+  - `getDeposits()` returns parsed deposit list with timestamps
+  - `startProof(depositId)` sends correct POST (proves all notes)
   - `deleteDeposit()` sends correct DELETE request
+  - `deleteProof(depositId)` deletes single proof file
   - Error handling (network error, 404, 500)
 
 - [ ] Component tests (if using Preact):
@@ -497,11 +529,12 @@ packages/
 
 - [ ] API integration tests (start real server, hit endpoints):
   - Create workspace with test fixtures (deposit files, proof files)
-  - `GET /api/deposits` returns correct list
-  - `GET /api/deposits/:id` returns correct detail
-  - `DELETE /api/deposits/:id` removes file from disk
-  - `DELETE /api/deposits/:id/proofs/:noteIndex` removes proof file
-  - `GET /api/config` returns image ID
+  - `GET /api/deposits` returns correct list with timestamps and proof status
+  - `GET /api/deposits/:id` returns correct detail with all notes
+  - `DELETE /api/deposits/:id` removes deposit file from disk
+  - `DELETE /api/deposits/:id?include_proof=true` removes deposit and its proof file
+  - `DELETE /api/deposits/:id/proof` removes the proof file only
+  - `GET /api/config` returns circuit ID and chain config
   - Static file serving returns UI HTML
   - WebSocket connection and event delivery
 
@@ -514,27 +547,28 @@ packages/
 #### E2E Test 1: Full lifecycle (mock prover)
 
 - [ ] Start Docker container with test workspace
-- [ ] Pre-seed workspace with a deposit file
+- [ ] Pre-seed workspace with a deposit file (with timestamp in filename)
 - [ ] Open UI in headless browser (Playwright or similar)
-- [ ] Verify deposit appears in list view
-- [ ] Click deposit → detail view shows notes
-- [ ] Trigger proof generation (mock prover for speed)
-- [ ] Verify proof file appears in workspace
-- [ ] Verify UI updates in real-time via WebSocket
+- [ ] Verify deposit appears in list view with correct timestamp
+- [ ] Click deposit → detail view shows all notes
+- [ ] Trigger proof generation (mock prover for speed) — proves all notes at once
+- [ ] Verify single proof file appears in workspace (`<deposit-stem>.proof.json`)
+- [ ] Verify UI updates in real-time via WebSocket (per-note progress)
 - [ ] Delete proof file via UI
-- [ ] Verify file removed from workspace
+- [ ] Verify proof file removed from workspace, deposit still present
 - [ ] Delete deposit via UI
-- [ ] Verify all associated files removed
+- [ ] Verify deposit file and any associated proof removed
 
 #### E2E Test 2: Proof generation pipeline (real prover, test mode)
 
 - [ ] Use a pre-funded target address on Hoodi testnet
-- [ ] Create deposit file with known target
+- [ ] Create deposit file with known target and timestamp in name
 - [ ] Start server with `--rpc-url https://rpc.hoodi.taiko.xyz`
-- [ ] Trigger proof generation via API
+- [ ] Trigger proof generation via API — all notes proved in one job
 - [ ] Wait for completion (may take minutes)
-- [ ] Verify proof file is valid (can be verified off-chain)
-- [ ] Verify proof file name matches convention
+- [ ] Verify single proof file contains proofs for all notes
+- [ ] Verify each note's proof is valid (can be verified off-chain)
+- [ ] Verify proof file name is `<deposit-stem>.proof.json`
 
 #### E2E Test 3: Docker container lifecycle
 
@@ -548,11 +582,11 @@ packages/
 
 #### E2E Test 4: Multi-deposit management
 
-- [ ] Seed workspace with 3 deposit files, varying proof states
-- [ ] Verify list view shows all 3 with correct statuses
-- [ ] Generate proof for one note on first deposit
-- [ ] Verify only that deposit's proof count changes
-- [ ] Delete second deposit and its proofs
+- [ ] Seed workspace with 3 deposit files (timestamped names), varying proof states
+- [ ] Verify list view shows all 3 with correct statuses and timestamps
+- [ ] Generate proofs for first deposit (all notes)
+- [ ] Verify only that deposit gets a proof file
+- [ ] Delete second deposit and its proof
 - [ ] Verify second deposit removed, first and third unaffected
 - [ ] Verify orphaned proof files (if any) are ignored
 
@@ -603,6 +637,7 @@ packages/
 
 ### 6.2 Code cleanup
 
+- [ ] **Remove existing UI styles entirely** — delete `packages/ui/src/style.css` and all inline styles from old `main.js`
 - [ ] Remove duplicated crypto code between `mine-deposit.mjs`, `shadowcli.mjs`, and UI `main.js`
   - Consolidate into shared JS module (for any remaining JS usage)
   - Or deprecate JS implementations in favor of Rust backend
@@ -610,6 +645,7 @@ packages/
 - [ ] Remove unused Docker entrypoint (`entrypoint.sh`) if replaced by new image
   - Or keep for backward-compatible prover-only image
 - [ ] Review and remove dead code in UI after redesign
+- [ ] Replace all references to "image ID" with "circuit ID" in code, docs, and UI (where referring to the RISC Zero guest hash)
 - [ ] Add `CLAUDE.md` to `packages/server/` with coding conventions
 - [ ] Update root `package.json` scripts:
   - Add `server:build`, `server:dev` commands
@@ -704,3 +740,15 @@ Phase 6 ────────────────────────
 5. **Claim submission:** Should the backend support submitting claim transactions (requires private key), or should claims remain a UI-only feature via MetaMask? Recommend keeping claims as UI-only (wallet-based) for security.
 
 6. **Multiple receipt kinds:** Should the UI expose receipt kind selection (composite/succinct/groth16), or should the backend default to groth16 and hide the complexity?
+
+---
+
+## Terminology Reference
+
+| Term | Meaning | Where used |
+|------|---------|-----------|
+| **Circuit ID** | RISC Zero guest program hash (`bytes32`). The on-chain verifier checks proofs against this. | On-chain (`Risc0CircuitVerifier.imageId()`), backend config, UI header |
+| **Docker image digest** | SHA-256 digest of the published Docker container image. | GHCR, Docker pull commands |
+| **Deposit file** | JSON file containing secret, notes, and target address. | Workspace filesystem |
+| **Proof file** | JSON file containing bundled ZK proofs for all notes in a deposit. | Workspace filesystem |
+| **Workspace** | Host directory bind-mounted into the Docker container. | Docker `-v` mount |

@@ -222,43 +222,88 @@ docker run -v $(pwd):/workspace -p 3000:3000 ghcr.io/taikoxyz/taiko-shadow:local
 
 **Workspace structure:**
 ```
-workspace/                    # Mounted host directory
-├── deposit-abc123.json       # Deposit files (pattern: deposit-*.json)
-├── deposit-abc123.note-0.proof.json   # Proof files (postfixed from deposit)
-├── deposit-abc123.note-1.proof.json
-├── deposit-def456.json
-└── deposit-def456.note-0.proof.json
+workspace/                                                         # Mounted host directory
+├── deposit-ffe8-fde9-20260224T214613.json                         # Deposit file
+├── deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json   # Proof file (1:1 with deposit)
+├── deposit-a1b2-c3d4-20260225T091500.json                         # Another deposit
+└── deposit-a1b2-c3d4-20260225T091500.proof-20260225T120000.json   # Its proof
 ```
 
 **File naming convention:**
-- Deposit files: `deposit-<identifier>.json` (existing convention preserved)
-- Proof files: `deposit-<identifier>.note-<index>.proof.json` (changed from `note-<index>.proof.json` to include deposit identifier for unambiguous correlation)
+- Deposit files: `deposit-<first4hex>-<last4hex>-<ISO8601timestamp>.json`
+  - Example: `deposit-ffe8-fde9-20260224T214613.json`
+  - The timestamp is when the deposit was created (UTC, compact ISO 8601)
+  - `<first4hex>` and `<last4hex>` are derived from the target address for quick identification
+- Proof files: `<deposit-stem>.proof-<YYYYMMDDTHHMMSS>.json` (deposit stem + proof generation timestamp)
+  - Example: `deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json`
+  - The first timestamp (in the deposit stem) is the deposit creation time
+  - The second timestamp (after `.proof-`) is when the proof was generated
+  - **One proof file per deposit** — contains proofs for ALL notes in the deposit
+  - This simplifies the 1:1 deposit↔proof relationship and eliminates per-note file management
+  - Having two timestamps lets users see both when the deposit was created and when it was proved
 
 **File discovery logic:**
-1. Scan workspace for `deposit-*.json` files
+1. Scan workspace for `deposit-*.json` files (excluding `*.proof.json`)
 2. Validate each against the deposit JSON schema
-3. For each valid deposit, scan for matching `<deposit-basename>.note-<N>.proof.json`
+3. For each valid deposit, check for matching `<deposit-stem>.proof-<timestamp>.json`
 4. Proof files without a corresponding deposit file are ignored (per requirement)
 
 ### 3.3 Proof Generation Pipeline
 
 **Queue design:**
-- Single-threaded queue (one proof at a time, per requirement)
-- Jobs are `(depositFilePath, noteIndex)`
-- Progress reported via WebSocket
-- Output: `<deposit-basename>.note-<noteIndex>.proof.json` saved to workspace
+- Single-threaded queue (one proof generation job at a time, per requirement)
+- Jobs are `(depositFilePath)` — one job proves ALL notes in the deposit
+- Progress reported via WebSocket (per-note progress within the job)
+- Output: `<deposit-stem>.proof.json` saved to workspace (single file containing all note proofs)
 
-**Pipeline steps (reusing existing code):**
+**Pipeline steps per deposit (reusing existing code):**
 1. Load and validate deposit file
-2. Derive target address, nullifier, amounts
+2. Derive target address, nullifiers, amounts for all notes
 3. Fetch latest block from RPC
 4. Fetch `eth_getProof` for target address
-5. Build claim input JSON
-6. Run Rust host binary (`shadow-risc0-host prove`)
-7. Export proof (`shadow-risc0-host export-proof`)
-8. Construct proof JSON and save to workspace
+5. For each note (sequentially):
+   a. Build `ClaimInput` for this note
+   b. Call prover library in-process (`shadow-prover-lib::prove_claim()`)
+   c. Export proof
+   d. Report per-note progress via WebSocket
+6. Bundle all note proofs into a single proof file
+7. Save `<deposit-stem>.proof.json` to workspace
 
-**Receipt kind:** Default to `groth16` for on-chain verifiable proofs. The Docker image already includes Docker CLI for Groth16 compression (Docker-in-Docker pattern), but we may default to `succinct` if Docker socket is not available and let the user choose.
+**Proof file format (bundled):**
+```json
+{
+  "version": "2.0",
+  "depositFile": "deposit-ffe8-fde9-20260224T214613.json",
+  "depositCreatedAt": "2026-02-24T21:46:13Z",
+  "chainId": "167013",
+  "generatedAt": "2026-02-25T10:30:00Z",
+  "noteCount": 2,
+  "proofs": [
+    {
+      "noteIndex": 0,
+      "blockNumber": "...",
+      "blockHash": "0x...",
+      "amount": "100000000000000",
+      "recipient": "0x...",
+      "nullifier": "0x...",
+      "publicInputs": ["..."],
+      "risc0": { "proof": "0x...", "receipt": "<base64>" }
+    },
+    {
+      "noteIndex": 1,
+      "blockNumber": "...",
+      "blockHash": "0x...",
+      "amount": "200000000000000",
+      "recipient": "0x...",
+      "nullifier": "0x...",
+      "publicInputs": ["..."],
+      "risc0": { "proof": "0x...", "receipt": "<base64>" }
+    }
+  ]
+}
+```
+
+**Receipt kind:** Default to `groth16` for on-chain verifiable proofs. With no Docker-in-Docker, the RISC Zero toolchain runs natively inside the container.
 
 ### 3.4 UI Architecture
 
@@ -274,15 +319,17 @@ Recommendation: **Preact** for its component model and small size, but vanilla J
 **UI views:**
 
 1. **List View (Dashboard)** — File-system-like list of deposit files
-   - Each row shows: filename, total amount, note count, target address (truncated), proof status, claim status
-   - Status badges: "No proofs", "Partial proofs", "All proved", "Claimed", etc.
-   - Actions: Delete deposit, Delete proofs
+   - Each row shows: filename, creation timestamp, total amount, note count, target address (truncated), proof status, claim status
+   - Status badges: "No proof", "Proved", "All claimed", "Partially claimed", etc.
+   - Actions: Delete deposit (and its proof), Delete proof only
 
 2. **Detail View** — Clicking a deposit shows full details
-   - Deposit metadata: version, chainId, secret (masked), targetAddress, totalAmount
-   - Notes table: index, recipient, amount, proof status, claim status
-   - Actions per note: Generate proof, Delete proof, Check claim status
-   - Proof generation progress (real-time via WebSocket)
+   - Deposit metadata: version, chainId, secret (masked), targetAddress, totalAmount, creation timestamp
+   - Notes table: index, recipient, amount, claim status
+   - Proof generation: single "Generate Proofs" button that proves all notes at once
+   - Proof status: "No proof file", "Generating...", "Ready" (applies to entire deposit)
+   - Actions: Generate proofs (all notes), Delete proof file, Check claim status per note
+   - Proof generation progress (real-time via WebSocket, shows per-note progress within the job)
 
 3. **Header/Status Bar**
    - Expected Image ID (from contract or compiled into Docker image)
@@ -363,11 +410,40 @@ docker run --rm \
 - Cache results with TTL (e.g., 5 minutes)
 - Allow manual refresh ("force check on-chain")
 
-**Image ID:**
-- Read `Risc0CircuitVerifier.imageId()` from the deployed contract
+**Circuit ID (formerly "image ID"):**
+- Read `Risc0CircuitVerifier.imageId()` from the deployed contract — we call this the **circuit ID** to avoid confusion with Docker image digests
 - Display in UI header
 - This should match the guest program compiled into the Docker image's Rust binary
-- The image ID is embedded at compile time via `SHADOW_CLAIM_GUEST_ID`
+- The circuit ID is embedded at compile time via `SHADOW_CLAIM_GUEST_ID`
+
+### 3.6.1 Terminology: Circuit ID vs Docker Image Digest
+
+To avoid confusion between two different "image" concepts:
+
+| Term | What it refers to | Example |
+|------|-------------------|---------|
+| **Circuit ID** | RISC Zero guest program hash, stored on-chain in `Risc0CircuitVerifier`. Determines which ZK circuit is accepted for proof verification. | `0xd598228081d1cbc4...` |
+| **Docker image digest** | SHA-256 digest of the Docker container image published to GHCR. Identifies which Docker image to pull. | `sha256:fc1c022e2af5...` |
+
+These are related but different:
+- A given **Docker image** is built with a specific **circuit ID** baked in at compile time.
+- The on-chain verifier only accepts proofs generated by the matching circuit ID.
+- When publishing a Docker image, we should include the circuit ID in the image's metadata/labels so users can verify compatibility.
+
+**Docker image metadata (published with each image):**
+```json
+{
+  "circuitId": "0xd598228081d1cbc4817e7be03aad1a2fdf6f1bb26b75dae0cddf5e597bfec091",
+  "chainId": "167013",
+  "shadowContract": "0x77cdA0575e66A5FC95404fdA856615AD507d8A07",
+  "risc0Version": "3.0.1"
+}
+```
+
+This metadata should be:
+1. Embedded as Docker labels (`LABEL circuitId=...`)
+2. Available via `GET /api/config` from the running backend
+3. Displayed in the UI header
 
 ### 3.7 Technology Decisions Summary
 
@@ -470,17 +546,36 @@ The following functions can be extracted into shared backend modules:
 
 ## 7. File Naming Convention Change
 
-**Current:** Proof files are `note-<index>.proof.json` in the same directory as the deposit file. This doesn't include the deposit file identifier, making it ambiguous when multiple deposit files exist in the same directory.
+### Deposit files
 
-**Proposed:** `<deposit-basename>.note-<index>.proof.json`
+**Current:** `deposit-<first4hex>-<last4hex>-<timestamp>.json` (e.g. `deposit-ffe8-fde9-20260224T214613.json`)
+- The current convention already includes a timestamp. We formalize this as the standard.
+- Timestamp format: compact ISO 8601 UTC (`YYYYMMDDTHHMMSS`)
+
+### Proof files
+
+**Current:** Multiple per-note files (`note-<index>.proof.json`) in the same directory as the deposit file. This doesn't include the deposit file identifier, making it ambiguous when multiple deposit files exist in the same directory. Also produces many small files.
+
+**Proposed:** One proof file per deposit: `<deposit-stem>.proof-<YYYYMMDDTHHMMSS>.json`
 
 Example:
-- Deposit: `deposit-abc123.json`
-- Proofs: `deposit-abc123.note-0.proof.json`, `deposit-abc123.note-1.proof.json`
+- Deposit: `deposit-ffe8-fde9-20260224T214613.json`
+- Proof: `deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json`
 
-This enables unambiguous file correlation during workspace scanning.
+The proof filename carries **two timestamps**:
+- First timestamp (in the deposit stem): when the deposit was created
+- Second timestamp (after `.proof-`): when the proof was generated
 
-**Migration:** The backend should also recognize the legacy naming pattern (`note-<index>.proof.json`) for backward compatibility, using the `depositFile` field inside the proof JSON to correlate.
+This provides:
+- **1:1 deposit↔proof mapping** — simple to understand and manage
+- **Unambiguous correlation** — proof filename starts with deposit stem, matched by glob `<deposit-stem>.proof-*.json`
+- **Fewer files** — one proof file contains all note proofs instead of N separate files
+- **Atomic generation** — proof file is written once after all notes are proved
+- **Temporal context** — both creation and proof generation times are visible in the filename
+
+### Migration
+
+The backend should also recognize the legacy naming pattern (`note-<index>.proof.json`) for backward compatibility, using the `depositFile` field inside the proof JSON to correlate with its deposit.
 
 ---
 
@@ -489,17 +584,17 @@ This enables unambiguous file correlation during workspace scanning.
 ### REST Endpoints
 
 ```
-GET  /api/health                    — Server health check
-GET  /api/config                    — Image ID, chain config, server version
-GET  /api/deposits                  — List all deposit files with status
-GET  /api/deposits/:id              — Get deposit details + notes + proof status
-DELETE /api/deposits/:id            — Delete deposit file (and optionally its proofs)
-DELETE /api/deposits/:id/proofs/:noteIndex — Delete specific proof file
-POST /api/deposits/:id/prove/:noteIndex   — Queue proof generation for a note
-GET  /api/deposits/:id/notes/:noteIndex/status — Check on-chain claim status
-POST /api/deposits/:id/notes/:noteIndex/refresh — Force refresh claim status
-GET  /api/queue                     — Get proof generation queue status
-DELETE /api/queue/:jobId            — Cancel queued/running proof job
+GET  /api/health                         — Server health check
+GET  /api/config                         — Image ID, chain config, server version
+GET  /api/deposits                       — List all deposit files with status
+GET  /api/deposits/:id                   — Get deposit details + notes + proof status
+DELETE /api/deposits/:id                 — Delete deposit file (and optionally its proof)
+DELETE /api/deposits/:id/proof           — Delete the proof file for this deposit
+POST /api/deposits/:id/prove             — Queue proof generation for ALL notes in deposit
+GET  /api/deposits/:id/notes/:noteIndex/status — Check on-chain claim status for a note
+POST /api/deposits/:id/notes/:noteIndex/refresh — Force refresh claim status for a note
+GET  /api/queue                          — Get proof generation queue status
+DELETE /api/queue/current                — Cancel current proof job
 ```
 
 ### WebSocket
@@ -508,9 +603,9 @@ DELETE /api/queue/:jobId            — Cancel queued/running proof job
 ws://localhost:3000/ws
 
 Events:
-  { type: "proof:started", depositId, noteIndex }
-  { type: "proof:progress", depositId, noteIndex, message }
-  { type: "proof:completed", depositId, noteIndex, proofFile }
+  { type: "proof:started", depositId }
+  { type: "proof:note_progress", depositId, noteIndex, totalNotes, message }
+  { type: "proof:completed", depositId, proofFile: "deposit-xxx.proof-20260225T103000.json" }
   { type: "proof:failed", depositId, noteIndex, error }
-  { type: "workspace:changed", files }
+  { type: "workspace:changed" }
 ```
