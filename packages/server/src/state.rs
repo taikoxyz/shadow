@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use tokio::sync::broadcast;
 
-use crate::prover::ProofQueue;
+use crate::{chain::ChainClient, prover::ProofQueue};
 
 /// Shared application state.
 pub struct AppState {
@@ -16,4 +16,10 @@ pub struct AppState {
     pub event_tx: broadcast::Sender<String>,
     /// Proof generation queue.
     pub proof_queue: Arc<ProofQueue>,
+    /// On-chain query client (requires RPC URL).
+    pub chain_client: Option<ChainClient>,
+    /// Shadow contract address (optional, for on-chain queries).
+    pub shadow_address: Option<String>,
+    /// Verifier contract address (optional, for reading circuit ID).
+    pub verifier_address: Option<String>,
 }

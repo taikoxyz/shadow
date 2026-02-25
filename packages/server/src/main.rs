@@ -6,11 +6,13 @@ use clap::Parser;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
+mod chain;
 mod prover;
 mod routes;
 mod state;
 mod workspace;
 
+use chain::ChainClient;
 use prover::ProofQueue;
 use state::AppState;
 
@@ -29,6 +31,14 @@ struct Cli {
     /// Ethereum JSON-RPC URL for on-chain queries and proof generation.
     #[arg(long, env = "RPC_URL")]
     rpc_url: Option<String>,
+
+    /// Shadow contract address for on-chain nullifier queries.
+    #[arg(long, env = "SHADOW_ADDRESS")]
+    shadow_address: Option<String>,
+
+    /// Risc0CircuitVerifier contract address for reading the circuit ID.
+    #[arg(long, env = "VERIFIER_ADDRESS")]
+    verifier_address: Option<String>,
 
     /// Directory containing the built UI static files.
     #[arg(long, default_value = "/app/ui")]
@@ -65,12 +75,21 @@ async fn main() -> Result<()> {
     // Proof generation queue
     let proof_queue = ProofQueue::new(event_tx.clone());
 
+    // On-chain client (optional, requires RPC URL)
+    let chain_client = cli
+        .rpc_url
+        .as_ref()
+        .map(|url| ChainClient::new(url.clone()));
+
     let state = Arc::new(AppState {
         workspace,
         rpc_url: cli.rpc_url,
         ui_dir: cli.ui_dir,
         event_tx,
         proof_queue,
+        chain_client,
+        shadow_address: cli.shadow_address,
+        verifier_address: cli.verifier_address,
     });
 
     let app = build_router(state);
@@ -92,7 +111,9 @@ async fn main() -> Result<()> {
 fn build_router(state: Arc<AppState>) -> Router {
     let api = routes::api_router(state.clone());
 
-    let mut app = Router::new().nest("/api", api);
+    let mut app = Router::new()
+        .nest("/api", api)
+        .merge(routes::ws::router().with_state(state.clone()));
 
     // Serve static UI files if directory exists
     if state.ui_dir.is_dir() {
