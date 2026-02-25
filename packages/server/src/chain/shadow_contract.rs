@@ -115,6 +115,44 @@ impl ChainClient {
         Ok(result)
     }
 
+
+    /// Query ETH balance of an address (returns wei as decimal string).
+    pub async fn get_balance(&self, address: &str) -> Result<String> {
+        let req = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_getBalance",
+            "params": [address, "latest"]
+        });
+
+        let resp: serde_json::Value = self
+            .http
+            .post(&self.rpc_url)
+            .json(&req)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        if let Some(error) = resp.get("error") {
+            bail!(
+                "eth_getBalance error: {}",
+                error.get("message").and_then(|v| v.as_str()).unwrap_or("unknown")
+            );
+        }
+
+        let hex_balance = resp
+            .get("result")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("eth_getBalance: no result"))?;
+
+        // Convert hex balance to decimal string
+        let stripped = hex_balance.strip_prefix("0x").unwrap_or(hex_balance);
+        let value = u128::from_str_radix(stripped, 16)
+            .context("invalid balance hex")?;
+        Ok(value.to_string())
+    }
+
     /// Perform an `eth_call` (read-only contract call).
     async fn eth_call(&self, to: &str, data: &str, block: &str) -> Result<String> {
         let req = serde_json::json!({

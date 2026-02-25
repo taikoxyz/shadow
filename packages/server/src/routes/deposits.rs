@@ -287,6 +287,16 @@ async fn create_deposit(
     }))
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BalanceResponse {
+    target_address: String,
+    balance: String,
+    required: String,
+    due: String,
+    is_funded: bool,
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/deposits/:id/notes/:noteIndex/claim-tx — prepare claim calldata
 // ---------------------------------------------------------------------------
@@ -519,11 +529,47 @@ fn encode_claim_calldata(
     calldata
 }
 
+/// `GET /api/deposits/:id/balance` — ETH balance of the deposit target address.
+async fn get_deposit_balance(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<BalanceResponse>, (StatusCode, String)> {
+    let chain_client = state.chain_client.as_ref().ok_or((
+        StatusCode::BAD_REQUEST,
+        "RPC URL not configured".to_string(),
+    ))?;
+
+    let index = scan_workspace(&state.workspace);
+    let deposit = index
+        .deposits
+        .iter()
+        .find(|d| d.id == id)
+        .ok_or((StatusCode::NOT_FOUND, format!("deposit {} not found", id)))?;
+
+    let balance = chain_client
+        .get_balance(&deposit.target_address)
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+
+    let required: u128 = deposit.total_amount.parse().unwrap_or(0);
+    let bal: u128 = balance.parse().unwrap_or(0);
+    let due = if bal >= required { 0u128 } else { required - bal };
+
+    Ok(Json(BalanceResponse {
+        target_address: deposit.target_address.clone(),
+        balance,
+        required: deposit.total_amount.clone(),
+        due: due.to_string(),
+        is_funded: bal >= required,
+    }))
+}
+
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/deposits", get(list_deposits).post(create_deposit))
         .route("/deposits/{id}", get(get_deposit).delete(delete_deposit))
         .route("/deposits/{id}/proof", delete(delete_proof))
+        .route("/deposits/{id}/balance", get(get_deposit_balance))
         .route(
             "/deposits/{id}/notes/{note_index}/claim-tx",
             get(get_claim_tx),
