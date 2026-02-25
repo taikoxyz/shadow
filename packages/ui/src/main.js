@@ -996,8 +996,8 @@ function renderNotesTable(deposit) {
         el('tr', {}, [
           el('td', {}, String(note.index)),
           el('td', {
-            style: `font-family: var(--font-mono); font-size: 0.78rem`,
-          }, truncateAddr(note.recipient)),
+            style: `font-family: var(--font-mono); font-size: 0.78rem; word-break: break-all`,
+          }, note.recipient),
           el('td', {}, `${weiToEth(note.amount)} ETH`),
           el('td', {}, [
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),
