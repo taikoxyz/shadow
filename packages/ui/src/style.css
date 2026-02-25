@@ -1,5 +1,33 @@
 /* Shadow UI — refined dark theme */
 
+/* Geist Mono — for addresses, hashes, and monospace values */
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+/* Geist Pixel — for the logo / accent branding */
+@font-face {
+  font-family: 'Geist Pixel';
+  src: url('/fonts/GeistPixel-Grid.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
 *,
 *::before,
 *::after {
@@ -36,7 +64,8 @@
   --radius-lg: 12px;
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
-  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-mono: 'Geist Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --font-pixel: 'Geist Pixel', monospace;
   font-family: system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   color: var(--text-primary);

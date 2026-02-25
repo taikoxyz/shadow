@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "dependencies": {},
+  "dependencies": {
+    "geist": "^1.7.0"
+  },
   "devDependencies": {
     "vite": "^7.1.5"
   }

@@ -479,10 +479,11 @@ function makeLogo() {
   wrapper.title = 'Shadow';
   wrapper.setAttribute('role', 'img');
   wrapper.setAttribute('aria-label', 'Shadow');
-  wrapper.innerHTML = `<svg viewBox="0 0 32 24" width="32" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M2 12C5.5 5.5 10.5 2.5 16 2.5C21.5 2.5 26.5 5.5 30 12C26.5 18.5 21.5 21.5 16 21.5C10.5 21.5 5.5 18.5 2 12Z" stroke="var(--accent-green)" stroke-width="1.5"/>
-    <circle cx="16" cy="12" r="4" fill="var(--accent-green)" fill-opacity="0.2" stroke="var(--accent-green)" stroke-width="1.5"/>
-    <circle cx="16" cy="12" r="1.8" fill="var(--accent-green)"/>
+  // Geometric mark: two overlapping squares rotated 45° with offset — abstract, grayscale
+  wrapper.innerHTML = `<svg viewBox="0 0 28 28" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="4" width="14" height="14" rx="1" transform="rotate(0 4 4)" stroke="var(--text-primary)" stroke-width="1.5" opacity="0.55"/>
+    <rect x="10" y="10" width="14" height="14" rx="1" fill="var(--text-primary)" fill-opacity="0.12" stroke="var(--text-primary)" stroke-width="1.5"/>
+    <line x1="14" y1="4" x2="24" y2="14" stroke="var(--text-primary)" stroke-width="1.5" opacity="0.3"/>
   </svg>`;
   wrapper.addEventListener('click', () => navigateTo('list'));
   return wrapper;
