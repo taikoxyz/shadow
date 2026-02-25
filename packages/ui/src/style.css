@@ -20,12 +20,29 @@
   font-display: swap;
 }
 
-/* Geist Pixel — UI default (Grid variant) */
+/* Geist Sans — UI default body font */
 @font-face {
-  font-family: 'Geist Pixel';
-  src: url('/fonts/GeistPixel-Grid.woff2') format('woff2');
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Regular.woff2') format('woff2');
   font-weight: 400;
-  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Bold.woff2') format('woff2');
+  font-weight: 700;
   font-display: swap;
 }
 
@@ -66,8 +83,7 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
   --font-mono: 'Geist Mono', 'SF Mono', 'Cascadia Code', monospace;
-  --font-pixel: 'Geist Pixel', monospace;
-  font-family: 'Geist Pixel', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--bg-base);
