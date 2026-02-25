@@ -535,8 +535,11 @@ function renderListView() {
   const items = [];
 
   // Tagline / hero description
-  items.push(el('p', { className: 'list-tagline' },
-    'A ZK privacy layer for Taiko: deposit ETH, generate a proof locally, and claim to any wallet with no on-chain link between sender and recipient. Unlike Wormhole (a cross-chain bridge), Shadow is single-chain — assets never leave Taiko.'));
+  items.push(el('p', { className: 'list-tagline' }, [
+    'Implements ',
+    el('a', { href: 'https://eips.ethereum.org/EIPS/eip-7503', target: '_blank', rel: 'noopener' }, 'EIP-7503 Wormholes'),
+    ' on Taiko: funding transfers are ordinary ETH sends with no on-chain trace of privacy involvement — ZK proofs then enable unlinkable claims to any address.',
+  ]));
 
   // Mining form
   if (state.showMiningForm) {

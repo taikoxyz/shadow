@@ -135,6 +135,15 @@ body {
   max-width: 640px;
 }
 
+.list-tagline a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.list-tagline a:hover {
+  text-decoration: underline;
+}
+
 .header-count {
   font-size: 0.72rem;
   font-weight: 500;
