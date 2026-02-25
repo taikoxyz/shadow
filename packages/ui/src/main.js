@@ -180,8 +180,9 @@ function handleServerEvent(event) {
     case 'proof:note_progress':
     case 'proof:completed':
     case 'proof:failed':
-      state.queueJob = event;
-      render();
+      // Fetch the real ProofJob from the server — WS events are minimal payloads
+      // without a `status` field, so using them directly breaks the banner.
+      pollQueue();
       if (event.type === 'proof:completed' || event.type === 'proof:failed') {
         refresh();
       }
