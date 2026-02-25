@@ -163,7 +163,7 @@ pub async fn run_pipeline(
     let mut note_results: Vec<NoteProofResult> = Vec::with_capacity(note_count);
 
     for i in 0..note_count {
-        // Check for cancellation
+        // Check for cancellation between notes
         if cancel_rx.try_recv().is_ok() {
             bail!("proof generation cancelled by user");
         }
@@ -190,7 +190,12 @@ pub async fn run_pipeline(
             &account_proof.proof_nodes,
         )?;
 
-        let note_proof = prove_single_note(claim_input).await?;
+        // Race the prover against the cancel signal so Kill takes effect
+        // immediately even during a long RISC Zero computation.
+        let note_proof = tokio::select! {
+            result = prove_single_note(claim_input) => result?,
+            _ = &mut cancel_rx => bail!("proof generation cancelled by user"),
+        };
 
         note_results.push(NoteProofResult {
             note_index: i as u32,
