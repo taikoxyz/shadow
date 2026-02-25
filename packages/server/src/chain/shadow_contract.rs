@@ -27,7 +27,10 @@ pub struct ChainClient {
 impl ChainClient {
     pub fn new(rpc_url: String) -> Self {
         Self {
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(Duration::from_secs(10))
+                .build()
+                .unwrap_or_default(),
             rpc_url,
             nullifier_cache: Mutex::new(HashMap::new()),
             cache_ttl: DEFAULT_CACHE_TTL,

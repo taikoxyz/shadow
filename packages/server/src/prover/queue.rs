@@ -181,6 +181,13 @@ impl ProofQueue {
         }
     }
 
+    /// Clear the current job unconditionally (used to dismiss failed/completed jobs).
+    pub async fn clear(&self) {
+        let mut current = self.current.lock().await;
+        *current = None;
+        let _ = self.job_tx.send(None);
+    }
+
     /// Set the cancel sender for the current job (called by pipeline before starting).
     pub async fn set_cancel_tx(&self, tx: tokio::sync::oneshot::Sender<()>) {
         let mut cancel = self.cancel_tx.lock().await;

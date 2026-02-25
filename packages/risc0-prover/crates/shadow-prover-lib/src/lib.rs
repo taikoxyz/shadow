@@ -94,7 +94,13 @@ pub fn prove_claim(input: &ClaimInput, receipt_kind: &str) -> Result<ProveResult
     let opts = parse_prover_opts(receipt_kind)?;
     let prove_info = default_prover()
         .prove_with_opts(env, SHADOW_CLAIM_GUEST_ELF, &opts)
-        .context("prover execution failed")?;
+        .map_err(|e| {
+            // Build full cause chain for diagnostic output
+            let chain: Vec<String> = std::iter::once(e.to_string())
+                .chain(e.chain().skip(1).map(|c| c.to_string()))
+                .collect();
+            anyhow::anyhow!("prover execution failed: {}", chain.join(" | "))
+        })?;
     let receipt = prove_info.receipt;
     let elapsed = started.elapsed();
 

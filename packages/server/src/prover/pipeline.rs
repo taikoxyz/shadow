@@ -131,7 +131,7 @@ pub async fn run_pipeline(
 
     // 2. Fetch block data and account proof via RPC
     queue
-        .update_progress(0, "Fetching block data...")
+        .update_progress(0, "Summoning block data from the chain...")
         .await;
 
     let http_client = reqwest::Client::new();
@@ -149,7 +149,7 @@ pub async fn run_pipeline(
     let block = rpc::eth_get_block(&http_client, rpc_url, "latest").await?;
 
     queue
-        .update_progress(0, "Fetching account proof...")
+        .update_progress(0, "Interrogating the Merkle tree...")
         .await;
 
     let account_proof =
@@ -171,7 +171,7 @@ pub async fn run_pipeline(
         queue
             .update_progress(
                 i as u32,
-                &format!("Proving note {}/{}...", i + 1, note_count),
+                &format!("Cranking your machine... {}/{} \u{1f525}", i + 1, note_count),
             )
             .await;
 
@@ -193,7 +193,17 @@ pub async fn run_pipeline(
         // Race the prover against the cancel signal so Kill takes effect
         // immediately even during a long RISC Zero computation.
         let note_proof = tokio::select! {
-            result = prove_single_note(claim_input) => result?,
+            result = prove_single_note(claim_input) => match result {
+                Ok(p) => p,
+                Err(e) => {
+                    // Log full cause chain to server terminal for diagnosis
+                    let chain: Vec<String> = std::iter::once(e.to_string())
+                        .chain(e.chain().skip(1).map(|c| c.to_string()))
+                        .collect();
+                    tracing::error!(note = i, detail = %chain.join(" | "), "prove_single_note failed");
+                    return Err(e);
+                }
+            },
             _ = &mut cancel_rx => bail!("proof generation cancelled by user"),
         };
 

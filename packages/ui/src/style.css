@@ -160,24 +160,6 @@ body {
   gap: 0.5rem;
 }
 
-.header-status {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.rpc-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-green);
-  margin-right: 0.35rem;
-  vertical-align: middle;
-}
-
-.rpc-dot-offline {
-  background: var(--accent-amber) !important;
-}
 
 /* --- Breadcrumb --- */
 
@@ -358,6 +340,14 @@ body {
   text-align: right;
   max-width: 65%;
   color: var(--text-primary);
+}
+
+.detail-address-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+.detail-address-link:hover {
+  text-decoration: underline;
 }
 
 /* --- Notes Table --- */
@@ -550,6 +540,13 @@ body {
   color: var(--accent-red);
   margin-top: 0.2rem;
   min-height: 1em;
+}
+
+.form-field-warn {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--accent-amber);
+  margin-top: 0.2rem;
 }
 
 .form-input::placeholder {
@@ -864,11 +861,11 @@ body {
   gap: 1rem;
   padding: 0.65rem 1rem;
   margin-bottom: 1rem;
-  background: var(--accent-amber-bg);
-  border: 1px solid var(--accent-amber-border);
+  background: var(--accent-blue-bg);
+  border: 1px solid var(--btn-accent-border);
   border-radius: var(--radius-md);
   font-size: 0.82rem;
-  color: var(--accent-amber);
+  color: var(--accent-blue);
 }
 
 .proof-banner-failed {

@@ -110,7 +110,7 @@ async fn start_proof(
                     Ok(json_bytes) => {
                         if let Err(e) = std::fs::write(&proof_path, json_bytes) {
                             tracing::error!(error = %e, "failed to write proof file");
-                            queue.fail(0, &format!("failed to write proof file: {}", e)).await;
+                            queue.fail(0, &format!("failed to write proof file: {:#}", e)).await;
                             return;
                         }
                         tracing::info!(file = %proof_filename, "proof file written");
@@ -122,13 +122,15 @@ async fn start_proof(
                     }
                     Err(e) => {
                         tracing::error!(error = %e, "failed to serialize proof");
-                        queue.fail(0, &format!("serialization error: {}", e)).await;
+                        queue.fail(0, &format!("serialization error: {:#}", e)).await;
                     }
                 }
             }
             Err(e) => {
-                tracing::error!(error = %e, deposit = %deposit_id, "proof pipeline failed");
-                queue.fail(0, &e.to_string()).await;
+                // Use {:#} to include the full anyhow cause chain (e.g. RISC Zero panic message)
+                let detail = format!("{:#}", e);
+                tracing::error!(error = %detail, deposit = %deposit_id, "proof pipeline failed");
+                queue.fail(0, &detail).await;
             }
         }
     });
@@ -144,18 +146,22 @@ async fn queue_status(
     Json(state.proof_queue.status().await)
 }
 
-/// `DELETE /api/queue/current` — cancel the current proof job.
+/// `DELETE /api/queue/current` — cancel or clear the current proof job.
 async fn cancel_job(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<CancelResponse>, StatusCode> {
-    let cancelled = state.proof_queue.cancel().await;
-    if cancelled {
-        Ok(Json(CancelResponse {
+) -> Json<CancelResponse> {
+    if state.proof_queue.cancel().await {
+        Json(CancelResponse {
             cancelled: true,
             message: "cancellation signal sent".to_string(),
-        }))
+        })
     } else {
-        Err(StatusCode::NOT_FOUND)
+        // Job is failed/completed — clear it so it stops being returned by /api/queue
+        state.proof_queue.clear().await;
+        Json(CancelResponse {
+            cancelled: true,
+            message: "job cleared".to_string(),
+        })
     }
 }
 

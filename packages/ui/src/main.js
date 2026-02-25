@@ -8,6 +8,15 @@
 
 import * as api from './api.js';
 import './style.css';
+import { createElement, Eye, Settings, Sun, Moon, FileKey, ArrowDownToLine, X, RefreshCcw } from 'lucide';
+
+/** Create a Lucide icon element at 15x15 with stroke-width 1.5. */
+function lucideIcon(iconNode, extraClass) {
+  const el = createElement(iconNode, { width: 15, height: 15, 'stroke-width': 1.5 });
+  el.setAttribute('aria-hidden', 'true');
+  if (extraClass) el.classList.add(extraClass);
+  return el;
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -228,10 +237,10 @@ async function loadDepositBalance(depositId) {
   try {
     const bal = await api.getDepositBalance(depositId);
     state.depositBalance = bal;
-    render();
   } catch {
-    state.depositBalance = null;
+    state.depositBalance = { error: true };
   }
+  render();
 }
 
 async function loadAllNoteStatuses(depositId) {
@@ -485,10 +494,6 @@ function renderHeader() {
   ]);
 
   const headerActions = el('div', { className: 'header-actions' }, [
-    el('span', { className: 'header-status' }, [
-      el('span', { className: `rpc-dot${state.wsConnected === false ? ' rpc-dot-offline' : ''}` }),
-      state.wsConnected === false ? 'Reconnecting...' : (state.config?.rpcUrl ? 'Live' : 'RPC'),
-    ]),
     state.walletAddress
       ? el('span', { className: 'wallet-badge' }, [
           el('span', { className: 'wallet-dot' }),
@@ -504,12 +509,12 @@ function renderHeader() {
       className: 'btn-icon',
       onclick: () => navigateTo('settings'),
       title: 'Settings',
-    }, '\u2699'),
+    }, [settingsIcon()]),
     el('button', {
       className: 'btn-icon',
       onclick: () => setTheme(getTheme() === 'dark' ? 'light' : 'dark'),
       title: 'Toggle theme',
-    }, getTheme() === 'dark' ? '☀' : '☾'),
+    }, [getTheme() === 'dark' ? sunIcon() : moonIcon()]),
   ].filter(Boolean));
 
   return el('div', { className: 'header' }, [headerLeft, headerActions]);
@@ -559,6 +564,8 @@ function renderListView() {
       el('button', {
         className: 'btn btn-primary',
         style: 'margin-top: 1rem',
+        disabled: isProving(),
+        title: isProving() ? 'Proof generation in progress' : undefined,
         onclick: () => { state.showMiningForm = true; render(); },
       }, '+ New Deposit'),
     ]));
@@ -569,6 +576,8 @@ function renderListView() {
     items.push(el('div', { style: 'margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center' }, [
       el('button', {
         className: 'btn btn-primary',
+        disabled: isProving(),
+        title: isProving() ? 'Proof generation in progress' : undefined,
         onclick: () => { state.showMiningForm = true; render(); },
       }, '+ New Deposit'),
       makeImportButton(),
@@ -605,7 +614,7 @@ function renderDepositCard(deposit) {
         el('span', {}, `${deposit.noteCount} note${deposit.noteCount !== 1 ? 's' : ''}`),
         el('span', {}, `${totalEth} ETH`),
         el('span', {}, `Chain ${deposit.chainId}`),
-        deposit.createdAt ? el('span', {}, formatDate(deposit.createdAt)) : null,
+        deposit.createdAt ? el('span', { title: formatDate(deposit.createdAt) }, timeAgo(deposit.createdAt)) : null,
       ].filter(Boolean)),
     ],
   );
@@ -731,13 +740,17 @@ function renderMiningForm() {
                   inputEl.classList.remove('form-input-invalid');
                   if (errEl) errEl.textContent = '';
                   const wallet = state.walletAddress?.toLowerCase();
-                  if (wallet && val.toLowerCase() === wallet) {
-                    showToast('Warning: using your connected wallet address as recipient may reveal your identity on-chain.', 'error');
+                  const warnEl = document.getElementById(`mine-recipient-warn-${i}`);
+                  if (warnEl) {
+                    warnEl.textContent = (wallet && val.toLowerCase() === wallet)
+                      ? 'Warning: using your connected wallet address as recipient may reveal your identity on-chain.'
+                      : '';
                   }
                 }
               },
             }),
             el('span', { className: 'form-field-error', id: `mine-recipient-error-${i}` }, ''),
+            el('span', { className: 'form-field-warn', id: `mine-recipient-warn-${i}` }, ''),
           ]),
           el('div', { className: 'form-group', style: 'flex:1' }, [
             el('label', { className: 'form-label' }, 'Amount (ETH)'),
@@ -859,19 +872,19 @@ function depositFileRow(deposit) {
       }, [eyeIcon()]),
       el('a', {
         href: downloadUrl,
-        className: 'btn btn-small',
+        className: 'btn btn-small btn-icon-label',
         download: true,
         title: 'Download deposit file',
-      }, '\u2193'),
+      }, [lucideIcon(ArrowDownToLine)]),
       el('button', {
-        className: 'btn btn-danger btn-small',
+        className: 'btn btn-danger btn-small btn-icon-label',
         title: 'Delete deposit',
         onclick: () => confirmAction(
           'Delete deposit?',
           `This will permanently delete ${deposit.filename}${deposit.hasProof ? ' and its proof file' : ''}.`,
           () => handleDeleteDeposit(deposit.id, true),
         ),
-      }, '\u00d7'),
+      }, [lucideIcon(X)]),
     ]),
   ]);
 }
@@ -894,10 +907,10 @@ function proofFileRow(deposit, status) {
       }, [eyeIcon()]),
       el('a', {
         href: downloadUrl,
-        className: 'btn btn-small',
+        className: 'btn btn-small btn-icon-label',
         download: true,
         title: 'Download proof file',
-      }, '\u2193'),
+      }, [lucideIcon(ArrowDownToLine)]),
       status !== 'proving'
         ? el('button', {
             className: 'btn btn-danger btn-small',
@@ -907,7 +920,7 @@ function proofFileRow(deposit, status) {
               `This will delete ${deposit.proofFile}. The deposit file will remain.`,
               () => handleDeleteProof(deposit.id),
             ),
-          }, '\u00d7')
+          }, [lucideIcon(X)])
         : null,
     ].filter(Boolean)),
   ]);
@@ -947,11 +960,12 @@ function renderDetailView() {
 
   // Fund button (shown inside Funding Status section when applicable)
   const fundAction = status === 'unfunded' && window.ethereum
-    ? el('button', {
-        className: 'btn btn-primary',
-        style: 'margin-top: 0.5rem',
-        onclick: () => handleFundDeposit(deposit),
-      }, 'Fund Deposit')
+    ? el('div', { className: 'actions', style: 'margin-top: 0.75rem; justify-content: flex-end' }, [
+        el('button', {
+          className: 'btn btn-primary',
+          onclick: () => handleFundDeposit(deposit),
+        }, 'Fund Deposit'),
+      ])
     : status === 'unfunded'
       ? el('p', { className: 'form-hint', style: 'margin-top: 0.5rem' },
           `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`)
@@ -975,33 +989,38 @@ function renderDetailView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
       depositFileRow(deposit),
-      detailRow('Chain ID', deposit.chainId),
-      detailRow('Target Address', deposit.targetAddress),
+      detailRow('Chain ID', deposit.chainId === '167013' ? 'Taiko Hoodi (167013)' : deposit.chainId),
+      addressRow('Target Address', deposit.targetAddress),
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
     ].filter(Boolean)),
 
     // Funding Status
-    state.depositBalance
+    state.depositBalance?.error
       ? el('div', { className: 'detail-section' }, [
           el('h2', {}, 'Funding Status'),
-          detailRow('Target Address', deposit.targetAddress),
-          detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
-          detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
-          !state.depositBalance.isFunded
-            ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ETH`)
-            : null,
-          detailRow('Status', state.depositBalance.isFunded ? 'Funded' : 'Unfunded \u2014 send ETH to target address'),
-          fundAction,
-        ].filter(Boolean))
-      : el('div', { className: 'detail-section' }, [
-          el('h2', {}, 'Funding Status'),
-          el('p', { className: 'form-hint' }, 'Loading balance...'),
-        ]),
+          el('p', { className: 'form-hint' }, 'Could not load balance \u2014 RPC may be unavailable.'),
+        ])
+      : state.depositBalance
+        ? el('div', { className: 'detail-section' }, [
+            el('h2', {}, 'Funding Status'),
+            addressRow('Target Address', deposit.targetAddress),
+            detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
+            detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
+            !state.depositBalance.isFunded
+              ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ETH`)
+              : null,
+            detailRow('Status', state.depositBalance.isFunded ? 'Funded' : 'Unfunded \u2014 send ETH to target address'),
+            fundAction,
+          ].filter(Boolean))
+        : el('div', { className: 'detail-section' }, [
+            el('h2', {}, 'Funding Status'),
+            el('p', { className: 'form-hint' }, 'Loading balance...'),
+          ]),
 
-    // Proofs
-    el('div', { className: 'detail-section' }, [
+    // Proofs (hidden until funded)
+    status !== 'unfunded' ? el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Proofs'),
       proofFileRow(deposit, status),
       // Show failure details while the failed job is not yet dismissed
@@ -1014,7 +1033,7 @@ function renderDetailView() {
       proofAction
         ? el('div', { className: 'actions', style: 'margin-top: 0.75rem; justify-content: flex-end' }, [proofAction])
         : null,
-    ].filter(Boolean)),
+    ].filter(Boolean)) : null,
 
     // Notes
     el('div', { className: 'detail-section' }, [
@@ -1043,7 +1062,17 @@ function renderNotesTable(deposit) {
           el('td', {}, String(note.index)),
           el('td', {
             style: `font-family: var(--font-mono); font-size: 0.78rem; word-break: break-all`,
-          }, note.recipient),
+          }, [
+            (() => {
+              const a = document.createElement('a');
+              a.href = `https://hoodi.taikoscan.io/address/${note.recipient}`;
+              a.target = '_blank';
+              a.rel = 'noopener';
+              a.textContent = note.recipient;
+              a.className = 'detail-address-link';
+              return a;
+            })(),
+          ]),
           el('td', {}, `${weiToEth(note.amount)} ETH`),
           el('td', {}, [
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),
@@ -1075,7 +1104,7 @@ function renderNotesTable(deposit) {
                   },
                   title: 'Refresh on-chain status',
                 },
-                '\u21bb',
+                [lucideIcon(RefreshCcw)],
               ),
             ].filter(Boolean)),
           ]),
@@ -1101,9 +1130,19 @@ function renderProofJobBanner() {
       isFailed
         ? el('span', {}, '\u26a0\ufe0f')
         : el('span', { className: 'spinner' }),
-      el('span', {}, isFailed
-        ? ` Proof failed for ${job.depositId} \u2014 ${job.error || job.message || 'unknown error'}`
-        : ` Proving ${job.depositId} \u2014 ${job.message || 'in progress...'}`),
+      el('div', { style: 'display: flex; flex-direction: column; gap: 2px' }, [
+        isFailed
+          ? el('span', {}, ` Proof failed \u2014 ${job.error || job.message || 'unknown error'}`)
+          : el('span', {}, [
+              ` ${job.message || 'Proving...'} in `,
+              el('a', {
+                href: `#/deposit/${encodeURIComponent(job.depositId)}`,
+                className: 'detail-address-link',
+              }, job.depositId),
+            ]),
+        isFailed ? null : el('span', { style: 'font-size: 0.75rem; opacity: 0.7' },
+          'Your fan noise is the sound of privacy being forged. Hang tight \u2615'),
+      ].filter(Boolean)),
     ]),
     el('div', { className: 'proof-banner-right' }, [
       !isFailed
@@ -1113,8 +1152,8 @@ function renderProofJobBanner() {
         : null,
       el('button', {
         className: 'btn btn-danger btn-small',
-        onclick: isFailed ? () => { state.queueJob = null; render(); } : handleCancelProof,
-      }, isFailed ? 'Dismiss' : 'Kill'),
+        onclick: isFailed ? () => { api.cancelProof().catch(() => {}); state.queueJob = null; render(); } : handleCancelProof,
+      }, isFailed ? 'Dismiss' : 'Kill Current Job'),
     ].filter(Boolean)),
   ]);
 }
@@ -1305,6 +1344,25 @@ function formatDate(isoStr) {
   }
 }
 
+function timeAgo(isoStr) {
+  try {
+    const sec = Math.floor((Date.now() - new Date(isoStr)) / 1000);
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+    const day = Math.floor(hr / 24);
+    if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+    const mo = Math.floor(day / 30);
+    if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
+    const yr = Math.floor(mo / 12);
+    return `${yr} year${yr === 1 ? '' : 's'} ago`;
+  } catch {
+    return isoStr;
+  }
+}
+
 function detailRow(label, value) {
   return el('div', { className: 'detail-row' }, [
     el('span', { className: 'detail-label' }, label),
@@ -1312,34 +1370,25 @@ function detailRow(label, value) {
   ]);
 }
 
-/** Returns a <span> containing an eye SVG icon (used on View buttons). */
-function eyeIcon() {
-  const span = document.createElement('span');
-  span.setAttribute('aria-hidden', 'true');
-  span.style.display = 'inline-flex';
-  span.style.alignItems = 'center';
-  span.innerHTML =
-    '<svg width="15" height="11" viewBox="0 0 15 11" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<path d="M1 5.5C1 5.5 3.2 1 7.5 1S14 5.5 14 5.5 11.8 10 7.5 10 1 5.5 1 5.5Z"' +
-    ' stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>' +
-    '<circle cx="7.5" cy="5.5" r="1.75" stroke="currentColor" stroke-width="1.25"/>' +
-    '</svg>';
-  return span;
+function addressRow(label, address) {
+  const link = document.createElement('a');
+  link.href = `https://hoodi.taikoscan.io/address/${address}`;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = address;
+  link.className = 'detail-address-link';
+  return el('div', { className: 'detail-row' }, [
+    el('span', { className: 'detail-label' }, label),
+    el('span', { className: 'detail-value' }, [link]),
+  ]);
 }
 
-/** Returns a <span> containing the deposit vault SVG icon. */
-function depositFileIcon() {
-  const span = document.createElement('span');
-  span.className = 'deposit-file-icon';
-  span.setAttribute('aria-hidden', 'true');
-  span.innerHTML =
-    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<rect x="1.5" y="2" width="11" height="10" rx="1.75" stroke="currentColor" stroke-width="1.25"/>' +
-    '<circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.25"/>' +
-    '<path d="M9 7h1.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>' +
-    '</svg>';
-  return span;
-}
+/** Returns a <span> containing an eye SVG icon (used on View buttons). */
+const eyeIcon        = () => lucideIcon(Eye);
+const settingsIcon   = () => lucideIcon(Settings);
+const sunIcon        = () => lucideIcon(Sun);
+const moonIcon       = () => lucideIcon(Moon);
+const depositFileIcon = () => lucideIcon(FileKey, 'deposit-file-icon');
 
 /** Pretty-prints and syntax-highlights a JSON string as safe HTML. */
 function highlightJson(str) {
