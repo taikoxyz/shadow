@@ -23,3 +23,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Local crate dependencies (added incrementally as features are built)
 # shadow-prover-lib depends on risc0-zkvm; added in Phase 1.5 for proof generation
 shadow-proof-core = { path = "../risc0-prover/crates/shadow-proof-core" }
+
+[dev-dependencies]
+tempfile = "3"

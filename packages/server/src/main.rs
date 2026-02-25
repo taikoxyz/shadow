@@ -8,6 +8,7 @@ use tower_http::cors::CorsLayer;
 
 mod routes;
 mod state;
+mod workspace;
 
 use state::AppState;
 
