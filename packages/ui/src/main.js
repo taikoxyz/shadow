@@ -1165,7 +1165,7 @@ function renderProofJobBanner() {
             el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
           ])
         : null,
-      state.proofLog.length > 0
+      !isFailed
         ? el('button', {
             className: 'btn btn-small',
             style: 'font-size: 0.72rem;',
@@ -1178,13 +1178,20 @@ function renderProofJobBanner() {
       }, isFailed ? 'Dismiss' : 'Kill Current Job'),
     ].filter(Boolean)),  // proof-banner-right
     ]),                  // proof-banner-top
-    expanded && state.proofLog.length > 0
-      ? el('div', { className: 'proof-banner-log' }, state.proofLog.map(entry =>
-          el('div', { className: 'proof-log-entry' }, [
-            el('span', { className: 'proof-log-time' }, formatLogTime(entry.time)),
-            el('span', {}, entry.message),
-          ])
-        ))
+    expanded
+      ? el('div', { className: 'proof-banner-log' },
+          state.proofLog.length > 0
+            ? state.proofLog.map(entry =>
+                el('div', { className: 'proof-log-entry' }, [
+                  el('span', { className: 'proof-log-time' }, formatLogTime(entry.time)),
+                  el('span', {}, entry.message),
+                ])
+              )
+            : [el('div', { className: 'proof-log-entry' }, [
+                el('span', { className: 'proof-log-time' }, '—'),
+                el('span', { style: 'opacity: 0.6' }, 'Waiting for events...'),
+              ])]
+        )
       : null,
   ].filter(Boolean));
 }
