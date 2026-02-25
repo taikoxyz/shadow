@@ -138,6 +138,8 @@ async fn delete_proof(
 struct CreateDepositRequest {
     chain_id: String,
     notes: Vec<CreateDepositNote>,
+    #[serde(default)]
+    comment: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -227,6 +229,7 @@ async fn create_deposit(
     }
 
     let workspace = state.workspace.clone();
+    let comment = body.comment.clone();
 
     // Run the PoW mining in a blocking thread (CPU-intensive)
     let result = tokio::task::spawn_blocking(move || {
@@ -243,6 +246,7 @@ async fn create_deposit(
             &mine_result.secret,
             &mine_result.target_address,
             &req.notes,
+            comment.as_deref(),
         )?;
 
         Ok::<_, anyhow::Error>((filename, mine_result))

@@ -45,6 +45,9 @@ pub struct DepositEntry {
     pub proof_file: Option<String>,
     /// Per-note info.
     pub notes: Vec<NoteEntry>,
+    /// Optional user comment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
 }
 
 /// Per-note information within a deposit.
@@ -135,6 +138,8 @@ fn process_deposit(
         secret: String,
         notes: Vec<NoteJson>,
         target_address: Option<String>,
+        #[serde(default)]
+        comment: Option<String>,
     }
 
     #[derive(serde::Deserialize)]
@@ -210,6 +215,7 @@ fn process_deposit(
         has_proof: proof_file.is_some(),
         proof_file,
         notes: note_entries,
+        comment: deposit.comment,
     })
 }
 

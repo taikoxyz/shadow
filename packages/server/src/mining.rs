@@ -87,6 +87,7 @@ pub fn write_deposit_file(
     secret: &[u8; 32],
     target_address: &[u8; 20],
     notes: &[MineNote],
+    comment: Option<&str>,
 ) -> Result<String> {
     let hex_addr = hex::encode(target_address);
     let first4 = &hex_addr[..4];
@@ -108,13 +109,16 @@ pub fn write_deposit_file(
         })
         .collect();
 
-    let deposit_json = serde_json::json!({
+    let mut deposit_json = serde_json::json!({
         "version": "v2",
         "chainId": chain_id.to_string(),
         "secret": format!("0x{}", hex::encode(secret)),
         "notes": notes_json,
         "targetAddress": format!("0x{}", hex::encode(target_address)),
     });
+    if let Some(c) = comment {
+        deposit_json["comment"] = serde_json::Value::String(c.to_string());
+    }
 
     let path = workspace.join(&filename);
     let contents = serde_json::to_string_pretty(&deposit_json)
