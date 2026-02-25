@@ -538,8 +538,8 @@ function renderListView() {
   items.push(el('p', { className: 'list-tagline' }, [
     'Inspired by ',
     el('a', { href: 'https://eips.ethereum.org/EIPS/eip-7503', target: '_blank', rel: 'noopener' }, 'EIP-7503 Wormholes'),
-    ', but adapted for Taiko: funding transfers are ordinary ETH sends with no on-chain trace of privacy involvement — ZK proofs then enable unlinkable claims to any address. ',
-    el('a', { href: 'https://github.com/taikoxyz/shadow', target: '_blank', rel: 'noopener' }, 'View on GitHub'),
+    ', but adapted for Taiko: funding transfers are ordinary ETH sent to EOAs with no on-chain trace of privacy involvement — ZK proofs enable unlinkable claims to prespecified addresses. ',
+    el('a', { href: 'https://github.com/taikoxyz/shadow', target: '_blank', rel: 'noopener' }, 'View more on GitHub'),
     '.',
   ]));
 
