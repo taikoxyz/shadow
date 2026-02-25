@@ -20,11 +20,12 @@
   font-display: swap;
 }
 
-/* Geist Pixel — for the logo / accent branding */
+/* Geist Pixel — UI default (Grid variant) */
 @font-face {
   font-family: 'Geist Pixel';
   src: url('/fonts/GeistPixel-Grid.woff2') format('woff2');
   font-weight: 400;
+  font-style: normal;
   font-display: swap;
 }
 
@@ -66,7 +67,7 @@
   --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
   --font-mono: 'Geist Mono', 'SF Mono', 'Cascadia Code', monospace;
   --font-pixel: 'Geist Pixel', monospace;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Geist Pixel', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--bg-base);
