@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, post},
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     prover::{pipeline, queue::ProofJob, ProofQueue},
@@ -14,10 +14,17 @@ use crate::{
     workspace::scanner::scan_workspace,
 };
 
+#[derive(Debug, Deserialize)]
+struct ProveQuery {
+    #[serde(default)]
+    force: bool,
+}
+
 /// `POST /api/deposits/:id/prove` — queue proof generation for a deposit.
 async fn start_proof(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
+    Query(query): Query<ProveQuery>,
 ) -> Result<Json<ProofJob>, (StatusCode, String)> {
     let rpc_url = state
         .rpc_url
@@ -35,6 +42,17 @@ async fn start_proof(
         .iter()
         .find(|d| d.id == id)
         .ok_or((StatusCode::NOT_FOUND, format!("deposit {} not found", id)))?;
+
+    // If force=true, delete the existing proof file so it can be regenerated
+    if query.force {
+        if let Some(ref proof_name) = deposit.proof_file {
+            let proof_path = state.workspace.join(proof_name);
+            if proof_path.is_file() {
+                let _ = std::fs::remove_file(&proof_path);
+                tracing::info!(file = %proof_name, "deleted proof file for regeneration");
+            }
+        }
+    }
 
     let note_count = deposit.note_count as u32;
     let deposit_filename = deposit.filename.clone();
