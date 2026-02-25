@@ -301,12 +301,13 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
     {
         use shadow_prover_lib::{configure_risc0_env, export_proof, prove_claim};
 
-        // RISC Zero proving is deeply recursive and requires a large stack.
-        // macOS spawned threads default to 512 KB which causes SIGBUS (stack overflow
-        // hitting the guard page). Spawn a dedicated thread with 256 MB stack.
+        // Spawn a dedicated thread off the tokio blocking pool.
+        // The heavy recursive STARK work happens in Rayon workers which inherit
+        // RUST_MIN_STACK (set to 256 MB in configure_risc0_env). This thread
+        // only orchestrates, so 8 MB matches the Linux thread default.
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<SingleNoteProof>>();
         std::thread::Builder::new()
-            .stack_size(256 * 1024 * 1024)
+            .stack_size(8 * 1024 * 1024)
             .spawn(move || {
                 let outcome = (|| {
                     configure_risc0_env();
