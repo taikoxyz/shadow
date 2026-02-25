@@ -115,6 +115,7 @@ pub async fn eth_get_block(client: &reqwest::Client, url: &str, block_tag: &str)
 #[derive(Debug, Clone)]
 pub struct AccountProofData {
     /// Balance as big-endian bytes (up to 32 bytes).
+    #[allow(dead_code)]
     pub balance: Vec<u8>,
     /// Account proof nodes (each is an RLP-encoded trie node).
     pub proof_nodes: Vec<Vec<u8>>,

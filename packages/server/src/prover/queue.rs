@@ -73,11 +73,6 @@ impl ProofQueue {
         self.current.lock().await.clone()
     }
 
-    /// Subscribe to job state changes.
-    pub fn subscribe(&self) -> watch::Receiver<Option<ProofJob>> {
-        self.job_tx.subscribe()
-    }
-
     /// Try to enqueue a new proof job. Returns Err if a job is already running.
     pub async fn enqueue(&self, deposit_id: &str, total_notes: u32) -> Result<(), String> {
         let mut current = self.current.lock().await;

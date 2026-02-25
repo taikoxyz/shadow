@@ -9,7 +9,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    prover::{pipeline, queue::ProofJob, ProofQueue},
+    prover::{pipeline, queue::ProofJob},
     state::AppState,
     workspace::scanner::scan_workspace,
 };

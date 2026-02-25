@@ -28,7 +28,6 @@ pub struct MineNote {
 pub struct MineResult {
     pub secret: [u8; 32],
     pub target_address: [u8; 20],
-    pub notes_hash: [u8; 32],
     pub iterations: u64,
 }
 
@@ -71,7 +70,6 @@ pub fn mine_deposit(req: &MineRequest) -> Result<MineResult> {
             return Ok(MineResult {
                 secret,
                 target_address,
-                notes_hash,
                 iterations,
             });
         }

@@ -390,6 +390,7 @@ fn base64_encode(data: &[u8]) -> String {
 ///
 /// The contract decodes: `(bytes seal, bytes32 journalDigest) = abi.decode(_proof, (bytes, bytes32))`
 /// So we encode: `abi.encode(seal_bytes, sha256(journal_bytes))`
+#[cfg(feature = "prove")]
 fn encode_proof_for_chain(seal_hex: &str, journal_bytes: &[u8]) -> Result<Vec<u8>> {
     use sha2::{Sha256, Digest};
 
