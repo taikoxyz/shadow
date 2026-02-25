@@ -289,8 +289,8 @@ async function handleMineDeposit(formData) {
   render();
 
   try {
-    const chainId = state.config?.chainId || '167013';
-    const result = await api.createDeposit(chainId, formData.notes);
+    const chainId = formData.chainId || state.config?.chainId || '167013';
+    const result = await api.createDeposit(chainId, formData.notes, formData.comment);
     state.showMiningForm = false;
     state.mining = false;
     showToast(`Deposit mined! ${result.iterations.toLocaleString()} iterations`, 'success');
@@ -466,9 +466,36 @@ function renderDepositCard(deposit) {
 // ---------------------------------------------------------------------------
 
 function renderMiningForm() {
-  let noteCount = 1;
+  // Store note data to survive re-renders
+  const notes = [{ recipient: '', amount: '', label: '' }];
+  let comment = '';
 
   const container = el('div', { className: 'mining-panel' });
+
+  function saveNoteData() {
+    notes.forEach((note, i) => {
+      const r = document.getElementById(`mine-recipient-${i}`);
+      const a = document.getElementById(`mine-amount-${i}`);
+      const l = document.getElementById(`mine-label-${i}`);
+      if (r) note.recipient = r.value;
+      if (a) note.amount = a.value;
+      if (l) note.label = l.value;
+    });
+    const c = document.getElementById('mine-comment');
+    if (c) comment = c.value;
+  }
+
+  function addNote() {
+    saveNoteData();
+    if (notes.length < 5) notes.push({ recipient: '', amount: '', label: '' });
+    renderFormContent();
+  }
+
+  function removeNote(i) {
+    saveNoteData();
+    notes.splice(i, 1);
+    renderFormContent();
+  }
 
   function renderFormContent() {
     container.innerHTML = '';
@@ -483,9 +510,9 @@ function renderMiningForm() {
     ]);
     container.appendChild(header);
 
-    // Chain ID (auto-filled from config)
+    // Chain ID
     const chainId = state.config?.chainId || '167013';
-    const chainGroup = el('div', { className: 'form-group' }, [
+    container.appendChild(el('div', { className: 'form-group' }, [
       el('label', { className: 'form-label' }, 'Chain ID'),
       el('input', {
         className: 'form-input',
@@ -493,35 +520,51 @@ function renderMiningForm() {
         value: chainId,
         style: 'max-width: 200px',
       }),
-    ]);
-    container.appendChild(chainGroup);
+    ]));
 
-    // Notes
-    const notesLabel = el('div', {
+    // Comment field
+    container.appendChild(el('div', { className: 'form-group' }, [
+      el('label', { className: 'form-label' }, 'Comment (optional)'),
+      el('textarea', {
+        className: 'form-input',
+        id: 'mine-comment',
+        placeholder: 'Describe this deposit...',
+        style: 'min-height: 56px; resize: vertical; font-family: inherit',
+      }),
+    ]));
+    // Restore comment value after render
+    requestAnimationFrame(() => {
+      const c = document.getElementById('mine-comment');
+      if (c) c.value = comment;
+    });
+
+    // Notes section header
+    container.appendChild(el('div', {
       style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem',
     }, [
       el('span', { className: 'form-label', style: 'margin-bottom:0' }, 'Notes'),
-      noteCount < 5
+      notes.length < 5
         ? el('button', {
             className: 'btn btn-small',
-            onclick: () => { noteCount++; renderFormContent(); },
+            onclick: addNote,
           }, '+ Add Note')
         : null,
-    ].filter(Boolean));
-    container.appendChild(notesLabel);
+    ].filter(Boolean)));
 
-    for (let i = 0; i < noteCount; i++) {
+    // Note entries
+    notes.forEach((note, i) => {
       const noteEl = el('div', { className: 'note-entry' }, [
         el('div', { className: 'note-entry-header' }, [
           `Note #${i}`,
           i > 0
             ? el('button', {
                 className: 'btn-icon',
-                onclick: () => { noteCount--; renderFormContent(); },
+                onclick: () => removeNote(i),
                 title: 'Remove',
               }, '\u2715')
             : null,
         ].filter(Boolean)),
+
         el('div', { className: 'form-row' }, [
           el('div', { className: 'form-group', style: 'flex:2' }, [
             el('label', { className: 'form-label' }, 'Recipient'),
@@ -529,15 +572,16 @@ function renderMiningForm() {
               className: 'form-input',
               id: `mine-recipient-${i}`,
               placeholder: '0x...',
-              value: state.walletAddress || '',
+              // No default value — user must enter explicitly
             }),
           ]),
           el('div', { className: 'form-group', style: 'flex:1' }, [
-            el('label', { className: 'form-label' }, 'Amount (wei)'),
+            el('label', { className: 'form-label' }, 'Amount (ETH)'),
             el('input', {
               className: 'form-input',
               id: `mine-amount-${i}`,
-              placeholder: '1000000000000000',
+              placeholder: '0.001',
+              type: 'text',
             }),
           ]),
         ]),
@@ -552,34 +596,87 @@ function renderMiningForm() {
         ]),
       ]);
       container.appendChild(noteEl);
-    }
+    });
 
-    // Submit
+    // Restore input values after render
+    requestAnimationFrame(() => {
+      notes.forEach((note, i) => {
+        const r = document.getElementById(`mine-recipient-${i}`);
+        const a = document.getElementById(`mine-amount-${i}`);
+        const l = document.getElementById(`mine-label-${i}`);
+        if (r) r.value = note.recipient;
+        if (a) a.value = note.amount;
+        if (l) l.value = note.label;
+      });
+
+      // Add wallet warning listeners after DOM is ready
+      notes.forEach((_, i) => {
+        const r = document.getElementById(`mine-recipient-${i}`);
+        if (r) {
+          r.addEventListener('blur', () => {
+            const val = r.value.trim().toLowerCase();
+            const wallet = state.walletAddress?.toLowerCase();
+            if (wallet && val === wallet) {
+              showToast('Warning: using your connected wallet address as recipient may reveal your identity on-chain.', 'error');
+            }
+          });
+        }
+      });
+    });
+
+    // Submit row
     const actions = el('div', { style: 'margin-top: 1rem; display:flex; gap:0.5rem; align-items:center' }, [
       el('button', {
         className: 'btn btn-primary',
         disabled: state.mining,
         onclick: () => {
-          const notes = [];
-          for (let i = 0; i < noteCount; i++) {
-            const recipient = document.getElementById(`mine-recipient-${i}`)?.value?.trim();
-            const amount = document.getElementById(`mine-amount-${i}`)?.value?.trim();
-            const label = document.getElementById(`mine-label-${i}`)?.value?.trim();
-            if (!recipient || !amount) {
-              showToast(`Note #${i}: recipient and amount are required`, 'error');
-              return;
+          saveNoteData();
+
+          // Validate
+          const errors = [];
+          const parsedNotes = notes.map((note, i) => {
+            const recipient = note.recipient.trim();
+            const amountEth = note.amount.trim();
+            const label = note.label.trim();
+
+            if (!recipient.match(/^0x[0-9a-fA-F]{40}$/)) {
+              errors.push(`Note #${i}: invalid recipient address (must be 0x + 40 hex chars)`);
             }
-            const note = { recipient, amount };
-            if (label) note.label = label;
-            notes.push(note);
+
+            const weiStr = ethToWei(amountEth);
+            if (!weiStr || weiStr === '0') {
+              errors.push(`Note #${i}: amount must be a positive number in ETH`);
+            } else {
+              const wei = BigInt(weiStr);
+              if (wei < BigInt('1000000000000')) { // minimum ~0.000001 ETH
+                errors.push(`Note #${i}: amount too small (minimum ~0.000001 ETH)`);
+              }
+            }
+
+            return {
+              recipient,
+              amount: weiStr || '0',
+              label: label || undefined,
+            };
+          });
+
+          if (errors.length > 0) {
+            showToast(errors[0], 'error');
+            return;
           }
-          handleMineDeposit({ notes });
+
+          const chainIdEl = document.getElementById('mine-chain-id');
+          const commentEl = document.getElementById('mine-comment');
+          const chainIdVal = chainIdEl?.value?.trim() || '167013';
+          const commentVal = commentEl?.value?.trim() || undefined;
+
+          handleMineDeposit({ notes: parsedNotes, comment: commentVal, chainId: chainIdVal });
         },
       }, state.mining ? 'Mining...' : 'Mine Deposit'),
       state.mining ? el('span', { className: 'spinner' }) : null,
       state.mining
         ? el('span', { className: 'mining-status' }, 'Finding valid PoW secret...')
-        : el('span', { className: 'form-hint' }, 'Mining typically takes 3-10 seconds'),
+        : el('span', { className: 'form-hint' }, 'Mining typically takes 3\u201310 seconds'),
     ].filter(Boolean));
     container.appendChild(actions);
   }
@@ -810,11 +907,33 @@ function isProving() {
 }
 
 function weiToEth(weiStr) {
-  const wei = BigInt(weiStr || '0');
-  const eth = Number(wei) / 1e18;
-  if (eth === 0) return '0';
-  if (eth < 0.001) return '<0.001';
-  return eth.toFixed(6).replace(/\.?0+$/, '');
+  try {
+    const wei = BigInt(weiStr || '0');
+    if (wei === 0n) return '0';
+    // Use string math to avoid floating point errors
+    const str = wei.toString().padStart(19, '0');
+    const intPart = str.slice(0, -18) || '0';
+    const fracPart = str.slice(-18).replace(/0+$/, '');
+    if (!fracPart) return intPart;
+    // Trim to max 6 significant decimal places for display
+    const trimmed = fracPart.slice(0, 6).replace(/0+$/, '');
+    return `${intPart}.${trimmed}`;
+  } catch {
+    return '0';
+  }
+}
+
+function ethToWei(ethStr) {
+  // Convert ETH string to wei BigInt, returns null on parse error
+  try {
+    const s = ethStr.trim();
+    if (!s || isNaN(parseFloat(s))) return null;
+    const [intPart = '0', fracPart = ''] = s.split('.');
+    const fracPadded = (fracPart + '000000000000000000').slice(0, 18);
+    return (BigInt(intPart) * BigInt('1000000000000000000') + BigInt(fracPadded)).toString();
+  } catch {
+    return null;
+  }
 }
 
 function truncateAddr(addr) {

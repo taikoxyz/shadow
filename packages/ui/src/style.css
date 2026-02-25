@@ -459,6 +459,10 @@ body {
   border-color: var(--accent-blue);
 }
 
+.form-input.input-error {
+  border-color: var(--accent-red);
+}
+
 .form-input::placeholder {
   color: var(--text-muted);
 }

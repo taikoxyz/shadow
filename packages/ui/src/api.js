@@ -47,10 +47,10 @@ export function getDeposit(id) {
 }
 
 /** POST /api/deposits — mine a new deposit */
-export function createDeposit(chainId, notes) {
+export function createDeposit(chainId, notes, comment) {
   return apiFetch('/deposits', {
     method: 'POST',
-    body: JSON.stringify({ chainId, notes }),
+    body: JSON.stringify({ chainId, notes, ...(comment ? { comment } : {}) }),
   });
 }
 
@@ -70,10 +70,9 @@ export function deleteProof(depositId) {
 }
 
 /** POST /api/deposits/:id/prove */
-export function startProof(depositId) {
-  return apiFetch(`/deposits/${encodeURIComponent(depositId)}/prove`, {
-    method: 'POST',
-  });
+export function startProof(depositId, force = false) {
+  const path = `/deposits/${encodeURIComponent(depositId)}/prove${force ? '?force=true' : ''}`;
+  return apiFetch(path, { method: 'POST' });
 }
 
 /** GET /api/queue */
