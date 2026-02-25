@@ -55,6 +55,15 @@ pub struct ProveResult {
 
 /// Configure RISC Zero environment variables for local proving.
 pub fn configure_risc0_env() {
+    // RISC Zero uses Rayon internally for parallel segment proving. On macOS,
+    // spawned threads default to 512KB stack which causes SIGBUS during the
+    // deeply recursive STARK computation. Set RUST_MIN_STACK so that Rayon
+    // worker threads (created via std::thread::Builder with no explicit stack
+    // size) inherit a large stack before the global pool is first initialized.
+    if env::var("RUST_MIN_STACK").is_err() {
+        env::set_var("RUST_MIN_STACK", "268435456"); // 256 MB
+    }
+
     if env::var("RISC0_PROVER").is_err() {
         env::set_var("RISC0_PROVER", "local");
     }
