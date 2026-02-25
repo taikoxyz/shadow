@@ -43,13 +43,18 @@ async fn start_proof(
         .find(|d| d.id == id)
         .ok_or((StatusCode::NOT_FOUND, format!("deposit {} not found", id)))?;
 
-    // If force=true, delete the existing proof file so it can be regenerated
+    // If force=true, rename the existing proof file to .bkup immediately
+    // so the deposit appears as "unproved" during regeneration.
     if query.force {
         if let Some(ref proof_name) = deposit.proof_file {
             let proof_path = state.workspace.join(proof_name);
             if proof_path.is_file() {
-                let _ = std::fs::remove_file(&proof_path);
-                tracing::info!(file = %proof_name, "deleted proof file for regeneration");
+                let bkup_path = proof_path.with_extension("bkup");
+                if let Err(e) = std::fs::rename(&proof_path, &bkup_path) {
+                    tracing::warn!(error = %e, file = %proof_name, "failed to rename proof to .bkup");
+                } else {
+                    tracing::info!(file = %proof_name, "renamed proof to .bkup for regeneration");
+                }
             }
         }
     }
@@ -57,6 +62,8 @@ async fn start_proof(
     let note_count = deposit.note_count as u32;
     let deposit_filename = deposit.filename.clone();
     let deposit_id = deposit.id.clone();
+    // Capture existing proof filename before spawn (will be renamed to .bkup on success)
+    let existing_proof = deposit.proof_file.clone();
 
     // Enqueue
     state
@@ -78,6 +85,19 @@ async fn start_proof(
             .await
         {
             Ok(bundled) => {
+                // Rename any existing proof file to .bkup before writing the new one
+                if let Some(ref old_proof) = existing_proof {
+                    let old_path = workspace.join(old_proof);
+                    if old_path.is_file() {
+                        let bkup_path = old_path.with_extension("bkup");
+                        if let Err(e) = std::fs::rename(&old_path, &bkup_path) {
+                            tracing::warn!(error = %e, file = %old_proof, "failed to rename old proof to .bkup");
+                        } else {
+                            tracing::info!(file = %old_proof, "renamed old proof to .bkup");
+                        }
+                    }
+                }
+
                 // Write proof file
                 let deposit_stem = deposit_filename
                     .strip_suffix(".json")

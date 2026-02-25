@@ -43,6 +43,10 @@ pub struct DepositEntry {
     /// Proof filename (if exists).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proof_file: Option<String>,
+    /// Whether the proof file contains valid (non-empty) proof data.
+    /// None if no proof exists, Some(false) if the proof has empty seal/proof fields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proof_valid: Option<bool>,
     /// Per-note info.
     pub notes: Vec<NoteEntry>,
     /// Optional user comment.
@@ -98,13 +102,25 @@ pub fn scan_workspace(workspace: &Path) -> WorkspaceIndex {
         }
     }
 
-    // Build proof lookup: deposit_stem -> proof filename
-    let mut proof_map: HashMap<String, String> = HashMap::new();
+    // Build proof lookup: deposit_stem -> newest proof filename.
+    //
+    // Multiple proof files may exist for the same deposit (e.g. after regeneration).
+    // We sort lexicographically — since proof filenames embed a compact ISO 8601
+    // timestamp (`YYYYMMDDTHHMMSS`), lexicographic order equals chronological order.
+    // The last entry after sorting is therefore the newest.
+    let mut proof_map: HashMap<String, Vec<String>> = HashMap::new();
     for pf in &proof_files {
         if let Some(stem) = proof_deposit_stem(pf) {
-            proof_map.insert(stem.to_string(), pf.clone());
+            proof_map.entry(stem.to_string()).or_default().push(pf.clone());
         }
     }
+    let proof_map: HashMap<String, String> = proof_map
+        .into_iter()
+        .filter_map(|(stem, mut proofs)| {
+            proofs.sort();
+            proofs.into_iter().last().map(|newest| (stem, newest))
+        })
+        .collect();
 
     // Process each deposit
     let mut deposits: Vec<DepositEntry> = Vec::new();
@@ -204,6 +220,12 @@ fn process_deposit(
     let proof_file = proof_map.get(stem).cloned();
     let created_at = parse_timestamp_from_filename(filename);
 
+    // Validate the proof file (if it exists)
+    let proof_valid = proof_file.as_ref().map(|pf| {
+        let proof_path = path.parent().unwrap_or(path).join(pf);
+        validate_proof_file(&proof_path)
+    });
+
     Ok(DepositEntry {
         id: stem.to_string(),
         filename: filename.to_string(),
@@ -214,9 +236,39 @@ fn process_deposit(
         created_at,
         has_proof: proof_file.is_some(),
         proof_file,
+        proof_valid,
         notes: note_entries,
         comment: deposit.comment,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Proof file validation
+// ---------------------------------------------------------------------------
+
+/// Check whether a proof file has valid (non-empty) proof data.
+///
+/// A proof file is considered valid if it parses as JSON, has a non-empty
+/// "notes" array, and the first note has a non-empty "seal" or "proof" field.
+/// Dev-mode proofs (generated without the `prove` feature) have empty fields
+/// and are therefore marked as invalid.
+fn validate_proof_file(path: &Path) -> bool {
+    let raw = match fs::read(path) {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+    let val: serde_json::Value = match serde_json::from_slice(&raw) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let notes = match val.get("notes").and_then(|v| v.as_array()) {
+        Some(n) if !n.is_empty() => n,
+        _ => return false,
+    };
+    let first = &notes[0];
+    let seal = first.get("seal").and_then(|v| v.as_str()).unwrap_or("");
+    let proof = first.get("proof").and_then(|v| v.as_str()).unwrap_or("");
+    !seal.is_empty() || !proof.is_empty()
 }
 
 // ---------------------------------------------------------------------------

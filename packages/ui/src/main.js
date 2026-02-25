@@ -61,6 +61,7 @@ function applyRoute() {
     if (state.view !== 'detail' || state.selectedId !== id) {
       state.depositBalance = null;
       loadDepositBalance(id);
+      loadAllNoteStatuses(id);
     }
     state.view = 'detail';
     state.selectedId = id;
@@ -141,6 +142,11 @@ async function refresh() {
   }
 
   render();
+
+  // Auto-refresh note statuses if viewing a deposit detail
+  if (state.view === 'detail' && state.selectedId) {
+    loadAllNoteStatuses(state.selectedId);
+  }
 }
 
 async function pollQueue() {
@@ -184,8 +190,9 @@ function navigateTo(view, id = null) {
   if (view === 'detail' && id) {
     state.depositBalance = null; // reset while loading
     location.hash = `#/deposit/${encodeURIComponent(id)}`;
-    // Load balance async (will re-render when done)
+    // Load balance and note statuses async (will re-render when done)
     loadDepositBalance(id);
+    loadAllNoteStatuses(id);
   } else if (view === 'settings') {
     state.depositBalance = null;
     location.hash = '#/settings';
@@ -222,6 +229,16 @@ async function loadDepositBalance(depositId) {
     render();
   } catch {
     state.depositBalance = null;
+  }
+}
+
+async function loadAllNoteStatuses(depositId) {
+  const deposit = state.deposits.find((d) => d.id === depositId);
+  if (!deposit) return;
+  for (const note of deposit.notes) {
+    if (note.claimStatus === 'unknown') {
+      handleRefreshNote(depositId, note.index);
+    }
   }
 }
 
@@ -453,15 +470,27 @@ function render() {
     app.appendChild(renderListView());
   }
 
-  // Config footer
-  if (state.config) {
-    app.appendChild(renderConfigBar());
-  }
+}
+
+
+function makeLogo() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'logo';
+  wrapper.title = 'Shadow';
+  wrapper.setAttribute('role', 'img');
+  wrapper.setAttribute('aria-label', 'Shadow');
+  wrapper.innerHTML = `<svg viewBox="0 0 32 24" width="32" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M2 12C5.5 5.5 10.5 2.5 16 2.5C21.5 2.5 26.5 5.5 30 12C26.5 18.5 21.5 21.5 16 21.5C10.5 21.5 5.5 18.5 2 12Z" stroke="var(--accent-green)" stroke-width="1.5"/>
+    <circle cx="16" cy="12" r="4" fill="var(--accent-green)" fill-opacity="0.2" stroke="var(--accent-green)" stroke-width="1.5"/>
+    <circle cx="16" cy="12" r="1.8" fill="var(--accent-green)"/>
+  </svg>`;
+  wrapper.addEventListener('click', () => navigateTo('list'));
+  return wrapper;
 }
 
 function renderHeader() {
   const headerLeft = el('div', { className: 'header-left' }, [
-    el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
+    makeLogo(),
     el('span', { className: 'header-count' },
       `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`),
   ]);
@@ -809,6 +838,62 @@ function renderMiningForm() {
 // Detail View
 // ---------------------------------------------------------------------------
 
+/** Deposit filename row with inline download + delete buttons. */
+function depositFileRow(deposit) {
+  return el('div', { className: 'detail-row' }, [
+    el('span', { className: 'detail-label' }, 'Filename'),
+    el('div', { className: 'file-row-value' }, [
+      el('span', { className: 'detail-value file-name' }, deposit.filename),
+      el('a', {
+        href: `/api/deposits/${encodeURIComponent(deposit.id)}/download`,
+        className: 'btn btn-small',
+        download: true,
+        title: 'Download deposit file',
+      }, '\u2193'),
+      el('button', {
+        className: 'btn btn-danger btn-small',
+        title: 'Delete deposit',
+        onclick: () => confirmAction(
+          'Delete deposit?',
+          `This will permanently delete ${deposit.filename}${deposit.hasProof ? ' and its proof file' : ''}.`,
+          () => handleDeleteDeposit(deposit.id, true),
+        ),
+      }, '\u00d7'),
+    ]),
+  ]);
+}
+
+/** Proof file row with inline download + delete buttons (or "None" if no proof). */
+function proofFileRow(deposit, status) {
+  if (!deposit.hasProof) return detailRow('Proof', 'None');
+  return el('div', { className: 'detail-row' }, [
+    el('span', { className: 'detail-label' }, 'Proof'),
+    el('div', { className: 'file-row-value' }, [
+      deposit.proofValid === false
+        ? el('span', { className: 'badge badge-no-proof', style: 'flex-shrink:0' }, 'Invalid')
+        : null,
+      el('span', { className: 'detail-value file-name' }, deposit.proofFile || '\u2014'),
+      el('a', {
+        href: `/api/deposits/${encodeURIComponent(deposit.id)}/proof/download`,
+        className: 'btn btn-small',
+        download: true,
+        title: 'Download proof file',
+      }, '\u2193'),
+      status !== 'proving'
+        ? el('button', {
+            className: 'btn btn-danger btn-small',
+            title: 'Delete proof',
+            onclick: () => confirmAction(
+              'Delete proof file?',
+              `This will delete ${deposit.proofFile}. The deposit file will remain.`,
+              () => handleDeleteProof(deposit.id),
+            ),
+          }, '\u00d7')
+        : null,
+    ].filter(Boolean)),
+  ]);
+}
+
 function renderDetailView() {
   const deposit = state.deposits.find((d) => d.id === state.selectedId);
   if (!deposit) {
@@ -819,6 +904,37 @@ function renderDetailView() {
   }
 
   const totalEth = weiToEth(deposit.totalAmount);
+  const status = depositStatus(deposit);
+
+  const actionBtns = (() => {
+    if (status === 'unfunded') {
+      if (window.ethereum) {
+        return [el('button', {
+          className: 'btn btn-primary',
+          onclick: () => handleFundDeposit(deposit),
+        }, 'Fund Deposit')];
+      }
+      return [el('p', { className: 'form-hint' },
+        `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`)];
+    }
+    if (status === 'unproved') {
+      return [el('button', {
+        className: 'btn btn-primary',
+        onclick: () => handleProve(deposit.id),
+        disabled: isProving(),
+      }, 'Generate Proof')];
+    }
+    if (status === 'proving') {
+      return [el('span', { className: 'form-hint' }, 'Proof generation in progress \u2014 see banner above')];
+    }
+    if (status === 'proved' || status === 'partial') {
+      return [el('button', {
+        className: 'btn btn-primary',
+        onclick: () => handleProve(deposit.id, true),
+      }, 'Regenerate Proof')];
+    }
+    return [];
+  })();
 
   return el('div', {}, [
     // Breadcrumb
@@ -832,19 +948,19 @@ function renderDetailView() {
       ? el('p', { className: 'deposit-comment' }, deposit.comment)
       : null,
 
-    // Overview
+    // Overview — filename and proof rows have inline download + delete
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
-      detailRow('Filename', deposit.filename),
+      depositFileRow(deposit),
       detailRow('Chain ID', deposit.chainId),
       detailRow('Target Address', deposit.targetAddress),
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
-      detailRow('Proof', deposit.hasProof ? deposit.proofFile : 'None'),
+      proofFileRow(deposit, status),
     ].filter(Boolean)),
 
-    // Funding Status section
+    // Funding Status
     state.depositBalance
       ? el('div', { className: 'detail-section' }, [
           el('h2', {}, 'Funding Status'),
@@ -867,82 +983,14 @@ function renderDetailView() {
       renderNotesTable(deposit),
     ]),
 
-    // Actions section — dynamic based on deposit status
-    el('div', { className: 'detail-section' }, [
-      el('h2', {}, 'Actions'),
-      el('div', { className: 'actions' }, (() => {
-        const status = depositStatus(deposit);
-        const btns = [];
-
-        if (status === 'unfunded') {
-          // Fund button
-          if (window.ethereum) {
-            btns.push(el('button', {
-              className: 'btn btn-primary',
-              onclick: () => handleFundDeposit(deposit),
-            }, 'Fund Deposit'));
-          } else {
-            btns.push(el('p', { className: 'form-hint' },
-              `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`));
-          }
-        } else if (status === 'unproved') {
-          btns.push(el('button', {
-            className: 'btn btn-primary',
-            onclick: () => handleProve(deposit.id),
-            disabled: isProving(),
-          }, 'Generate Proof'));
-        } else if (status === 'proving') {
-          btns.push(el('span', { className: 'form-hint' }, 'Proof generation in progress \u2014 see banner above'));
-        } else if (status === 'proved' || status === 'partial') {
-          // Can regenerate proof
-          btns.push(el('button', {
-            className: 'btn',
-            onclick: () => handleProve(deposit.id, true),
-          }, 'Regenerate Proof'));
-        }
-
-        // Delete proof (if it exists and not currently proving)
-        if (deposit.hasProof && status !== 'proving') {
-          btns.push(el('button', {
-            className: 'btn btn-danger btn-small',
-            onclick: () => confirmAction(
-              'Delete proof file?',
-              `This will delete ${deposit.proofFile}`,
-              () => handleDeleteProof(deposit.id),
-            ),
-          }, 'Delete Proof'));
-        }
-
-        // Delete deposit
-        btns.push(el('button', {
-          className: 'btn btn-danger btn-small',
-          onclick: () => confirmAction(
-            'Delete deposit?',
-            `This will delete ${deposit.filename}${deposit.hasProof ? ' and its proof file' : ''}.`,
-            () => handleDeleteDeposit(deposit.id, true),
-          ),
-        }, 'Delete Deposit'));
-
-        // Download deposit file
-        btns.push(el('a', {
-          href: `/api/deposits/${encodeURIComponent(deposit.id)}/download`,
-          className: 'btn btn-small',
-          download: true,
-        }, 'Download Deposit'));
-
-        // Download proof file (only if proof exists)
-        if (deposit.hasProof) {
-          btns.push(el('a', {
-            href: `/api/deposits/${encodeURIComponent(deposit.id)}/proof/download`,
-            className: 'btn btn-small',
-            download: true,
-          }, 'Download Proof'));
-        }
-
-        return btns;
-      })()),
-    ]),
-  ]);
+    // Actions — one primary button max
+    actionBtns.length > 0
+      ? el('div', { className: 'detail-section' }, [
+          el('h2', {}, 'Actions'),
+          el('div', { className: 'actions' }, actionBtns),
+        ])
+      : null,
+  ].filter(Boolean));
 }
 
 function renderNotesTable(deposit) {
@@ -1047,13 +1095,13 @@ function renderSettingsView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'RPC Endpoint'),
       el('p', { className: 'form-hint', style: 'margin-bottom: 0.75rem' },
-        'Stored locally. Used by the UI for balance checks. Proof generation uses the server-configured RPC URL.'),
+        `Used by the UI for balance checks. Proof generation uses the server\u2019s RPC. Clear to use default: ${state.config?.rpcUrl || 'https://rpc.hoodi.taiko.xyz'}`),
       el('div', { className: 'form-group' }, [
         el('label', { className: 'form-label' }, 'JSON-RPC URL'),
         el('input', {
           className: 'form-input',
           id: 'settings-rpc',
-          placeholder: 'https://rpc.hoodi.taiko.xyz',
+          placeholder: state.config?.rpcUrl || 'https://rpc.hoodi.taiko.xyz',
         }),
       ]),
       el('button', {
@@ -1075,13 +1123,13 @@ function renderSettingsView() {
       el('div', { style: 'display: flex; align-items: center; gap: 0.75rem' }, [
         el('span', { style: 'font-size: 0.82rem; color: var(--text-secondary)' }, 'Theme:'),
         el('button', {
-          className: `btn btn-small${getTheme() === 'dark' ? ' btn-primary' : ''}`,
+          className: `btn btn-small${getTheme() === 'dark' ? ' btn-accent' : ''}`,
           onclick: () => setTheme('dark'),
-        }, 'Dark'),
+        }, `${getTheme() === 'dark' ? '\u2713 ' : ''}Dark`),
         el('button', {
-          className: `btn btn-small${getTheme() === 'light' ? ' btn-primary' : ''}`,
+          className: `btn btn-small${getTheme() === 'light' ? ' btn-accent' : ''}`,
           onclick: () => setTheme('light'),
-        }, 'Light'),
+        }, `${getTheme() === 'light' ? '\u2713 ' : ''}Light`),
       ]),
     ]),
 
@@ -1098,21 +1146,6 @@ function renderSettingsView() {
         : el('p', { className: 'form-hint' }, 'Server not connected'),
     ]),
   ]);
-}
-
-// ---------------------------------------------------------------------------
-// Config Footer
-// ---------------------------------------------------------------------------
-
-function renderConfigBar() {
-  const c = state.config;
-  if (!c) return el('div', {});
-  const items = [];
-  if (c.version) items.push(`v${c.version}`);
-  if (c.shadowAddress) items.push(`Shadow: ${c.shadowAddress}`);
-  if (c.circuitId) items.push(`Circuit: ${c.circuitId}`);
-  // Removed: workspace path, truncation of circuit ID
-  return el('div', { className: 'config-bar' }, items.map((t) => el('span', {}, t)));
 }
 
 // ---------------------------------------------------------------------------

@@ -585,20 +585,6 @@ body {
   margin-top: 0.5rem;
 }
 
-/* --- Config Bar --- */
-
-.config-bar {
-  font-size: 0.68rem;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  padding: 0.75rem 0;
-  border-top: 1px solid var(--border);
-  margin-top: 2rem;
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
 /* --- Confirm Dialog --- */
 
 .dialog-overlay {
@@ -761,6 +747,54 @@ body {
   margin-bottom: 1.25rem;
   padding: 0.5rem 0.75rem;
   border-left: 2px solid var(--border);
+}
+
+/* --- Logo --- */
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  transition: opacity 0.12s;
+}
+
+.logo:hover {
+  opacity: 0.8;
+}
+
+/* --- File row (inline buttons next to filename) --- */
+
+.file-row-value {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  flex: 1;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: none !important;
+}
+
+/* --- Light theme btn-accent hover fix --- */
+
+[data-theme="light"] .btn-accent {
+  background: var(--accent-blue-bg);
+  border-color: #bfdbfe;
+  color: var(--accent-blue);
+}
+
+[data-theme="light"] .btn-accent:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
 }
 
 /* --- Responsive --- */
