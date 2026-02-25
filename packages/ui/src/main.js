@@ -30,13 +30,55 @@ let state = {
 };
 
 // ---------------------------------------------------------------------------
+// Theme
+// ---------------------------------------------------------------------------
+
+function getTheme() {
+  return localStorage.getItem('shadow-theme') || 'dark';
+}
+
+function setTheme(t) {
+  localStorage.setItem('shadow-theme', t);
+  document.documentElement.setAttribute('data-theme', t);
+  render();
+}
+
+// Apply theme immediately (before any render)
+document.documentElement.setAttribute('data-theme', getTheme());
+
+// ---------------------------------------------------------------------------
+// Routing
+// ---------------------------------------------------------------------------
+
+function applyRoute() {
+  const hash = location.hash;
+  const detailMatch = hash.match(/^#\/deposit\/(.+)$/);
+  if (detailMatch) {
+    state.view = 'detail';
+    state.selectedId = decodeURIComponent(detailMatch[1]);
+  } else if (hash === '#/settings') {
+    state.view = 'settings';
+    state.selectedId = null;
+  } else {
+    state.view = 'list';
+    state.selectedId = null;
+  }
+  render();
+}
+
+// ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
 
 const app = document.getElementById('app');
 
 async function init() {
-  render();
+  // Apply current hash on load (before fetch so we know which view to show)
+  applyRoute();
+
+  // Listen for hash changes (back/forward navigation)
+  window.addEventListener('hashchange', applyRoute);
+
   await refresh();
 
   // Subscribe to real-time events
@@ -121,9 +163,13 @@ function handleServerEvent(event) {
 }
 
 function navigateTo(view, id = null) {
-  state.view = view;
-  state.selectedId = id;
-  render();
+  if (view === 'detail' && id) {
+    location.hash = `#/deposit/${encodeURIComponent(id)}`;
+  } else if (view === 'settings') {
+    location.hash = '#/settings';
+  } else {
+    location.hash = '#/';
+  }
 }
 
 async function handleProve(depositId) {
@@ -337,6 +383,11 @@ function renderHeader() {
             onclick: handleConnectWallet,
           }, 'Connect Wallet')
         : null,
+    el('button', {
+      className: 'btn-icon',
+      onclick: () => setTheme(getTheme() === 'dark' ? 'light' : 'dark'),
+      title: 'Toggle theme',
+    }, getTheme() === 'dark' ? '☀' : '☾'),
   ].filter(Boolean));
 
   return el('div', { className: 'header' }, [headerLeft, headerActions]);
