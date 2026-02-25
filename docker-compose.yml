@@ -1,0 +1,25 @@
+# Shadow Protocol — Development Docker Compose
+#
+# Usage:
+#   docker compose up
+#
+# This will:
+# 1. Build the Shadow image (server + UI + prover)
+# 2. Start the server on http://localhost:3000
+# 3. Mount ./workspace as the workspace directory
+#
+# Place deposit JSON files in ./workspace and manage them via the web UI.
+
+services:
+  shadow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./workspace:/workspace
+    environment:
+      - RPC_URL=https://rpc.hoodi.taiko.xyz
+      - SHADOW_ADDRESS=0x77cdA0575e66A5FC95404fdA856615AD507d8A07
+      - RUST_LOG=shadow_server=info
