@@ -721,13 +721,23 @@ function renderMiningForm() {
               oninput: (e) => { state.miningNotes[i].recipient = e.target.value; },
               onblur: (e) => {
                 state.miningNotes[i].recipient = e.target.value;
-                const val = e.target.value.trim().toLowerCase();
-                const wallet = state.walletAddress?.toLowerCase();
-                if (wallet && val === wallet) {
-                  showToast('Warning: using your connected wallet address as recipient may reveal your identity on-chain.', 'error');
+                const val = e.target.value.trim();
+                const errEl = document.getElementById(`mine-recipient-error-${i}`);
+                const inputEl = e.target;
+                if (val && !val.match(/^0x[0-9a-fA-F]{40}$/)) {
+                  inputEl.classList.add('form-input-invalid');
+                  if (errEl) errEl.textContent = 'Invalid address — must be 0x followed by 40 hex characters.';
+                } else {
+                  inputEl.classList.remove('form-input-invalid');
+                  if (errEl) errEl.textContent = '';
+                  const wallet = state.walletAddress?.toLowerCase();
+                  if (wallet && val.toLowerCase() === wallet) {
+                    showToast('Warning: using your connected wallet address as recipient may reveal your identity on-chain.', 'error');
+                  }
                 }
               },
             }),
+            el('span', { className: 'form-field-error', id: `mine-recipient-error-${i}` }, ''),
           ]),
           el('div', { className: 'form-group', style: 'flex:1' }, [
             el('label', { className: 'form-label' }, 'Amount (ETH)'),
@@ -793,6 +803,22 @@ function renderMiningForm() {
           });
 
           if (errors.length > 0) {
+            // Highlight invalid recipient fields directly
+            state.miningNotes.forEach((note, idx) => {
+              const inp = document.getElementById(`mine-recipient-${idx}`);
+              const err = document.getElementById(`mine-recipient-error-${idx}`);
+              if (inp && err) {
+                const isInvalidAddr = note.recipient.trim() &&
+                  !note.recipient.trim().match(/^0x[0-9a-fA-F]{40}$/);
+                const isEmpty = !note.recipient.trim();
+                if (isInvalidAddr || isEmpty) {
+                  inp.classList.add('form-input-invalid');
+                  err.textContent = isEmpty
+                    ? 'Recipient address is required.'
+                    : 'Invalid address — must be 0x followed by 40 hex characters.';
+                }
+              }
+            });
             showToast(errors[0], 'error');
             return;
           }
@@ -978,6 +1004,13 @@ function renderDetailView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Proofs'),
       proofFileRow(deposit, status),
+      // Show failure details while the failed job is not yet dismissed
+      status === 'failed' && state.queueJob?.error
+        ? el('div', { className: 'proof-failure-detail' }, [
+            el('span', { className: 'proof-failure-label' }, 'Error'),
+            el('pre', { className: 'proof-failure-msg' }, state.queueJob.error),
+          ])
+        : null,
       proofAction
         ? el('div', { className: 'actions', style: 'margin-top: 0.75rem; justify-content: flex-end' }, [proofAction])
         : null,
@@ -1186,11 +1219,10 @@ function isProving() {
 }
 
 function depositStatus(deposit) {
-  // If proving is in progress for this deposit
-  if (state.queueJob &&
-      ['queued', 'running'].includes(state.queueJob.status) &&
-      state.queueJob.depositId === deposit.id) {
-    return 'proving';
+  // If a proof job is active or failed for this deposit
+  if (state.queueJob && state.queueJob.depositId === deposit.id) {
+    if (['queued', 'running'].includes(state.queueJob.status)) return 'proving';
+    if (state.queueJob.status === 'failed') return 'failed';
   }
   // Check funding state
   if (state.depositBalance && !state.depositBalance.isFunded) return 'unfunded';
