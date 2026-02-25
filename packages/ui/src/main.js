@@ -1161,11 +1161,6 @@ function renderProofJobBanner() {
     ]),
     el('div', { className: 'proof-banner-right' }, [
       !isFailed
-        ? el('div', { className: 'progress-bar', style: 'width: 120px' }, [
-            el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
-          ])
-        : null,
-      !isFailed
         ? el('button', {
             className: 'btn btn-small',
             style: 'font-size: 0.72rem;',
