@@ -185,6 +185,9 @@ body {
   font-size: 0.82rem;
   margin-bottom: 1.25rem;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .breadcrumb a {
@@ -220,10 +223,20 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.deposit-file-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  position: relative;
+  top: 1px;
+}
+
 .deposit-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.4rem;
   margin-bottom: 0.4rem;
 }
 

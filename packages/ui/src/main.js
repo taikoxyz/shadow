@@ -591,6 +591,7 @@ function renderDepositCard(deposit) {
     },
     [
       el('div', { className: 'deposit-card-header' }, [
+        depositFileIcon(),
         el('span', { className: 'deposit-card-id' }, truncateDepositId(deposit.id)),
         statusBadge,
       ]),
@@ -938,7 +939,9 @@ function renderDetailView() {
     // Breadcrumb
     el('div', { className: 'breadcrumb' }, [
       el('a', { onclick: () => navigateTo('list') }, 'Deposits'),
-      ` / ${truncateDepositId(deposit.id)}`,
+      ' / ',
+      depositFileIcon(),
+      el('span', {}, truncateDepositId(deposit.id)),
     ]),
 
     // Comment (if present)
@@ -1279,6 +1282,20 @@ function detailRow(label, value) {
     el('span', { className: 'detail-label' }, label),
     el('span', { className: 'detail-value' }, value || '\u2014'),
   ]);
+}
+
+/** Returns a <span> containing the deposit-file SVG icon. */
+function depositFileIcon() {
+  const span = document.createElement('span');
+  span.className = 'deposit-file-icon';
+  span.setAttribute('aria-hidden', 'true');
+  span.innerHTML =
+    '<svg width="13" height="15" viewBox="0 0 13 15" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<path d="M1.5 1h6.5l3.5 3.5V13.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-12A.5.5 0 0 1 1.5 1Z"' +
+    ' stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>' +
+    '<path d="M8 1v3.5H11.5" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>' +
+    '</svg>';
+  return span;
 }
 
 /** Tiny DOM helper — creates an element with props and children. */
