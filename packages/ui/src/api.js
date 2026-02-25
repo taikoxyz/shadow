@@ -85,6 +85,11 @@ export function cancelProof() {
   return apiFetch('/queue/current', { method: 'DELETE' });
 }
 
+/** GET /api/deposits/:id/balance */
+export function getDepositBalance(depositId) {
+  return apiFetch(`/deposits/${encodeURIComponent(depositId)}/balance`);
+}
+
 /** GET /api/deposits/:id/notes/:noteIndex/status */
 export function getNoteStatus(depositId, noteIndex) {
   return apiFetch(

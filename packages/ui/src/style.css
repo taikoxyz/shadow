@@ -714,6 +714,51 @@ body {
   background: var(--accent-green);
 }
 
+/* --- Proof Banner --- */
+
+.proof-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--accent-amber-bg);
+  border: 1px solid var(--accent-amber-border);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--accent-amber);
+}
+
+.proof-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.proof-banner-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* --- Deposit comment --- */
+
+.deposit-comment {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-bottom: 1.25rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid var(--border);
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 640px) {

@@ -27,6 +27,9 @@ let state = {
   // Mining form
   showMiningForm: false,
   mining: false,
+  // Deposit detail
+  depositBalance: null,
+  wsConnected: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -54,14 +57,21 @@ function applyRoute() {
   const hash = location.hash;
   const detailMatch = hash.match(/^#\/deposit\/(.+)$/);
   if (detailMatch) {
+    const id = decodeURIComponent(detailMatch[1]);
+    if (state.view !== 'detail' || state.selectedId !== id) {
+      state.depositBalance = null;
+      loadDepositBalance(id);
+    }
     state.view = 'detail';
-    state.selectedId = decodeURIComponent(detailMatch[1]);
+    state.selectedId = id;
   } else if (hash === '#/settings') {
     state.view = 'settings';
     state.selectedId = null;
+    state.depositBalance = null;
   } else {
     state.view = 'list';
     state.selectedId = null;
+    state.depositBalance = null;
   }
   render();
 }
@@ -164,21 +174,80 @@ function handleServerEvent(event) {
 
 function navigateTo(view, id = null) {
   if (view === 'detail' && id) {
+    state.depositBalance = null; // reset while loading
     location.hash = `#/deposit/${encodeURIComponent(id)}`;
+    // Load balance async (will re-render when done)
+    loadDepositBalance(id);
   } else if (view === 'settings') {
+    state.depositBalance = null;
     location.hash = '#/settings';
   } else {
+    state.depositBalance = null;
     location.hash = '#/';
   }
 }
 
-async function handleProve(depositId) {
+async function handleProve(depositId, force = false) {
   try {
-    const job = await api.startProof(depositId);
+    const job = await api.startProof(depositId, force);
     state.queueJob = job;
     render();
   } catch (err) {
-    showToast(`Failed to start proof: ${err.message}`, 'error');
+    const msg = err?.message || String(err);
+    if (msg.includes('409') || msg.toLowerCase().includes('already running')) {
+      showToast(
+        'A proof job is already running. Use the Kill button in the banner above to stop it first.',
+        'error',
+      );
+      // Refresh queue so banner appears
+      pollQueue();
+    } else {
+      showToast(`Failed to start proof: ${msg}`, 'error');
+    }
+  }
+}
+
+async function loadDepositBalance(depositId) {
+  try {
+    const bal = await api.getDepositBalance(depositId);
+    state.depositBalance = bal;
+    render();
+  } catch {
+    state.depositBalance = null;
+  }
+}
+
+async function handleFundDeposit(deposit) {
+  if (!state.walletAddress) {
+    await handleConnectWallet();
+    if (!state.walletAddress) return;
+  }
+  const bal = state.depositBalance;
+  if (!bal) { showToast('Balance not loaded yet', 'error'); return; }
+
+  const dueWei = BigInt(bal.due);
+  if (dueWei <= 0n) { showToast('Deposit already funded', 'info'); return; }
+
+  try {
+    showToast('Confirm the funding transaction in your wallet...', 'info');
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{
+        from: state.walletAddress,
+        to: deposit.targetAddress,
+        value: '0x' + dueWei.toString(16),
+      }],
+    });
+    showToast(`Funding tx submitted: ${txHash.slice(0, 18)}...`, 'success');
+    // Re-check balance after 6s
+    setTimeout(() => loadDepositBalance(deposit.id), 6000);
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (msg.includes('User denied') || msg.includes('rejected')) {
+      showToast('Transaction rejected', 'error');
+    } else {
+      showToast(`Fund failed: ${msg}`, 'error');
+    }
   }
 }
 
@@ -323,6 +392,10 @@ function render() {
   app.innerHTML = '';
   app.appendChild(renderHeader());
 
+  // Global proof job banner
+  const banner = renderProofJobBanner();
+  if (banner) app.appendChild(banner);
+
   if (state.loading) {
     app.appendChild(el('div', { className: 'empty-state' }, [
       el('div', { className: 'spinner' }),
@@ -345,11 +418,6 @@ function render() {
     app.appendChild(renderDetailView());
   } else {
     app.appendChild(renderListView());
-  }
-
-  // Queue status (shown globally when a job is active)
-  if (state.queueJob && ['queued', 'running'].includes(state.queueJob.status)) {
-    app.appendChild(renderQueueStatus());
   }
 
   // Config footer
@@ -436,9 +504,8 @@ function renderListView() {
 
 function renderDepositCard(deposit) {
   const totalEth = weiToEth(deposit.totalAmount);
-  const proofBadge = deposit.hasProof
-    ? el('span', { className: 'badge badge-proof' }, 'Proved')
-    : el('span', { className: 'badge badge-no-proof' }, 'No proof');
+  const cs = cardStatus(deposit);
+  const statusBadge = el('span', { className: `badge ${cs.cls}` }, cs.label);
 
   return el(
     'div',
@@ -449,7 +516,7 @@ function renderDepositCard(deposit) {
     [
       el('div', { className: 'deposit-card-header' }, [
         el('span', { className: 'deposit-card-id' }, truncateDepositId(deposit.id)),
-        proofBadge,
+        statusBadge,
       ]),
       el('div', { className: 'deposit-card-meta' }, [
         el('span', {}, `${deposit.noteCount} note${deposit.noteCount !== 1 ? 's' : ''}`),
@@ -719,54 +786,87 @@ function renderDetailView() {
       detailRow('Proof', deposit.hasProof ? deposit.proofFile : 'None'),
     ].filter(Boolean)),
 
+    // Funding Status section
+    state.depositBalance
+      ? el('div', { className: 'detail-section' }, [
+          el('h2', {}, 'Funding Status'),
+          detailRow('Target Address', deposit.targetAddress),
+          detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
+          detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
+          !state.depositBalance.isFunded
+            ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ETH`)
+            : null,
+          detailRow('Status', state.depositBalance.isFunded ? 'Funded' : 'Unfunded \u2014 send ETH to target address'),
+        ].filter(Boolean))
+      : el('div', { className: 'detail-section' }, [
+          el('h2', {}, 'Funding Status'),
+          el('p', { className: 'form-hint' }, 'Loading balance...'),
+        ]),
+
     // Notes
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Notes'),
       renderNotesTable(deposit),
     ]),
 
-    // Actions
+    // Actions section — dynamic based on deposit status
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Actions'),
-      el('div', { className: 'actions' }, [
-        !deposit.hasProof
-          ? el(
-              'button',
-              {
-                className: 'btn btn-primary',
-                onclick: () => handleProve(deposit.id),
-                disabled: isProving(),
-              },
-              isProving() ? 'Proving...' : 'Generate Proof',
-            )
-          : null,
-        deposit.hasProof
-          ? el(
-              'button',
-              {
-                className: 'btn btn-danger btn-small',
-                onclick: () => confirmAction(
-                  'Delete proof file?',
-                  `This will delete ${deposit.proofFile}`,
-                  () => handleDeleteProof(deposit.id),
-                ),
-              },
-              'Delete Proof',
-            )
-          : null,
-        el(
-          'button',
-          {
+      el('div', { className: 'actions' }, (() => {
+        const status = depositStatus(deposit);
+        const btns = [];
+
+        if (status === 'unfunded') {
+          // Fund button
+          if (window.ethereum) {
+            btns.push(el('button', {
+              className: 'btn btn-primary',
+              onclick: () => handleFundDeposit(deposit),
+            }, 'Fund Deposit'));
+          } else {
+            btns.push(el('p', { className: 'form-hint' },
+              `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`));
+          }
+        } else if (status === 'unproved') {
+          btns.push(el('button', {
+            className: 'btn btn-primary',
+            onclick: () => handleProve(deposit.id),
+            disabled: isProving(),
+          }, 'Generate Proof'));
+        } else if (status === 'proving') {
+          btns.push(el('span', { className: 'form-hint' }, 'Proof generation in progress \u2014 see banner above'));
+        } else if (status === 'proved' || status === 'partial') {
+          // Can regenerate proof
+          btns.push(el('button', {
+            className: 'btn',
+            onclick: () => handleProve(deposit.id, true),
+          }, 'Regenerate Proof'));
+        }
+
+        // Delete proof (if it exists and not currently proving)
+        if (deposit.hasProof && status !== 'proving') {
+          btns.push(el('button', {
             className: 'btn btn-danger btn-small',
             onclick: () => confirmAction(
-              'Delete deposit?',
-              `This will delete ${deposit.filename}${deposit.hasProof ? ' and its proof file' : ''}.`,
-              () => handleDeleteDeposit(deposit.id, true),
+              'Delete proof file?',
+              `This will delete ${deposit.proofFile}`,
+              () => handleDeleteProof(deposit.id),
             ),
-          },
-          'Delete Deposit',
-        ),
-      ].filter(Boolean)),
+          }, 'Delete Proof'));
+        }
+
+        // Delete deposit
+        btns.push(el('button', {
+          className: 'btn btn-danger btn-small',
+          onclick: () => confirmAction(
+            'Delete deposit?',
+            `This will delete ${deposit.filename}${deposit.hasProof ? ' and its proof file' : ''}.`,
+            () => handleDeleteDeposit(deposit.id, true),
+          ),
+        }, 'Delete Deposit'));
+
+        return btns;
+      })()),
     ]),
   ]);
 }
@@ -833,29 +933,28 @@ function renderNotesTable(deposit) {
 }
 
 // ---------------------------------------------------------------------------
-// Queue Status (proof in progress)
+// Proof Job Banner (shown globally when a job is active)
 // ---------------------------------------------------------------------------
 
-function renderQueueStatus() {
+function renderProofJobBanner() {
   const job = state.queueJob;
-  if (!job) return el('div');
+  if (!job || !['queued', 'running'].includes(job.status)) return null;
 
   const pct = job.totalNotes > 0 ? Math.round((job.currentNote / job.totalNotes) * 100) : 0;
 
-  return el('div', { className: 'proof-status-box' }, [
-    el('div', { className: 'proof-status-message' }, [
-      el('strong', {}, `Proof: ${truncateDepositId(job.depositId)}`),
-      ` \u2014 ${job.message}`,
+  return el('div', { className: 'proof-banner' }, [
+    el('div', { className: 'proof-banner-info' }, [
+      el('span', { className: 'spinner' }),
+      el('span', {}, ` Proving ${job.depositId} \u2014 ${job.message || 'in progress...'}`),
     ]),
-    el('div', { className: 'progress-bar' }, [
-      el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
-    ]),
-    el('div', { className: 'actions', style: 'margin-top: 0.5rem' }, [
-      el(
-        'button',
-        { className: 'btn btn-danger btn-small', onclick: handleCancelProof },
-        'Cancel',
-      ),
+    el('div', { className: 'proof-banner-right' }, [
+      el('div', { className: 'progress-bar', style: 'width: 120px' }, [
+        el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
+      ]),
+      el('button', {
+        className: 'btn btn-danger btn-small',
+        onclick: handleCancelProof,
+      }, 'Kill'),
     ]),
   ]);
 }
@@ -904,6 +1003,36 @@ function confirmAction(title, message, onConfirm) {
 
 function isProving() {
   return state.queueJob && ['queued', 'running'].includes(state.queueJob.status);
+}
+
+function depositStatus(deposit) {
+  // If proving is in progress for this deposit
+  if (state.queueJob &&
+      ['queued', 'running'].includes(state.queueJob.status) &&
+      state.queueJob.depositId === deposit.id) {
+    return 'proving';
+  }
+  // Check funding state
+  if (state.depositBalance && !state.depositBalance.isFunded) return 'unfunded';
+  // Check proof state
+  if (!deposit.hasProof) return 'unproved';
+  // Check claim state
+  const notes = deposit.notes || [];
+  const allClaimed = notes.length > 0 && notes.every(n => n.claimStatus === 'claimed');
+  const anyClaimed = notes.some(n => n.claimStatus === 'claimed');
+  if (allClaimed) return 'claimed';
+  if (anyClaimed) return 'partial';
+  return 'proved';
+}
+
+function cardStatus(deposit) {
+  if (!deposit.hasProof) return { label: 'Unproved', cls: 'badge-no-proof' };
+  const notes = deposit.notes || [];
+  const allClaimed = notes.length > 0 && notes.every(n => n.claimStatus === 'claimed');
+  const anyClaimed = notes.some(n => n.claimStatus === 'claimed');
+  if (allClaimed) return { label: 'Claimed', cls: 'badge-claimed' };
+  if (anyClaimed) return { label: 'Partial', cls: 'badge-claimed' };
+  return { label: 'Proved', cls: 'badge-proof' };
 }
 
 function weiToEth(weiStr) {
