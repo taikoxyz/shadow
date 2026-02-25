@@ -240,6 +240,13 @@ body {
   margin-bottom: 0.4rem;
 }
 
+.deposit-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .deposit-card-id {
   font-family: var(--font-mono);
   font-size: 0.82rem;
@@ -694,6 +701,72 @@ body {
   gap: 0.5rem;
   justify-content: flex-end;
 }
+
+/* --- JSON Viewer Modal --- */
+
+.json-viewer-box {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 700px;
+  width: 92%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.json-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.json-viewer-title {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.json-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.json-viewer-pre {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.65;
+  padding: 1rem 1.25rem;
+  margin: 0;
+  overflow: auto;
+  flex: 1;
+  color: var(--text-primary);
+  tab-size: 2;
+  white-space: pre;
+}
+
+/* Syntax tokens */
+.jk      { color: var(--accent-blue); }
+.jv-s    { color: #4ec9ab; }
+.jv-n    { color: #b5cea8; }
+.jv-b    { color: #569cd6; }
+.jv-null { color: var(--text-muted); font-style: italic; }
+
+[data-theme="light"] .jv-s { color: #008000; }
+[data-theme="light"] .jv-n { color: #098658; }
+[data-theme="light"] .jv-b { color: #0000ff; }
 
 /* --- Toast Notification --- */
 

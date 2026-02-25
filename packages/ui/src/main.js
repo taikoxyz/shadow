@@ -591,8 +591,10 @@ function renderDepositCard(deposit) {
     },
     [
       el('div', { className: 'deposit-card-header' }, [
-        depositFileIcon(),
-        el('span', { className: 'deposit-card-id' }, truncateDepositId(deposit.id)),
+        el('div', { className: 'deposit-card-title' }, [
+          depositFileIcon(),
+          el('span', { className: 'deposit-card-id' }, truncateDepositId(deposit.id)),
+        ]),
         statusBadge,
       ]),
       el('div', { className: 'deposit-card-meta' }, [
@@ -833,14 +835,20 @@ function renderMiningForm() {
 // Detail View
 // ---------------------------------------------------------------------------
 
-/** Deposit filename row with inline download + delete buttons. */
+/** Deposit filename row with view + download + delete buttons. */
 function depositFileRow(deposit) {
+  const downloadUrl = `/api/deposits/${encodeURIComponent(deposit.id)}/download`;
   return el('div', { className: 'detail-row' }, [
     el('span', { className: 'detail-label' }, 'Filename'),
     el('div', { className: 'file-row-value' }, [
       el('span', { className: 'detail-value file-name' }, deposit.filename),
+      el('button', {
+        className: 'btn btn-small',
+        title: 'View file',
+        onclick: () => viewFileModal(deposit.filename, downloadUrl),
+      }, '{ }'),
       el('a', {
-        href: `/api/deposits/${encodeURIComponent(deposit.id)}/download`,
+        href: downloadUrl,
         className: 'btn btn-small',
         download: true,
         title: 'Download deposit file',
@@ -858,9 +866,10 @@ function depositFileRow(deposit) {
   ]);
 }
 
-/** Proof file row with inline download + delete buttons (or "None" if no proof). */
+/** Proof file row with view + download + delete buttons (or "None" if no proof). */
 function proofFileRow(deposit, status) {
   if (!deposit.hasProof) return detailRow('Proof', 'None');
+  const downloadUrl = `/api/deposits/${encodeURIComponent(deposit.id)}/proof/download`;
   return el('div', { className: 'detail-row' }, [
     el('span', { className: 'detail-label' }, 'Proof'),
     el('div', { className: 'file-row-value' }, [
@@ -868,8 +877,13 @@ function proofFileRow(deposit, status) {
         ? el('span', { className: 'badge badge-no-proof', style: 'flex-shrink:0' }, 'Invalid')
         : null,
       el('span', { className: 'detail-value file-name' }, deposit.proofFile || '\u2014'),
+      el('button', {
+        className: 'btn btn-small',
+        title: 'View file',
+        onclick: () => viewFileModal(deposit.proofFile || 'proof.json', downloadUrl),
+      }, '{ }'),
       el('a', {
-        href: `/api/deposits/${encodeURIComponent(deposit.id)}/proof/download`,
+        href: downloadUrl,
         className: 'btn btn-small',
         download: true,
         title: 'Download proof file',
@@ -903,24 +917,22 @@ function renderDetailView() {
 
   // Proof action button / hint (shown inside Proofs section)
   const proofAction = (() => {
-    if (status === 'unproved' || status === 'unfunded') {
-      return el('button', {
-        className: 'btn btn-primary',
-        onclick: () => handleProve(deposit.id),
-        disabled: isProving() || status === 'unfunded',
-        title: status === 'unfunded' ? 'Fund the deposit first' : undefined,
-      }, 'Generate Proof');
-    }
     if (status === 'proving') {
       return el('span', { className: 'form-hint' }, 'Proof generation in progress \u2014 see banner above');
     }
-    if (status === 'proved' || status === 'partial') {
+    if (deposit.hasProof) {
       return el('button', {
         className: 'btn',
         onclick: () => handleProve(deposit.id, true),
+        disabled: isProving(),
       }, 'Regenerate Proof');
     }
-    return null;
+    return el('button', {
+      className: 'btn btn-primary',
+      onclick: () => handleProve(deposit.id),
+      disabled: isProving() || status === 'unfunded',
+      title: status === 'unfunded' ? 'Fund the deposit first' : undefined,
+    }, 'Generate Proof');
   })();
 
   // Fund button (shown inside Funding Status section when applicable)
@@ -983,7 +995,7 @@ function renderDetailView() {
       el('h2', {}, 'Proofs'),
       proofFileRow(deposit, status),
       proofAction
-        ? el('div', { className: 'actions', style: 'margin-top: 0.75rem' }, [proofAction])
+        ? el('div', { className: 'actions', style: 'margin-top: 0.75rem; justify-content: flex-end' }, [proofAction])
         : null,
     ].filter(Boolean)),
 
@@ -1284,18 +1296,94 @@ function detailRow(label, value) {
   ]);
 }
 
-/** Returns a <span> containing the deposit-file SVG icon. */
+/** Returns a <span> containing the deposit vault SVG icon. */
 function depositFileIcon() {
   const span = document.createElement('span');
   span.className = 'deposit-file-icon';
   span.setAttribute('aria-hidden', 'true');
   span.innerHTML =
-    '<svg width="13" height="15" viewBox="0 0 13 15" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-    '<path d="M1.5 1h6.5l3.5 3.5V13.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-12A.5.5 0 0 1 1.5 1Z"' +
-    ' stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>' +
-    '<path d="M8 1v3.5H11.5" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>' +
+    '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="1.5" y="2" width="11" height="10" rx="1.75" stroke="currentColor" stroke-width="1.25"/>' +
+    '<circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.25"/>' +
+    '<path d="M9 7h1.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>' +
     '</svg>';
   return span;
+}
+
+/** Pretty-prints and syntax-highlights a JSON string as safe HTML. */
+function highlightJson(str) {
+  const escaped = str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return escaped.replace(
+    /("(?:\\.|[^"\\])*")(\s*:)?|(-?\d+\.?\d*(?:[eE][+-]?\d+)?(?!\w))|(\btrue\b|\bfalse\b)|(\bnull\b)/g,
+    (_m, str, colon, num, bool, nil) => {
+      if (str !== undefined)
+        return colon
+          ? `<span class="jk">${str}</span>${colon}`
+          : `<span class="jv-s">${str}</span>`;
+      if (num !== undefined) return `<span class="jv-n">${num}</span>`;
+      if (bool !== undefined) return `<span class="jv-b">${bool}</span>`;
+      if (nil !== undefined) return `<span class="jv-null">${nil}</span>`;
+      return _m;
+    },
+  );
+}
+
+/** Opens a modal showing the JSON file at fetchUrl with a Copy button. */
+async function viewFileModal(filename, fetchUrl) {
+  const pre = document.createElement('pre');
+  pre.className = 'json-viewer-pre';
+  pre.textContent = 'Loading…';
+
+  const copyBtn = el('button', { className: 'btn btn-small' }, 'Copy');
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(pre.textContent).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+    });
+  });
+
+  const closeBtn = el('button', { className: 'btn-icon', title: 'Close' }, '\u00d7');
+
+  const box = el('div', { className: 'json-viewer-box' }, [
+    el('div', { className: 'json-viewer-header' }, [
+      el('span', { className: 'json-viewer-title' }, filename),
+      el('div', { className: 'json-viewer-actions' }, [copyBtn, closeBtn]),
+    ]),
+    pre,
+  ]);
+
+  const overlay = el('div', { className: 'dialog-overlay' }, [box]);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(overlay);
+
+  try {
+    const resp = await fetch(fetchUrl);
+    const text = await resp.text();
+    const pretty = JSON.stringify(JSON.parse(text), null, 2);
+    pre.innerHTML = highlightJson(pretty);
+    // update copy to use the pretty-printed text
+    copyBtn.addEventListener('click', () => {}, { once: true }); // handled above via pre.textContent
+    pre._rawJson = pretty;
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(pretty).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+      });
+    };
+  } catch (e) {
+    pre.textContent = `Failed to load: ${e.message}`;
+  }
 }
 
 /** Tiny DOM helper — creates an element with props and children. */
