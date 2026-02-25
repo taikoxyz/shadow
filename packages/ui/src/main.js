@@ -674,9 +674,10 @@ function renderMiningForm() {
         id: 'mine-comment',
         placeholder: 'Describe this deposit...',
         style: 'min-height: 56px; resize: vertical; font-family: inherit',
+        oninput: (e) => { state.miningComment = e.target.value; },
       }),
     ]));
-    // Restore comment value after render
+    // Restore comment value (textarea ignores value= prop, needs rAF)
     requestAnimationFrame(() => {
       const c = document.getElementById('mine-comment');
       if (c) c.value = state.miningComment;
@@ -716,7 +717,16 @@ function renderMiningForm() {
               className: 'form-input',
               id: `mine-recipient-${i}`,
               placeholder: '0x...',
-              // No default value — user must enter explicitly
+              value: note.recipient,
+              oninput: (e) => { state.miningNotes[i].recipient = e.target.value; },
+              onblur: (e) => {
+                state.miningNotes[i].recipient = e.target.value;
+                const val = e.target.value.trim().toLowerCase();
+                const wallet = state.walletAddress?.toLowerCase();
+                if (wallet && val === wallet) {
+                  showToast('Warning: using your connected wallet address as recipient may reveal your identity on-chain.', 'error');
+                }
+              },
             }),
           ]),
           el('div', { className: 'form-group', style: 'flex:1' }, [
@@ -726,6 +736,8 @@ function renderMiningForm() {
               id: `mine-amount-${i}`,
               placeholder: '0.001',
               type: 'text',
+              value: note.amount,
+              oninput: (e) => { state.miningNotes[i].amount = e.target.value; },
             }),
           ]),
         ]),
@@ -736,36 +748,12 @@ function renderMiningForm() {
             id: `mine-label-${i}`,
             placeholder: `note #${i}`,
             style: 'max-width: 300px',
+            value: note.label,
+            oninput: (e) => { state.miningNotes[i].label = e.target.value; },
           }),
         ]),
       ]);
       container.appendChild(noteEl);
-    });
-
-    // Restore input values after render
-    requestAnimationFrame(() => {
-      state.miningNotes.forEach((note, i) => {
-        const r = document.getElementById(`mine-recipient-${i}`);
-        const a = document.getElementById(`mine-amount-${i}`);
-        const l = document.getElementById(`mine-label-${i}`);
-        if (r) r.value = note.recipient;
-        if (a) a.value = note.amount;
-        if (l) l.value = note.label;
-      });
-
-      // Add wallet warning listeners after DOM is ready
-      state.miningNotes.forEach((_, i) => {
-        const r = document.getElementById(`mine-recipient-${i}`);
-        if (r) {
-          r.addEventListener('blur', () => {
-            const val = r.value.trim().toLowerCase();
-            const wallet = state.walletAddress?.toLowerCase();
-            if (wallet && val === wallet) {
-              showToast('Warning: using your connected wallet address as recipient may reveal your identity on-chain.', 'error');
-            }
-          });
-        }
-      });
     });
 
     // Submit row
