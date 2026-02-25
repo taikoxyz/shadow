@@ -488,7 +488,7 @@ function renderHeader() {
     state.walletAddress
       ? el('span', { className: 'wallet-badge' }, [
           el('span', { className: 'wallet-dot' }),
-          truncateAddr(state.walletAddress),
+          state.walletAddress,
         ])
       : window.ethereum
         ? el('button', {

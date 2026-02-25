@@ -37,6 +37,16 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  /* Button palette */
+  --btn-primary-bg: #15803d;
+  --btn-primary-border: #16a34a;
+  --btn-primary-hover-bg: #166534;
+  --btn-primary-hover-border: #15803d;
+  --btn-danger-hover-bg: #3d1212;
+  --btn-danger-hover-border: #5c1c1c;
+  --btn-accent-border: #1a2a4a;
+  --btn-accent-hover-bg: #0f1e3d;
+  --btn-accent-hover-border: #253550;
   font-family: system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   color: var(--text-primary);
@@ -69,18 +79,17 @@
   --accent-red-border: #fecaca;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.12);
+  /* Button palette */
+  --btn-primary-bg: #059669;
+  --btn-primary-border: #10b981;
+  --btn-primary-hover-bg: #047857;
+  --btn-primary-hover-border: #059669;
+  --btn-danger-hover-bg: #fee2e2;
+  --btn-danger-hover-border: #fca5a5;
+  --btn-accent-border: #bfdbfe;
+  --btn-accent-hover-bg: #dbeafe;
+  --btn-accent-hover-border: #93c5fd;
   color-scheme: light;
-}
-
-[data-theme="light"] .btn-primary {
-  background: #059669;
-  border-color: #10b981;
-  color: #fff;
-}
-
-[data-theme="light"] .btn-primary:hover {
-  background: #047857;
-  border-color: #059669;
 }
 
 body {
@@ -351,34 +360,36 @@ body {
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
   white-space: nowrap;
+  text-decoration: none;
+  user-select: none;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   background: var(--bg-hover);
   border-color: var(--border-hover);
 }
 
-.btn:active {
+.btn:active:not(:disabled) {
   transform: translateY(1px);
 }
 
 .btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-  transform: none;
 }
 
 .btn-primary {
-  background: #15803d;
-  border-color: #16a34a;
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-border);
   color: #fff;
 }
 
-.btn-primary:hover {
-  background: #16a34a;
-  border-color: #22c55e;
+.btn-primary:hover:not(:disabled) {
+  background: var(--btn-primary-hover-bg);
+  border-color: var(--btn-primary-hover-border);
+  color: #fff;
 }
 
 .btn-danger {
@@ -387,20 +398,22 @@ body {
   color: var(--accent-red);
 }
 
-.btn-danger:hover {
-  background: #3d1515;
-  border-color: #5a2020;
+.btn-danger:hover:not(:disabled) {
+  background: var(--btn-danger-hover-bg);
+  border-color: var(--btn-danger-hover-border);
+  color: var(--accent-red);
 }
 
 .btn-accent {
   background: var(--accent-blue-bg);
-  border-color: #1a2a4a;
+  border-color: var(--btn-accent-border);
   color: var(--accent-blue);
 }
 
-.btn-accent:hover {
-  background: #112040;
-  border-color: #2a3a5a;
+.btn-accent:hover:not(:disabled) {
+  background: var(--btn-accent-hover-bg);
+  border-color: var(--btn-accent-hover-border);
+  color: var(--accent-blue);
 }
 
 .btn-small {
@@ -408,8 +421,14 @@ body {
   font-size: 0.72rem;
 }
 
+/* Icon-only ghost button — fixed square size so all instances match */
 .btn-icon {
-  padding: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -417,11 +436,18 @@ body {
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
   line-height: 1;
+  transition: color 0.12s, background 0.12s;
+  user-select: none;
+  flex-shrink: 0;
 }
 
 .btn-icon:hover {
   color: var(--text-secondary);
   background: var(--bg-hover);
+}
+
+.btn-icon:active {
+  transform: translateY(1px);
 }
 
 .actions {
@@ -781,19 +807,6 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-/* --- Light theme btn-accent hover fix --- */
-
-[data-theme="light"] .btn-accent {
-  background: var(--accent-blue-bg);
-  border-color: #bfdbfe;
-  color: var(--accent-blue);
-}
-
-[data-theme="light"] .btn-accent:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
 }
 
 /* --- Responsive --- */
