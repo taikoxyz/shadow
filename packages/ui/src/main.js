@@ -27,6 +27,8 @@ let state = {
   // Mining form
   showMiningForm: false,
   mining: false,
+  miningNotes: null,    // persists across render() calls while form is open
+  miningComment: '',
   // Deposit detail
   depositBalance: null,
   wsConnected: false,
@@ -406,6 +408,8 @@ async function handleMineDeposit(formData) {
     const result = await api.createDeposit(chainId, formData.notes, formData.comment);
     state.showMiningForm = false;
     state.mining = false;
+    state.miningNotes = null;
+    state.miningComment = '';
     showToast(`Deposit mined! ${result.iterations.toLocaleString()} iterations`, 'success');
     await refresh();
   } catch (err) {
@@ -612,14 +616,17 @@ function renderDepositCard(deposit) {
 // ---------------------------------------------------------------------------
 
 function renderMiningForm() {
-  // Store note data to survive re-renders
-  const notes = [{ recipient: '', amount: '', label: '' }];
-  let comment = '';
+  // Form state lives in state.miningNotes / state.miningComment so it
+  // survives render() calls triggered by pollQueue / WebSocket events.
+  if (!state.miningNotes) {
+    state.miningNotes = [{ recipient: '', amount: '', label: '' }];
+    state.miningComment = '';
+  }
 
   const container = el('div', { className: 'mining-panel' });
 
   function saveNoteData() {
-    notes.forEach((note, i) => {
+    state.miningNotes.forEach((note, i) => {
       const r = document.getElementById(`mine-recipient-${i}`);
       const a = document.getElementById(`mine-amount-${i}`);
       const l = document.getElementById(`mine-label-${i}`);
@@ -628,18 +635,18 @@ function renderMiningForm() {
       if (l) note.label = l.value;
     });
     const c = document.getElementById('mine-comment');
-    if (c) comment = c.value;
+    if (c) state.miningComment = c.value;
   }
 
   function addNote() {
     saveNoteData();
-    if (notes.length < 5) notes.push({ recipient: '', amount: '', label: '' });
+    if (state.miningNotes.length < 5) state.miningNotes.push({ recipient: '', amount: '', label: '' });
     renderFormContent();
   }
 
   function removeNote(i) {
     saveNoteData();
-    notes.splice(i, 1);
+    state.miningNotes.splice(i, 1);
     renderFormContent();
   }
 
@@ -650,23 +657,14 @@ function renderMiningForm() {
       el('h3', {}, 'New Deposit'),
       el('button', {
         className: 'btn-icon',
-        onclick: () => { state.showMiningForm = false; render(); },
+        onclick: () => { state.showMiningForm = false; state.miningNotes = null; state.miningComment = ''; render(); },
         title: 'Close',
       }, '\u2715'),
     ]);
     container.appendChild(header);
 
-    // Chain ID
+    // Chain ID (fixed — not configurable by user)
     const chainId = state.config?.chainId || '167013';
-    container.appendChild(el('div', { className: 'form-group' }, [
-      el('label', { className: 'form-label' }, 'Chain ID'),
-      el('input', {
-        className: 'form-input',
-        id: 'mine-chain-id',
-        value: chainId,
-        style: 'max-width: 200px',
-      }),
-    ]));
 
     // Comment field
     container.appendChild(el('div', { className: 'form-group' }, [
@@ -681,7 +679,7 @@ function renderMiningForm() {
     // Restore comment value after render
     requestAnimationFrame(() => {
       const c = document.getElementById('mine-comment');
-      if (c) c.value = comment;
+      if (c) c.value = state.miningComment;
     });
 
     // Notes section header
@@ -689,7 +687,7 @@ function renderMiningForm() {
       style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem',
     }, [
       el('span', { className: 'form-label', style: 'margin-bottom:0' }, 'Notes'),
-      notes.length < 5
+      state.miningNotes.length < 5
         ? el('button', {
             className: 'btn btn-small',
             onclick: addNote,
@@ -698,7 +696,7 @@ function renderMiningForm() {
     ].filter(Boolean)));
 
     // Note entries
-    notes.forEach((note, i) => {
+    state.miningNotes.forEach((note, i) => {
       const noteEl = el('div', { className: 'note-entry' }, [
         el('div', { className: 'note-entry-header' }, [
           `Note #${i}`,
@@ -746,7 +744,7 @@ function renderMiningForm() {
 
     // Restore input values after render
     requestAnimationFrame(() => {
-      notes.forEach((note, i) => {
+      state.miningNotes.forEach((note, i) => {
         const r = document.getElementById(`mine-recipient-${i}`);
         const a = document.getElementById(`mine-amount-${i}`);
         const l = document.getElementById(`mine-label-${i}`);
@@ -756,7 +754,7 @@ function renderMiningForm() {
       });
 
       // Add wallet warning listeners after DOM is ready
-      notes.forEach((_, i) => {
+      state.miningNotes.forEach((_, i) => {
         const r = document.getElementById(`mine-recipient-${i}`);
         if (r) {
           r.addEventListener('blur', () => {
@@ -780,7 +778,7 @@ function renderMiningForm() {
 
           // Validate
           const errors = [];
-          const parsedNotes = notes.map((note, i) => {
+          const parsedNotes = state.miningNotes.map((note, i) => {
             const recipient = note.recipient.trim();
             const amountEth = note.amount.trim();
             const label = note.label.trim();
@@ -811,12 +809,10 @@ function renderMiningForm() {
             return;
           }
 
-          const chainIdEl = document.getElementById('mine-chain-id');
           const commentEl = document.getElementById('mine-comment');
-          const chainIdVal = chainIdEl?.value?.trim() || '167013';
           const commentVal = commentEl?.value?.trim() || undefined;
 
-          handleMineDeposit({ notes: parsedNotes, comment: commentVal, chainId: chainIdVal });
+          handleMineDeposit({ notes: parsedNotes, comment: commentVal, chainId });
         },
       }, state.mining ? 'Mining...' : 'Mine Deposit'),
       state.mining ? el('span', { className: 'spinner' }) : null,
@@ -843,10 +839,10 @@ function depositFileRow(deposit) {
     el('div', { className: 'file-row-value' }, [
       el('span', { className: 'detail-value file-name' }, deposit.filename),
       el('button', {
-        className: 'btn btn-small',
+        className: 'btn btn-small btn-icon-label',
         title: 'View file',
         onclick: () => viewFileModal(deposit.filename, downloadUrl),
-      }, '{ }'),
+      }, [eyeIcon()]),
       el('a', {
         href: downloadUrl,
         className: 'btn btn-small',
@@ -878,10 +874,10 @@ function proofFileRow(deposit, status) {
         : null,
       el('span', { className: 'detail-value file-name' }, deposit.proofFile || '\u2014'),
       el('button', {
-        className: 'btn btn-small',
+        className: 'btn btn-small btn-icon-label',
         title: 'View file',
         onclick: () => viewFileModal(deposit.proofFile || 'proof.json', downloadUrl),
-      }, '{ }'),
+      }, [eyeIcon()]),
       el('a', {
         href: downloadUrl,
         className: 'btn btn-small',
@@ -1294,6 +1290,21 @@ function detailRow(label, value) {
     el('span', { className: 'detail-label' }, label),
     el('span', { className: 'detail-value' }, value || '\u2014'),
   ]);
+}
+
+/** Returns a <span> containing an eye SVG icon (used on View buttons). */
+function eyeIcon() {
+  const span = document.createElement('span');
+  span.setAttribute('aria-hidden', 'true');
+  span.style.display = 'inline-flex';
+  span.style.alignItems = 'center';
+  span.innerHTML =
+    '<svg width="15" height="11" viewBox="0 0 15 11" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<path d="M1 5.5C1 5.5 3.2 1 7.5 1S14 5.5 14 5.5 11.8 10 7.5 10 1 5.5 1 5.5Z"' +
+    ' stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>' +
+    '<circle cx="7.5" cy="5.5" r="1.75" stroke="currentColor" stroke-width="1.25"/>' +
+    '</svg>';
+  return span;
 }
 
 /** Returns a <span> containing the deposit vault SVG icon. */
