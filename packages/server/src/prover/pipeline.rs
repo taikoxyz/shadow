@@ -301,33 +301,39 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
     {
         use shadow_prover_lib::{configure_risc0_env, export_proof, prove_claim};
 
-        let result = tokio::task::spawn_blocking(move || {
-            configure_risc0_env();
-            let receipt_kind = std::env::var("RECEIPT_KIND").unwrap_or_else(|_| "groth16".into());
-            let prove_result = prove_claim(&input, &receipt_kind)?;
-            let exported = export_proof(&prove_result.receipt)?;
+        // RISC Zero proving is deeply recursive and requires a large stack.
+        // macOS spawned threads default to 512 KB which causes SIGBUS (stack overflow
+        // hitting the guard page). Spawn a dedicated thread with 256 MB stack.
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<SingleNoteProof>>();
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn(move || {
+                let outcome = (|| {
+                    configure_risc0_env();
+                    let receipt_kind = std::env::var("RECEIPT_KIND").unwrap_or_else(|_| "groth16".into());
+                    let prove_result = prove_claim(&input, &receipt_kind)?;
+                    let exported = export_proof(&prove_result.receipt)?;
 
-            let receipt_bytes = shadow_prover_lib::serialize_receipt(&prove_result.receipt)?;
-            let receipt_b64 = base64_encode(&receipt_bytes);
+                    let receipt_bytes = shadow_prover_lib::serialize_receipt(&prove_result.receipt)?;
+                    let receipt_b64 = base64_encode(&receipt_bytes);
 
-            // Compute journal digest for on-chain encoding
-            let journal_bytes = hex::decode(
-                exported.journal_hex.strip_prefix("0x").unwrap_or(&exported.journal_hex),
-            )?;
-            let proof_calldata = encode_proof_for_chain(
-                &exported.seal_hex,
-                &journal_bytes,
-            )?;
+                    let journal_bytes = hex::decode(
+                        exported.journal_hex.strip_prefix("0x").unwrap_or(&exported.journal_hex),
+                    )?;
+                    let proof_calldata = encode_proof_for_chain(&exported.seal_hex, &journal_bytes)?;
 
-            Ok::<_, anyhow::Error>(SingleNoteProof {
-                seal_hex: exported.seal_hex,
-                journal_hex: exported.journal_hex,
-                proof_hex: format!("0x{}", hex::encode(proof_calldata)),
-                receipt_base64: Some(receipt_b64),
+                    Ok::<_, anyhow::Error>(SingleNoteProof {
+                        seal_hex: exported.seal_hex,
+                        journal_hex: exported.journal_hex,
+                        proof_hex: format!("0x{}", hex::encode(proof_calldata)),
+                        receipt_base64: Some(receipt_b64),
+                    })
+                })();
+                let _ = tx.send(outcome);
             })
-        })
-        .await
-        .context("prover task panicked")??;
+            .context("failed to spawn prover thread")?;
+
+        let result = rx.await.context("prover thread dropped sender")??;
 
         return Ok(result);
     }

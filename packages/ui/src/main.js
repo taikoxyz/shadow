@@ -891,7 +891,7 @@ function depositFileRow(deposit) {
 
 /** Proof file row with view + download + delete buttons (or "None" if no proof). */
 function proofFileRow(deposit, status) {
-  if (!deposit.hasProof) return detailRow('Proof', 'None');
+  if (!deposit.hasProof) return isProving() ? null : detailRow('Proof', 'None');
   const downloadUrl = `/api/deposits/${encodeURIComponent(deposit.id)}/proof/download`;
   return el('div', { className: 'detail-row' }, [
     el('span', { className: 'detail-label' }, 'Proof'),
@@ -941,7 +941,7 @@ function renderDetailView() {
   // Proof action button / hint (shown inside Proofs section)
   const proofAction = (() => {
     if (status === 'proving') {
-      return el('span', { className: 'form-hint' }, 'Proof generation in progress \u2014 see banner above');
+      return el('span', {}, 'Proof generation in progress \u2014 see banner above');
     }
     if (deposit.hasProof) {
       return el('button', {
