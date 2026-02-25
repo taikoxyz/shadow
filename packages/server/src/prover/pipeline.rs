@@ -307,7 +307,7 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
         // only orchestrates, so 8 MB matches the Linux thread default.
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<SingleNoteProof>>();
         std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(256 * 1024 * 1024)
             .spawn(move || {
                 let outcome = (|| {
                     configure_risc0_env();
