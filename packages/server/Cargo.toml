@@ -15,7 +15,7 @@ prove = ["shadow-prover-lib"]
 
 [dependencies]
 anyhow = "1.0"
-axum = { version = "0.8", features = ["ws"] }
+axum = { version = "0.8", features = ["ws", "multipart"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 hex = "0.4"
 rand = "0.8"

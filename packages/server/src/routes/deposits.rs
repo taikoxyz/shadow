@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
-    routing::{delete, get},
+    body::Body,
+    extract::{Multipart, Path, Query, State},
+    http::{header, StatusCode},
+    response::Response,
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -564,12 +566,96 @@ async fn get_deposit_balance(
     }))
 }
 
+/// `GET /api/deposits/:id/download` — download raw deposit JSON file.
+async fn download_deposit(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Response<Body>, StatusCode> {
+    let index = scan_workspace(&state.workspace);
+    let entry = index
+        .deposits
+        .iter()
+        .find(|d| d.id == id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let path = state.workspace.join(&entry.filename);
+    let bytes = std::fs::read(&path).map_err(|_| StatusCode::NOT_FOUND)?;
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", entry.filename),
+        )
+        .body(Body::from(bytes))
+        .unwrap())
+}
+
+/// `GET /api/deposits/:id/proof/download` — download raw proof JSON file.
+async fn download_proof(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Response<Body>, StatusCode> {
+    let index = scan_workspace(&state.workspace);
+    let entry = index
+        .deposits
+        .iter()
+        .find(|d| d.id == id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let proof_name = entry.proof_file.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    let path = state.workspace.join(proof_name);
+    let bytes = std::fs::read(&path).map_err(|_| StatusCode::NOT_FOUND)?;
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", proof_name),
+        )
+        .body(Body::from(bytes))
+        .unwrap())
+}
+
+/// `POST /api/deposits/import` — upload and save a deposit JSON file.
+async fn import_deposit(
+    State(state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (StatusCode::BAD_REQUEST, format!("multipart error: {}", e))
+    })? {
+        let filename = field
+            .file_name()
+            .unwrap_or("deposit.json")
+            .to_string();
+        if !filename.ends_with(".json") {
+            return Err((StatusCode::BAD_REQUEST, "file must be a .json file".to_string()));
+        }
+        let data = field.bytes().await.map_err(|e| {
+            (StatusCode::BAD_REQUEST, format!("read error: {}", e))
+        })?;
+        // Validate it's valid JSON
+        let _: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+            (StatusCode::BAD_REQUEST, format!("invalid JSON: {}", e))
+        })?;
+        let path = state.workspace.join(&filename);
+        std::fs::write(&path, &data).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("write failed: {}", e))
+        })?;
+        let _ = state
+            .event_tx
+            .send(serde_json::json!({"type": "workspace:changed"}).to_string());
+        return Ok(Json(serde_json::json!({ "filename": filename })));
+    }
+    Err((StatusCode::BAD_REQUEST, "no file uploaded".to_string()))
+}
+
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/deposits", get(list_deposits).post(create_deposit))
+        .route("/deposits/import", post(import_deposit))
         .route("/deposits/{id}", get(get_deposit).delete(delete_deposit))
         .route("/deposits/{id}/proof", delete(delete_proof))
         .route("/deposits/{id}/balance", get(get_deposit_balance))
+        .route("/deposits/{id}/download", get(download_deposit))
+        .route("/deposits/{id}/proof/download", get(download_proof))
         .route(
             "/deposits/{id}/notes/{note_index}/claim-tx",
             get(get_claim_tx),
