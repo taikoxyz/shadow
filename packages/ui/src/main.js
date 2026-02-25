@@ -534,6 +534,10 @@ function makeImportButton() {
 function renderListView() {
   const items = [];
 
+  // Tagline / hero description
+  items.push(el('p', { className: 'list-tagline' },
+    'A ZK privacy layer for Taiko: deposit ETH, generate a proof locally, and claim to any wallet with no on-chain link between sender and recipient. Unlike Wormhole (a cross-chain bridge), Shadow is single-chain — assets never leave Taiko.'));
+
   // Mining form
   if (state.showMiningForm) {
     items.push(renderMiningForm());
@@ -891,35 +895,39 @@ function renderDetailView() {
   const totalEth = weiToEth(deposit.totalAmount);
   const status = depositStatus(deposit);
 
-  const actionBtns = (() => {
-    if (status === 'unfunded') {
-      if (window.ethereum) {
-        return [el('button', {
-          className: 'btn btn-primary',
-          onclick: () => handleFundDeposit(deposit),
-        }, 'Fund Deposit')];
-      }
-      return [el('p', { className: 'form-hint' },
-        `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`)];
-    }
-    if (status === 'unproved') {
-      return [el('button', {
+  // Proof action button / hint (shown inside Proofs section)
+  const proofAction = (() => {
+    if (status === 'unproved' || status === 'unfunded') {
+      return el('button', {
         className: 'btn btn-primary',
         onclick: () => handleProve(deposit.id),
-        disabled: isProving(),
-      }, 'Generate Proof')];
+        disabled: isProving() || status === 'unfunded',
+        title: status === 'unfunded' ? 'Fund the deposit first' : undefined,
+      }, 'Generate Proof');
     }
     if (status === 'proving') {
-      return [el('span', { className: 'form-hint' }, 'Proof generation in progress \u2014 see banner above')];
+      return el('span', { className: 'form-hint' }, 'Proof generation in progress \u2014 see banner above');
     }
     if (status === 'proved' || status === 'partial') {
-      return [el('button', {
-        className: 'btn btn-primary',
+      return el('button', {
+        className: 'btn',
         onclick: () => handleProve(deposit.id, true),
-      }, 'Regenerate Proof')];
+      }, 'Regenerate Proof');
     }
-    return [];
+    return null;
   })();
+
+  // Fund button (shown inside Funding Status section when applicable)
+  const fundAction = status === 'unfunded' && window.ethereum
+    ? el('button', {
+        className: 'btn btn-primary',
+        style: 'margin-top: 0.5rem',
+        onclick: () => handleFundDeposit(deposit),
+      }, 'Fund Deposit')
+    : status === 'unfunded'
+      ? el('p', { className: 'form-hint', style: 'margin-top: 0.5rem' },
+          `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`)
+      : null;
 
   return el('div', {}, [
     // Breadcrumb
@@ -933,7 +941,7 @@ function renderDetailView() {
       ? el('p', { className: 'deposit-comment' }, deposit.comment)
       : null,
 
-    // Overview — filename and proof rows have inline download + delete
+    // Overview
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
       depositFileRow(deposit),
@@ -942,7 +950,6 @@ function renderDetailView() {
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
-      proofFileRow(deposit, status),
     ].filter(Boolean)),
 
     // Funding Status
@@ -956,25 +963,27 @@ function renderDetailView() {
             ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ETH`)
             : null,
           detailRow('Status', state.depositBalance.isFunded ? 'Funded' : 'Unfunded \u2014 send ETH to target address'),
+          fundAction,
         ].filter(Boolean))
       : el('div', { className: 'detail-section' }, [
           el('h2', {}, 'Funding Status'),
           el('p', { className: 'form-hint' }, 'Loading balance...'),
         ]),
 
+    // Proofs
+    el('div', { className: 'detail-section' }, [
+      el('h2', {}, 'Proofs'),
+      proofFileRow(deposit, status),
+      proofAction
+        ? el('div', { className: 'actions', style: 'margin-top: 0.75rem' }, [proofAction])
+        : null,
+    ].filter(Boolean)),
+
     // Notes
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Notes'),
       renderNotesTable(deposit),
     ]),
-
-    // Actions — one primary button max
-    actionBtns.length > 0
-      ? el('div', { className: 'detail-section' }, [
-          el('h2', {}, 'Actions'),
-          el('div', { className: 'actions' }, actionBtns),
-        ])
-      : null,
   ].filter(Boolean));
 }
 

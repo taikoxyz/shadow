@@ -12,10 +12,14 @@
 #   docker build --platform linux/amd64 -f docker/Dockerfile -t shadow-local .
 # =============================================================================
 
+# Pin all stages to linux/amd64 — RISC Zero only ships x86_64 toolchain binaries.
+# Using ARG avoids the "constant value" lint warning from BuildKit.
+ARG TARGETPLATFORM=linux/amd64
+
 # -----------------------------------------------------------------------------
 # Stage 1: UI Builder — compile the frontend with Vite
 # -----------------------------------------------------------------------------
-FROM --platform=linux/amd64 node:20-bookworm AS ui-builder
+FROM --platform=${TARGETPLATFORM} node:20-bookworm AS ui-builder
 
 WORKDIR /build
 
@@ -33,7 +37,7 @@ RUN pnpm build
 # -----------------------------------------------------------------------------
 # Stage 2: Rust Builder — compile the server binary with proof generation
 # -----------------------------------------------------------------------------
-FROM --platform=linux/amd64 rust:bookworm AS rust-builder
+FROM --platform=${TARGETPLATFORM} rust:bookworm AS rust-builder
 
 ENV CARGO_BUILD_JOBS=2
 ENV CMAKE_BUILD_PARALLEL_LEVEL=2
@@ -74,7 +78,7 @@ RUN cargo build \
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime — minimal image with server + UI + prover
 # -----------------------------------------------------------------------------
-FROM --platform=linux/amd64 debian:bookworm-slim
+FROM --platform=${TARGETPLATFORM} debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

@@ -93,6 +93,45 @@ async fn main() -> Result<()> {
         verifier_address: cli.verifier_address,
     });
 
+    // ---------------------------------------------------------------------------
+    // Circuit ID verification
+    // Compare the local compiled-in imageId against the on-chain verifier.
+    // Only available when the `prove` feature is enabled.
+    // ---------------------------------------------------------------------------
+    #[cfg(feature = "prove")]
+    {
+        if let (Some(ref chain), Some(ref verifier_addr)) =
+            (&state.chain_client, &state.verifier_address)
+        {
+            tracing::info!("verifying circuit ID against on-chain verifier...");
+            match chain.read_circuit_id(verifier_addr).await {
+                Ok(onchain_raw) => {
+                    let onchain_id = onchain_raw.to_lowercase();
+                    let local_id = shadow_prover_lib::circuit_id_hex().to_lowercase();
+                    if onchain_id != local_id {
+                        tracing::error!(
+                            onchain = %onchain_id,
+                            local   = %local_id,
+                            "FATAL: circuit ID mismatch — this binary cannot verify proofs \
+                             for the deployed verifier. Rebuild the image or update \
+                             VERIFIER_ADDRESS to match this binary's guest ELF."
+                        );
+                        std::process::exit(1);
+                    }
+                    tracing::info!(circuit_id = %local_id, "circuit ID matches on-chain verifier ✓");
+                }
+                Err(e) => {
+                    tracing::warn!("could not read circuit ID from verifier: {:#}", e);
+                }
+            }
+        } else if state.verifier_address.is_none() {
+            tracing::warn!(
+                "VERIFIER_ADDRESS not configured — circuit ID check skipped. \
+                 Set VERIFIER_ADDRESS to validate the local guest ELF against the on-chain verifier."
+            );
+        }
+    }
+
     let app = build_router(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], cli.port));
