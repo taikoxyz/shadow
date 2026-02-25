@@ -16,11 +16,17 @@ import './style.css';
 let state = {
   view: 'list',       // 'list' | 'detail'
   deposits: [],       // DepositEntry[]
-  selectedId: null,    // deposit ID for detail view
-  config: null,        // server config
-  queueJob: null,      // current proof job
+  selectedId: null,   // deposit ID for detail view
+  config: null,       // server config
+  queueJob: null,     // current proof job
   loading: true,
   error: null,
+  // Wallet
+  walletAddress: null,
+  walletChainId: null,
+  // Mining form
+  showMiningForm: false,
+  mining: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -38,6 +44,28 @@ async function init() {
 
   // Poll queue status periodically (fallback for missed WS events)
   setInterval(pollQueue, 5000);
+
+  // Check if wallet is already connected
+  if (window.ethereum) {
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      if (accounts.length > 0) {
+        state.walletAddress = accounts[0];
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        state.walletChainId = chainId;
+        render();
+      }
+    } catch { /* ignore */ }
+
+    window.ethereum.on?.('accountsChanged', (accounts) => {
+      state.walletAddress = accounts[0] || null;
+      render();
+    });
+    window.ethereum.on?.('chainChanged', (chainId) => {
+      state.walletChainId = chainId;
+      render();
+    });
+  }
 }
 
 async function refresh() {
@@ -104,7 +132,7 @@ async function handleProve(depositId) {
     state.queueJob = job;
     render();
   } catch (err) {
-    alert(`Failed to start proof: ${err.message}`);
+    showToast(`Failed to start proof: ${err.message}`, 'error');
   }
 }
 
@@ -113,7 +141,7 @@ async function handleCancelProof() {
     await api.cancelProof();
     await pollQueue();
   } catch (err) {
-    alert(`Failed to cancel: ${err.message}`);
+    showToast(`Failed to cancel: ${err.message}`, 'error');
   }
 }
 
@@ -124,8 +152,9 @@ async function handleDeleteDeposit(id, includeProof) {
       navigateTo('list');
     }
     await refresh();
+    showToast('Deposit deleted', 'success');
   } catch (err) {
-    alert(`Failed to delete: ${err.message}`);
+    showToast(`Failed to delete: ${err.message}`, 'error');
   }
 }
 
@@ -133,15 +162,15 @@ async function handleDeleteProof(id) {
   try {
     await api.deleteProof(id);
     await refresh();
+    showToast('Proof deleted', 'success');
   } catch (err) {
-    alert(`Failed to delete proof: ${err.message}`);
+    showToast(`Failed to delete proof: ${err.message}`, 'error');
   }
 }
 
 async function handleRefreshNote(depositId, noteIndex) {
   try {
     const result = await api.refreshNoteStatus(depositId, noteIndex);
-    // Update in-memory state
     const dep = state.deposits.find((d) => d.id === depositId);
     if (dep) {
       const note = dep.notes.find((n) => n.index === noteIndex);
@@ -153,6 +182,93 @@ async function handleRefreshNote(depositId, noteIndex) {
   }
 }
 
+async function handleConnectWallet() {
+  if (!window.ethereum) {
+    showToast('MetaMask not detected. Install it to claim on-chain.', 'error');
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    state.walletAddress = accounts[0] || null;
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    state.walletChainId = chainId;
+    render();
+  } catch (err) {
+    showToast(`Wallet connection failed: ${err.message}`, 'error');
+  }
+}
+
+async function handleClaim(depositId, noteIndex) {
+  if (!state.walletAddress) {
+    await handleConnectWallet();
+    if (!state.walletAddress) return;
+  }
+
+  try {
+    showToast('Preparing claim transaction...', 'info');
+    const txData = await api.getClaimTx(depositId, noteIndex);
+
+    // Verify wallet is on the correct chain
+    if (state.walletChainId && state.walletChainId !== txData.chainId) {
+      showToast(`Switch MetaMask to chain ${parseInt(txData.chainId, 16)}`, 'error');
+      return;
+    }
+
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{
+        from: state.walletAddress,
+        to: txData.to,
+        data: txData.data,
+        value: '0x0',
+      }],
+    });
+
+    showToast(`Claim submitted! TX: ${txHash.slice(0, 18)}...`, 'success');
+
+    // Refresh note status after a delay (wait for indexing)
+    setTimeout(() => handleRefreshNote(depositId, noteIndex), 5000);
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (msg.includes('User denied') || msg.includes('rejected')) {
+      showToast('Transaction rejected by user', 'error');
+    } else {
+      showToast(`Claim failed: ${msg}`, 'error');
+    }
+  }
+}
+
+async function handleMineDeposit(formData) {
+  state.mining = true;
+  render();
+
+  try {
+    const chainId = state.config?.chainId || '167013';
+    const result = await api.createDeposit(chainId, formData.notes);
+    state.showMiningForm = false;
+    state.mining = false;
+    showToast(`Deposit mined! ${result.iterations.toLocaleString()} iterations`, 'success');
+    await refresh();
+  } catch (err) {
+    state.mining = false;
+    showToast(`Mining failed: ${err.message}`, 'error');
+    render();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Toast notifications
+// ---------------------------------------------------------------------------
+
+function showToast(message, type = 'info') {
+  // Remove existing toast
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+
+  const toast = el('div', { className: `toast toast-${type}` }, message);
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
@@ -162,7 +278,10 @@ function render() {
   app.appendChild(renderHeader());
 
   if (state.loading) {
-    app.appendChild(el('div', { className: 'empty-state' }, [el('p', {}, 'Loading...')]));
+    app.appendChild(el('div', { className: 'empty-state' }, [
+      el('div', { className: 'spinner' }),
+      el('p', { style: 'margin-top: 1rem' }, 'Loading workspace...'),
+    ]));
     return;
   }
 
@@ -194,16 +313,33 @@ function render() {
 }
 
 function renderHeader() {
-  return el('div', { className: 'header' }, [
-    el('h1', {
-      style: 'cursor: pointer',
-      onclick: () => navigateTo('list'),
-    }, 'Shadow'),
-    el('div', { className: 'header-status' }, [
-      `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`,
-      state.config?.rpcUrl ? ' \u00b7 RPC connected' : '',
-    ].join('')),
+  const headerLeft = el('div', { className: 'header-left' }, [
+    el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
+    el('span', { className: 'header-count' },
+      `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`),
   ]);
+
+  const headerActions = el('div', { className: 'header-actions' }, [
+    state.config?.rpcUrl
+      ? el('span', { className: 'header-status' }, [
+          el('span', { className: 'rpc-dot' }),
+          'RPC',
+        ])
+      : null,
+    state.walletAddress
+      ? el('span', { className: 'wallet-badge' }, [
+          el('span', { className: 'wallet-dot' }),
+          truncateAddr(state.walletAddress),
+        ])
+      : window.ethereum
+        ? el('button', {
+            className: 'btn btn-small',
+            onclick: handleConnectWallet,
+          }, 'Connect Wallet')
+        : null,
+  ].filter(Boolean));
+
+  return el('div', { className: 'header' }, [headerLeft, headerActions]);
 }
 
 // ---------------------------------------------------------------------------
@@ -211,14 +347,40 @@ function renderHeader() {
 // ---------------------------------------------------------------------------
 
 function renderListView() {
-  if (state.deposits.length === 0) {
-    return el('div', { className: 'empty-state' }, [
-      el('h2', {}, 'No deposits found'),
-      el('p', {}, 'Place deposit JSON files in the workspace directory to get started.'),
-    ]);
+  const items = [];
+
+  // Mining form
+  if (state.showMiningForm) {
+    items.push(renderMiningForm());
   }
 
-  return el('div', { className: 'deposit-list' }, state.deposits.map(renderDepositCard));
+  if (state.deposits.length === 0 && !state.showMiningForm) {
+    items.push(el('div', { className: 'empty-state' }, [
+      el('h2', {}, 'No deposits found'),
+      el('p', {}, 'Create a new deposit or place deposit JSON files in the workspace directory.'),
+      el('button', {
+        className: 'btn btn-primary',
+        style: 'margin-top: 1rem',
+        onclick: () => { state.showMiningForm = true; render(); },
+      }, '+ New Deposit'),
+    ]));
+    return el('div', {}, items);
+  }
+
+  if (!state.showMiningForm) {
+    items.push(el('div', { style: 'margin-bottom: 1rem' }, [
+      el('button', {
+        className: 'btn btn-primary',
+        onclick: () => { state.showMiningForm = true; render(); },
+      }, '+ New Deposit'),
+    ]));
+  }
+
+  items.push(
+    el('div', { className: 'deposit-list' }, state.deposits.map(renderDepositCard)),
+  );
+
+  return el('div', {}, items);
 }
 
 function renderDepositCard(deposit) {
@@ -235,19 +397,144 @@ function renderDepositCard(deposit) {
     },
     [
       el('div', { className: 'deposit-card-header' }, [
-        el('span', { className: 'deposit-card-id' }, deposit.id),
+        el('span', { className: 'deposit-card-id' }, truncateDepositId(deposit.id)),
         proofBadge,
       ]),
       el('div', { className: 'deposit-card-meta' }, [
         el('span', {}, `${deposit.noteCount} note${deposit.noteCount !== 1 ? 's' : ''}`),
         el('span', {}, `${totalEth} ETH`),
         el('span', {}, `Chain ${deposit.chainId}`),
-        deposit.createdAt
-          ? el('span', {}, formatDate(deposit.createdAt))
-          : null,
+        deposit.createdAt ? el('span', {}, formatDate(deposit.createdAt)) : null,
       ].filter(Boolean)),
     ],
   );
+}
+
+// ---------------------------------------------------------------------------
+// Mining Form
+// ---------------------------------------------------------------------------
+
+function renderMiningForm() {
+  let noteCount = 1;
+
+  const container = el('div', { className: 'mining-panel' });
+
+  function renderFormContent() {
+    container.innerHTML = '';
+
+    const header = el('div', { className: 'mining-panel-header' }, [
+      el('h3', {}, 'New Deposit'),
+      el('button', {
+        className: 'btn-icon',
+        onclick: () => { state.showMiningForm = false; render(); },
+        title: 'Close',
+      }, '\u2715'),
+    ]);
+    container.appendChild(header);
+
+    // Chain ID (auto-filled from config)
+    const chainId = state.config?.chainId || '167013';
+    const chainGroup = el('div', { className: 'form-group' }, [
+      el('label', { className: 'form-label' }, 'Chain ID'),
+      el('input', {
+        className: 'form-input',
+        id: 'mine-chain-id',
+        value: chainId,
+        style: 'max-width: 200px',
+      }),
+    ]);
+    container.appendChild(chainGroup);
+
+    // Notes
+    const notesLabel = el('div', {
+      style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem',
+    }, [
+      el('span', { className: 'form-label', style: 'margin-bottom:0' }, 'Notes'),
+      noteCount < 5
+        ? el('button', {
+            className: 'btn btn-small',
+            onclick: () => { noteCount++; renderFormContent(); },
+          }, '+ Add Note')
+        : null,
+    ].filter(Boolean));
+    container.appendChild(notesLabel);
+
+    for (let i = 0; i < noteCount; i++) {
+      const noteEl = el('div', { className: 'note-entry' }, [
+        el('div', { className: 'note-entry-header' }, [
+          `Note #${i}`,
+          i > 0
+            ? el('button', {
+                className: 'btn-icon',
+                onclick: () => { noteCount--; renderFormContent(); },
+                title: 'Remove',
+              }, '\u2715')
+            : null,
+        ].filter(Boolean)),
+        el('div', { className: 'form-row' }, [
+          el('div', { className: 'form-group', style: 'flex:2' }, [
+            el('label', { className: 'form-label' }, 'Recipient'),
+            el('input', {
+              className: 'form-input',
+              id: `mine-recipient-${i}`,
+              placeholder: '0x...',
+              value: state.walletAddress || '',
+            }),
+          ]),
+          el('div', { className: 'form-group', style: 'flex:1' }, [
+            el('label', { className: 'form-label' }, 'Amount (wei)'),
+            el('input', {
+              className: 'form-input',
+              id: `mine-amount-${i}`,
+              placeholder: '1000000000000000',
+            }),
+          ]),
+        ]),
+        el('div', { className: 'form-group' }, [
+          el('label', { className: 'form-label' }, 'Label (optional)'),
+          el('input', {
+            className: 'form-input',
+            id: `mine-label-${i}`,
+            placeholder: `note #${i}`,
+            style: 'max-width: 300px',
+          }),
+        ]),
+      ]);
+      container.appendChild(noteEl);
+    }
+
+    // Submit
+    const actions = el('div', { style: 'margin-top: 1rem; display:flex; gap:0.5rem; align-items:center' }, [
+      el('button', {
+        className: 'btn btn-primary',
+        disabled: state.mining,
+        onclick: () => {
+          const notes = [];
+          for (let i = 0; i < noteCount; i++) {
+            const recipient = document.getElementById(`mine-recipient-${i}`)?.value?.trim();
+            const amount = document.getElementById(`mine-amount-${i}`)?.value?.trim();
+            const label = document.getElementById(`mine-label-${i}`)?.value?.trim();
+            if (!recipient || !amount) {
+              showToast(`Note #${i}: recipient and amount are required`, 'error');
+              return;
+            }
+            const note = { recipient, amount };
+            if (label) note.label = label;
+            notes.push(note);
+          }
+          handleMineDeposit({ notes });
+        },
+      }, state.mining ? 'Mining...' : 'Mine Deposit'),
+      state.mining ? el('span', { className: 'spinner' }) : null,
+      state.mining
+        ? el('span', { className: 'mining-status' }, 'Finding valid PoW secret...')
+        : el('span', { className: 'form-hint' }, 'Mining typically takes 3-10 seconds'),
+    ].filter(Boolean));
+    container.appendChild(actions);
+  }
+
+  renderFormContent();
+  return container;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +556,7 @@ function renderDetailView() {
     // Breadcrumb
     el('div', { className: 'breadcrumb' }, [
       el('a', { onclick: () => navigateTo('list') }, 'Deposits'),
-      ` / ${deposit.id}`,
+      ` / ${truncateDepositId(deposit.id)}`,
     ]),
 
     // Overview
@@ -353,24 +640,43 @@ function renderNotesTable(deposit) {
       deposit.notes.map((note) =>
         el('tr', {}, [
           el('td', {}, String(note.index)),
-          el('td', { style: 'font-family: monospace; font-size: 0.8rem' }, truncateAddr(note.recipient)),
+          el('td', {
+            style: `font-family: var(--font-mono); font-size: 0.78rem`,
+          }, truncateAddr(note.recipient)),
           el('td', {}, `${weiToEth(note.amount)} ETH`),
           el('td', {}, [
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),
           ]),
           el('td', {}, [
-            el(
-              'button',
-              {
-                className: 'btn btn-small',
-                onclick: (e) => {
-                  e.stopPropagation();
-                  handleRefreshNote(deposit.id, note.index);
+            el('div', { className: 'note-actions' }, [
+              // Claim button (only if deposit has proof and note is unclaimed)
+              deposit.hasProof && note.claimStatus !== 'claimed'
+                ? el(
+                    'button',
+                    {
+                      className: 'btn btn-accent btn-small',
+                      onclick: (e) => {
+                        e.stopPropagation();
+                        handleClaim(deposit.id, note.index);
+                      },
+                      title: 'Claim on-chain via MetaMask',
+                    },
+                    'Claim',
+                  )
+                : null,
+              el(
+                'button',
+                {
+                  className: 'btn-icon',
+                  onclick: (e) => {
+                    e.stopPropagation();
+                    handleRefreshNote(deposit.id, note.index);
+                  },
+                  title: 'Refresh on-chain status',
                 },
-                title: 'Refresh on-chain status',
-              },
-              '\u21bb',
-            ),
+                '\u21bb',
+              ),
+            ].filter(Boolean)),
           ]),
         ]),
       ),
@@ -390,13 +696,13 @@ function renderQueueStatus() {
 
   return el('div', { className: 'proof-status-box' }, [
     el('div', { className: 'proof-status-message' }, [
-      el('strong', {}, `Proof: ${job.depositId}`),
+      el('strong', {}, `Proof: ${truncateDepositId(job.depositId)}`),
       ` \u2014 ${job.message}`,
     ]),
     el('div', { className: 'progress-bar' }, [
       el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
     ]),
-    el('div', { className: 'actions' }, [
+    el('div', { className: 'actions', style: 'margin-top: 0.5rem' }, [
       el(
         'button',
         { className: 'btn btn-danger btn-small', onclick: handleCancelProof },
@@ -415,7 +721,7 @@ function renderConfigBar() {
   const items = [];
   if (c.version) items.push(`v${c.version}`);
   if (c.circuitId) items.push(`Circuit: ${c.circuitId.slice(0, 18)}...`);
-  if (c.workspace) items.push(`Workspace: ${c.workspace}`);
+  if (c.workspace) items.push(`WS: ${c.workspace}`);
 
   return el('div', { className: 'config-bar' }, items.map((t) => el('span', {}, t)));
 }
@@ -465,6 +771,12 @@ function truncateAddr(addr) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+function truncateDepositId(id) {
+  if (!id) return '';
+  // "deposit-ffe8-fde9-20260224T214613" → show as-is (already compact enough)
+  return id;
+}
+
 function formatDate(isoStr) {
   try {
     const d = new Date(isoStr);
@@ -495,6 +807,14 @@ function el(tag, props = {}, children = []) {
       elem.setAttribute('disabled', '');
     } else if (key === 'title') {
       elem.title = val;
+    } else if (key === 'id') {
+      elem.id = val;
+    } else if (key === 'placeholder') {
+      elem.placeholder = val;
+    } else if (key === 'value') {
+      elem.value = val;
+    } else if (key === 'type') {
+      elem.type = val;
     }
   }
 

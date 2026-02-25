@@ -46,6 +46,14 @@ export function getDeposit(id) {
   return apiFetch(`/deposits/${encodeURIComponent(id)}`);
 }
 
+/** POST /api/deposits — mine a new deposit */
+export function createDeposit(chainId, notes) {
+  return apiFetch('/deposits', {
+    method: 'POST',
+    body: JSON.stringify({ chainId, notes }),
+  });
+}
+
 /** DELETE /api/deposits/:id */
 export function deleteDeposit(id, includeProof = false) {
   return apiFetch(
@@ -90,6 +98,13 @@ export function refreshNoteStatus(depositId, noteIndex) {
   return apiFetch(
     `/deposits/${encodeURIComponent(depositId)}/notes/${noteIndex}/refresh`,
     { method: 'POST' },
+  );
+}
+
+/** GET /api/deposits/:id/notes/:noteIndex/claim-tx — get claim tx calldata */
+export function getClaimTx(depositId, noteIndex) {
+  return apiFetch(
+    `/deposits/${encodeURIComponent(depositId)}/notes/${noteIndex}/claim-tx`,
   );
 }
 

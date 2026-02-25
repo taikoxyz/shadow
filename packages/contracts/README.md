@@ -33,16 +33,19 @@ Mocks for every interface live under `test/mocks` to keep integration tests herm
 
 ## RISC0 proof payload format
 
-`Risc0CircuitVerifier.verifyProof` expects `_proof` to be ABI-encoded as:
+`Risc0CircuitVerifier.verify` expects `_proof` to be ABI-encoded as:
 
-- `abi.encode(bytes seal, bytes journal)`
+- `abi.encode(bytes seal, bytes32 journalDigest)`
 
-The adapter:
+Where `journalDigest = sha256(journal)`. The journal itself is not passed on-chain.
 
-- validates that `journal` matches the claim public inputs (`blockNumber`, `stateRoot`, `chainId`, `amount`, `recipient`, `nullifier`)
-- `noteIndex` and `powDigest` are enforced privately inside the zkVM guest and are not committed in the journal.
-- computes `journalDigest = sha256(journal)`
-- calls the configured `IRiscZeroVerifier.verify(seal, imageId, journalDigest)`
+The on-chain verification flow:
+1. `Shadow.claim(_proof, _input)` validates inputs and passes to `ShadowVerifier`
+2. `ShadowVerifier.verifyProof` fetches the block hash from `TaikoAnchor`, builds the public inputs array, and delegates to `Risc0CircuitVerifier`
+3. `Risc0CircuitVerifier.verify` decodes the seal and journalDigest from `_proof`, then calls `IRiscZeroVerifier.verify(seal, imageId, journalDigest)`
+
+Private inputs enforced inside the zkVM guest (not in the journal):
+- `noteIndex`, `powDigest`, secret, and Merkle proof data
 
 ## Taiko deployment script
 

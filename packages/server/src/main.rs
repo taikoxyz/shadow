@@ -7,6 +7,7 @@ use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
 mod chain;
+mod mining;
 mod prover;
 mod routes;
 mod state;

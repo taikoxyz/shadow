@@ -24,4 +24,5 @@ services:
       - RPC_URL=https://rpc.hoodi.taiko.xyz
       - SHADOW_ADDRESS=0x77cdA0575e66A5FC95404fdA856615AD507d8A07
       - VERIFIER_ADDRESS=0x38b6e672eD9577258e1339bA9263cD034C147014
+      - RECEIPT_KIND=groth16
       - RUST_LOG=shadow_server=info

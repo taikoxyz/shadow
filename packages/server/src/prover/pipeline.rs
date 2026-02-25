@@ -43,7 +43,11 @@ pub struct NoteProofResult {
     pub amount: String,
     pub recipient: String,
     pub nullifier: String,
-    /// Encoded proof (ABI-encoded seal + journal for on-chain submission).
+    /// Groth16 seal bytes (0x-prefixed hex). Empty if `prove` feature disabled.
+    pub seal: String,
+    /// Journal bytes (0x-prefixed hex). Empty if `prove` feature disabled.
+    pub journal: String,
+    /// ABI-encoded `(bytes seal, bytes32 journalDigest)` for direct on-chain use.
     /// Empty string if proof generation is not available (feature `prove` disabled).
     pub proof: String,
     /// Base64-encoded receipt (for verification/re-export).
@@ -193,6 +197,8 @@ pub async fn run_pipeline(
             amount: amounts[i].to_string(),
             recipient: format!("0x{}", hex::encode(recipients[i])),
             nullifier: format!("0x{}", hex::encode(nullifier)),
+            seal: note_proof.seal_hex,
+            journal: note_proof.journal_hex,
             proof: note_proof.proof_hex,
             receipt_base64: note_proof.receipt_base64,
         });
@@ -263,12 +269,18 @@ fn build_claim_input(
 }
 
 struct SingleNoteProof {
+    seal_hex: String,
+    journal_hex: String,
     proof_hex: String,
     receipt_base64: Option<String>,
 }
 
 /// Prove a single note. When the `prove` feature is enabled, calls the actual
 /// RISC Zero prover. Otherwise, returns a placeholder.
+///
+/// Receipt kind is controlled by the `RECEIPT_KIND` environment variable:
+/// - "groth16" (default in Docker) — produces on-chain-ready proofs
+/// - "succinct" — faster, but needs separate compression for on-chain use
 async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
     #[cfg(feature = "prove")]
     {
@@ -276,19 +288,26 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
 
         let result = tokio::task::spawn_blocking(move || {
             configure_risc0_env();
-            let prove_result = prove_claim(&input, "succinct")?;
+            let receipt_kind = std::env::var("RECEIPT_KIND").unwrap_or_else(|_| "groth16".into());
+            let prove_result = prove_claim(&input, &receipt_kind)?;
             let exported = export_proof(&prove_result.receipt)?;
 
             let receipt_bytes = shadow_prover_lib::serialize_receipt(&prove_result.receipt)?;
             let receipt_b64 = base64_encode(&receipt_bytes);
 
+            // Compute journal digest for on-chain encoding
+            let journal_bytes = hex::decode(
+                exported.journal_hex.strip_prefix("0x").unwrap_or(&exported.journal_hex),
+            )?;
+            let proof_calldata = encode_proof_for_chain(
+                &exported.seal_hex,
+                &journal_bytes,
+            )?;
+
             Ok::<_, anyhow::Error>(SingleNoteProof {
-                proof_hex: format!(
-                    "0x{}",
-                    hex::encode(
-                        ethabi_encode_proof(&exported.seal_hex, &exported.journal_hex)?
-                    )
-                ),
+                seal_hex: exported.seal_hex,
+                journal_hex: exported.journal_hex,
+                proof_hex: format!("0x{}", hex::encode(proof_calldata)),
                 receipt_base64: Some(receipt_b64),
             })
         })
@@ -305,6 +324,8 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
             .map_err(|e| anyhow::anyhow!("claim validation failed: {}", e.as_str()))?;
 
         Ok(SingleNoteProof {
+            seal_hex: String::new(),
+            journal_hex: String::new(),
             proof_hex: String::new(),
             receipt_base64: None,
         })
@@ -365,46 +386,40 @@ fn base64_encode(data: &[u8]) -> String {
     out
 }
 
-#[cfg(feature = "prove")]
-fn ethabi_encode_proof(seal_hex: &str, journal_hex: &str) -> Result<Vec<u8>> {
-    // Simple ABI encoding: encode(bytes seal, bytes journal)
-    // This matches ethers AbiCoder.encode(["bytes", "bytes"], [seal, journal])
-    let seal = hex::decode(seal_hex.strip_prefix("0x").unwrap_or(seal_hex))?;
-    let journal = hex::decode(journal_hex.strip_prefix("0x").unwrap_or(journal_hex))?;
+/// Encode proof for on-chain `Risc0CircuitVerifier.verify()`.
+///
+/// The contract decodes: `(bytes seal, bytes32 journalDigest) = abi.decode(_proof, (bytes, bytes32))`
+/// So we encode: `abi.encode(seal_bytes, sha256(journal_bytes))`
+fn encode_proof_for_chain(seal_hex: &str, journal_bytes: &[u8]) -> Result<Vec<u8>> {
+    use sha2::{Sha256, Digest};
 
+    let seal = hex::decode(seal_hex.strip_prefix("0x").unwrap_or(seal_hex))?;
+
+    // Compute journal digest (SHA-256)
+    let journal_digest: [u8; 32] = Sha256::digest(journal_bytes).into();
+
+    // ABI encode: (bytes seal, bytes32 journalDigest)
+    // Layout: offset_seal (32) | journalDigest (32) | seal_len (32) | seal_data (padded)
     let mut encoded = Vec::new();
 
-    // Offset of first dynamic param (seal): 64 bytes
-    encoded.extend_from_slice(&[0u8; 31]);
-    encoded.push(64);
+    // Offset of dynamic param `seal`: 64 bytes (after the two head slots)
+    let mut offset = [0u8; 32];
+    offset[31] = 64;
+    encoded.extend_from_slice(&offset);
 
-    // Offset of second dynamic param (journal): 64 + 32 + ceil32(seal.len())
-    let seal_padded_len = (seal.len() + 31) / 32 * 32;
-    let journal_offset = 64 + 32 + seal_padded_len;
-    let mut off_bytes = [0u8; 32];
-    off_bytes[28..32].copy_from_slice(&(journal_offset as u32).to_be_bytes());
-    encoded.extend_from_slice(&off_bytes);
+    // journalDigest (bytes32 — static type, stored inline)
+    encoded.extend_from_slice(&journal_digest);
 
-    // Seal length
+    // Seal length (uint256)
     let mut len_bytes = [0u8; 32];
     len_bytes[28..32].copy_from_slice(&(seal.len() as u32).to_be_bytes());
     encoded.extend_from_slice(&len_bytes);
 
-    // Seal data (padded to 32 bytes)
+    // Seal data (padded to 32-byte boundary)
     encoded.extend_from_slice(&seal);
+    let seal_padded_len = (seal.len() + 31) / 32 * 32;
     let padding = seal_padded_len - seal.len();
     encoded.extend(std::iter::repeat(0u8).take(padding));
-
-    // Journal length
-    let mut jlen_bytes = [0u8; 32];
-    jlen_bytes[28..32].copy_from_slice(&(journal.len() as u32).to_be_bytes());
-    encoded.extend_from_slice(&jlen_bytes);
-
-    // Journal data (padded to 32 bytes)
-    let journal_padded_len = (journal.len() + 31) / 32 * 32;
-    encoded.extend_from_slice(&journal);
-    let jpadding = journal_padded_len - journal.len();
-    encoded.extend(std::iter::repeat(0u8).take(jpadding));
 
     Ok(encoded)
 }
