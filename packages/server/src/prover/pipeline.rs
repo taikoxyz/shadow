@@ -383,7 +383,6 @@ fn parse_hex_address(hex_str: &str) -> Result<[u8; 20]> {
 
 #[cfg(feature = "prove")]
 fn base64_encode(data: &[u8]) -> String {
-    use std::fmt::Write;
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
     for chunk in data.chunks(3) {
