@@ -814,6 +814,20 @@ body {
   max-width: none !important;
 }
 
+/* Force identical size for download <a> and delete <button> in file rows */
+.file-row-value .btn {
+  flex-shrink: 0;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* --- Light theme btn-accent hover fix --- */
 
 [data-theme="light"] .btn-accent {
