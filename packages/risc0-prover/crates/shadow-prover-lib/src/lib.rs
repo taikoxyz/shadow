@@ -27,9 +27,14 @@ pub fn circuit_id() -> [u32; 8] {
 }
 
 /// The RISC Zero guest program image ID as a hex string (0x-prefixed, 64 hex chars).
+///
+/// The encoding matches `Digest::as_bytes()` (i.e. `bytemuck::cast_slice`),
+/// which serialises each `u32` word in **native** (little-endian on ARM/x86)
+/// byte order, words 0 → 7.  This is the representation the on-chain
+/// `RiscZeroGroth16Verifier.verify()` expects for `imageId`.
 pub fn circuit_id_hex() -> String {
     let id = SHADOW_CLAIM_GUEST_ID;
-    let bytes: Vec<u8> = id.iter().flat_map(|w| w.to_be_bytes()).collect();
+    let bytes: Vec<u8> = id.iter().flat_map(|w| w.to_le_bytes()).collect();
     format!("0x{}", hex::encode(bytes))
 }
 

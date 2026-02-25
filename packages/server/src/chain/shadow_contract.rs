@@ -55,7 +55,7 @@ impl ChainClient {
 
         // Call isConsumed(bytes32 nullifier) on the Shadow contract
         // Function selector: keccak256("isConsumed(bytes32)") = first 4 bytes
-        let selector = "0xd824ef04"; // keccak256("isConsumed(bytes32)")[..4]
+        let selector = "0x6346e832"; // keccak256("isConsumed(bytes32)")[..4]
         let nullifier_padded = nullifier
             .strip_prefix("0x")
             .unwrap_or(nullifier);
@@ -105,7 +105,7 @@ impl ChainClient {
     /// `verifier_address` is the verifier contract address (0x-prefixed hex).
     pub async fn read_circuit_id(&self, verifier_address: &str) -> Result<String> {
         // imageId() selector: keccak256("imageId()")[..4]
-        let selector = "0xe3c573fb"; // keccak256("imageId()")[..4]
+        let selector = "0xef3f7dd5"; // keccak256("imageId()")[..4]
 
         let result = self
             .eth_call(verifier_address, selector, "latest")

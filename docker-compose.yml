@@ -15,6 +15,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    platform: linux/amd64
     ports:
       - "3000:3000"
     volumes:
@@ -22,4 +23,5 @@ services:
     environment:
       - RPC_URL=https://rpc.hoodi.taiko.xyz
       - SHADOW_ADDRESS=0x77cdA0575e66A5FC95404fdA856615AD507d8A07
+      - VERIFIER_ADDRESS=0x3CdA03f7c005F46Dc506B334B275B45EDFb4Df92
       - RUST_LOG=shadow_server=info

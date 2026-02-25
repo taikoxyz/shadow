@@ -6,12 +6,16 @@
 # - In-process ZK proof generation (no Docker-in-Docker)
 # - Local web UI served by the backend
 # - Workspace-based file management via bind-mounted host directory
+#
+# NOTE: RISC Zero only publishes x86_64 Linux toolchain binaries, so this
+# image must be built for linux/amd64. On Apple Silicon, use:
+#   docker build --platform linux/amd64 -f docker/Dockerfile -t shadow-local .
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Stage 1: UI Builder — compile the frontend with Vite
 # -----------------------------------------------------------------------------
-FROM node:20-bookworm AS ui-builder
+FROM --platform=linux/amd64 node:20-bookworm AS ui-builder
 
 WORKDIR /build
 
@@ -29,7 +33,7 @@ RUN pnpm build
 # -----------------------------------------------------------------------------
 # Stage 2: Rust Builder — compile the server binary with proof generation
 # -----------------------------------------------------------------------------
-FROM rust:bookworm AS rust-builder
+FROM --platform=linux/amd64 rust:bookworm AS rust-builder
 
 ENV CARGO_BUILD_JOBS=2
 ENV CMAKE_BUILD_PARALLEL_LEVEL=2
@@ -70,16 +74,21 @@ RUN cargo build \
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime — minimal image with server + UI + prover
 # -----------------------------------------------------------------------------
-FROM debian:bookworm-slim
+FROM --platform=linux/amd64 debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy RISC Zero toolchain (needed for local proving)
+# Copy RISC Zero toolchain (needed for local proving).
+# rzup installs r0vm and extensions into ~/.risc0; we also look for r0vm in
+# ~/.cargo/bin (some rzup versions place it there).
 COPY --from=rust-builder /root/.risc0 /root/.risc0
-COPY --from=rust-builder /root/.cargo/bin/r0vm /root/.cargo/bin/r0vm 2>/dev/null || true
+RUN mkdir -p /root/.cargo/bin && \
+    if [ -f /root/.risc0/bin/r0vm ]; then \
+      ln -sf /root/.risc0/bin/r0vm /root/.cargo/bin/r0vm; \
+    fi
 
 # Copy server binary
 COPY --from=rust-builder /build/packages/server/target/release/shadow-server /app/shadow-server
