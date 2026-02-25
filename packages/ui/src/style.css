@@ -149,6 +149,10 @@ body {
   vertical-align: middle;
 }
 
+.rpc-dot-offline {
+  background: var(--accent-amber) !important;
+}
+
 /* --- Breadcrumb --- */
 
 .breadcrumb {

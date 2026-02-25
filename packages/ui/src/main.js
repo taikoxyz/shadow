@@ -169,6 +169,14 @@ function handleServerEvent(event) {
         refresh();
       }
       break;
+    case 'ws:connected':
+      state.wsConnected = true;
+      render();
+      break;
+    case 'ws:disconnected':
+      state.wsConnected = false;
+      render();
+      break;
   }
 }
 
@@ -433,7 +441,13 @@ function render() {
     return;
   }
 
-  if (state.view === 'detail' && state.selectedId) {
+  if (state.view === 'settings') {
+    app.appendChild(renderSettingsView());
+    requestAnimationFrame(() => {
+      const inp = document.getElementById('settings-rpc');
+      if (inp) inp.value = localStorage.getItem('shadow-rpc') || state.config?.rpcUrl || '';
+    });
+  } else if (state.view === 'detail' && state.selectedId) {
     app.appendChild(renderDetailView());
   } else {
     app.appendChild(renderListView());
@@ -453,12 +467,10 @@ function renderHeader() {
   ]);
 
   const headerActions = el('div', { className: 'header-actions' }, [
-    state.config?.rpcUrl
-      ? el('span', { className: 'header-status' }, [
-          el('span', { className: 'rpc-dot' }),
-          'RPC',
-        ])
-      : null,
+    el('span', { className: 'header-status' }, [
+      el('span', { className: `rpc-dot${state.wsConnected === false ? ' rpc-dot-offline' : ''}` }),
+      state.wsConnected === false ? 'Reconnecting...' : (state.config?.rpcUrl ? 'Live' : 'RPC'),
+    ]),
     state.walletAddress
       ? el('span', { className: 'wallet-badge' }, [
           el('span', { className: 'wallet-dot' }),
@@ -470,6 +482,11 @@ function renderHeader() {
             onclick: handleConnectWallet,
           }, 'Connect Wallet')
         : null,
+    el('button', {
+      className: 'btn-icon',
+      onclick: () => navigateTo('settings'),
+      title: 'Settings',
+    }, '\u2699'),
     el('button', {
       className: 'btn-icon',
       onclick: () => setTheme(getTheme() === 'dark' ? 'light' : 'dark'),
@@ -1017,16 +1034,84 @@ function renderProofJobBanner() {
 }
 
 // ---------------------------------------------------------------------------
+// Settings View
+// ---------------------------------------------------------------------------
+
+function renderSettingsView() {
+  return el('div', {}, [
+    el('div', { className: 'breadcrumb' }, [
+      el('a', { onclick: () => navigateTo('list') }, 'Home'),
+      ' / Settings',
+    ]),
+
+    el('div', { className: 'detail-section' }, [
+      el('h2', {}, 'RPC Endpoint'),
+      el('p', { className: 'form-hint', style: 'margin-bottom: 0.75rem' },
+        'Stored locally. Used by the UI for balance checks. Proof generation uses the server-configured RPC URL.'),
+      el('div', { className: 'form-group' }, [
+        el('label', { className: 'form-label' }, 'JSON-RPC URL'),
+        el('input', {
+          className: 'form-input',
+          id: 'settings-rpc',
+          placeholder: 'https://rpc.hoodi.taiko.xyz',
+        }),
+      ]),
+      el('button', {
+        className: 'btn btn-primary',
+        onclick: () => {
+          const val = document.getElementById('settings-rpc')?.value?.trim();
+          if (val) {
+            localStorage.setItem('shadow-rpc', val);
+          } else {
+            localStorage.removeItem('shadow-rpc');
+          }
+          showToast('Settings saved', 'success');
+        },
+      }, 'Save'),
+    ]),
+
+    el('div', { className: 'detail-section' }, [
+      el('h2', {}, 'Appearance'),
+      el('div', { style: 'display: flex; align-items: center; gap: 0.75rem' }, [
+        el('span', { style: 'font-size: 0.82rem; color: var(--text-secondary)' }, 'Theme:'),
+        el('button', {
+          className: `btn btn-small${getTheme() === 'dark' ? ' btn-primary' : ''}`,
+          onclick: () => setTheme('dark'),
+        }, 'Dark'),
+        el('button', {
+          className: `btn btn-small${getTheme() === 'light' ? ' btn-primary' : ''}`,
+          onclick: () => setTheme('light'),
+        }, 'Light'),
+      ]),
+    ]),
+
+    el('div', { className: 'detail-section' }, [
+      el('h2', {}, 'Server Info'),
+      state.config
+        ? el('div', {}, [
+            detailRow('Version', `v${state.config.version}`),
+            state.config.shadowAddress ? detailRow('Shadow Contract', state.config.shadowAddress) : null,
+            state.config.circuitId ? detailRow('Circuit ID', state.config.circuitId) : null,
+            state.config.verifierAddress ? detailRow('Verifier', state.config.verifierAddress) : null,
+            state.config.rpcUrl ? detailRow('RPC URL', state.config.rpcUrl) : null,
+          ].filter(Boolean))
+        : el('p', { className: 'form-hint' }, 'Server not connected'),
+    ]),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
 // Config Footer
 // ---------------------------------------------------------------------------
 
 function renderConfigBar() {
   const c = state.config;
+  if (!c) return el('div', {});
   const items = [];
   if (c.version) items.push(`v${c.version}`);
-  if (c.circuitId) items.push(`Circuit: ${c.circuitId.slice(0, 18)}...`);
-  if (c.workspace) items.push(`WS: ${c.workspace}`);
-
+  if (c.shadowAddress) items.push(`Shadow: ${c.shadowAddress}`);
+  if (c.circuitId) items.push(`Circuit: ${c.circuitId}`);
+  // Removed: workspace path, truncation of circuit ID
   return el('div', { className: 'config-bar' }, items.map((t) => el('span', {}, t)));
 }
 

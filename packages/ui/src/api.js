@@ -116,11 +116,21 @@ export function getClaimTx(depositId, noteIndex) {
 // WebSocket
 // ---------------------------------------------------------------------------
 
+let wsReconnectDelay = 1000;
+const WS_MAX_DELAY = 30000;
+let wsPingInterval = null;
+
 /** Subscribe to real-time server events. Returns an unsubscribe function. */
 export function onServerEvent(callback) {
   wsListeners.add(callback);
   ensureWebSocket();
   return () => wsListeners.delete(callback);
+}
+
+function notifyListeners(event) {
+  for (const listener of wsListeners) {
+    try { listener(event); } catch (err) { console.error('[ws] listener error:', err); }
+  }
 }
 
 function ensureWebSocket() {
@@ -134,29 +144,34 @@ function ensureWebSocket() {
 
     wsConnection.onopen = () => {
       console.log('[ws] connected');
-      if (wsReconnectTimer) {
-        clearTimeout(wsReconnectTimer);
-        wsReconnectTimer = null;
-      }
+      wsReconnectDelay = 1000; // reset backoff on success
+      if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+
+      // Heartbeat ping every 25s to keep the connection alive
+      if (wsPingInterval) clearInterval(wsPingInterval);
+      wsPingInterval = setInterval(() => {
+        if (wsConnection?.readyState === WebSocket.OPEN) {
+          wsConnection.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 25000);
+
+      notifyListeners({ type: 'ws:connected' });
     };
 
     wsConnection.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        for (const listener of wsListeners) {
-          try {
-            listener(data);
-          } catch (err) {
-            console.error('[ws] listener error:', err);
-          }
-        }
+        if (data.type === 'pong') return; // ignore pong responses
+        notifyListeners(data);
       } catch {
         // ignore non-JSON messages
       }
     };
 
     wsConnection.onclose = () => {
-      console.log('[ws] disconnected, reconnecting in 3s...');
+      console.log(`[ws] disconnected, reconnecting in ${wsReconnectDelay}ms...`);
+      if (wsPingInterval) { clearInterval(wsPingInterval); wsPingInterval = null; }
+      notifyListeners({ type: 'ws:disconnected' });
       scheduleReconnect();
     };
 
@@ -172,6 +187,7 @@ function scheduleReconnect() {
   if (wsReconnectTimer) return;
   wsReconnectTimer = setTimeout(() => {
     wsReconnectTimer = null;
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_MAX_DELAY);
     ensureWebSocket();
-  }, 3000);
+  }, wsReconnectDelay);
 }
