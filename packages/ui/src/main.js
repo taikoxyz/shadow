@@ -353,6 +353,25 @@ async function handleClaim(depositId, noteIndex) {
   }
 }
 
+async function handleImportDeposit(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  try {
+    const resp = await fetch('/api/deposits/import', { method: 'POST', body: formData });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => resp.statusText);
+      throw new Error(text);
+    }
+    showToast(`Imported ${file.name}`, 'success');
+    await refresh();
+  } catch (err) {
+    showToast(`Import failed: ${err.message}`, 'error');
+  }
+  e.target.value = ''; // Reset so same file can be re-imported
+}
+
 async function handleMineDeposit(formData) {
   state.mining = true;
   render();
@@ -465,6 +484,22 @@ function renderHeader() {
 // List View
 // ---------------------------------------------------------------------------
 
+function makeImportButton() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.style.display = 'none';
+  input.addEventListener('change', handleImportDeposit);
+
+  const label = document.createElement('label');
+  label.className = 'btn btn-small';
+  label.title = 'Import an existing deposit JSON file';
+  label.style.cursor = 'pointer';
+  label.textContent = 'Import Deposit';
+  label.appendChild(input);
+  return label;
+}
+
 function renderListView() {
   const items = [];
 
@@ -487,11 +522,12 @@ function renderListView() {
   }
 
   if (!state.showMiningForm) {
-    items.push(el('div', { style: 'margin-bottom: 1rem' }, [
+    items.push(el('div', { style: 'margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center' }, [
       el('button', {
         className: 'btn btn-primary',
         onclick: () => { state.showMiningForm = true; render(); },
       }, '+ New Deposit'),
+      makeImportButton(),
     ]));
   }
 
@@ -774,6 +810,11 @@ function renderDetailView() {
       ` / ${truncateDepositId(deposit.id)}`,
     ]),
 
+    // Comment (if present)
+    deposit.comment
+      ? el('p', { className: 'deposit-comment' }, deposit.comment)
+      : null,
+
     // Overview
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
@@ -864,6 +905,22 @@ function renderDetailView() {
             () => handleDeleteDeposit(deposit.id, true),
           ),
         }, 'Delete Deposit'));
+
+        // Download deposit file
+        btns.push(el('a', {
+          href: `/api/deposits/${encodeURIComponent(deposit.id)}/download`,
+          className: 'btn btn-small',
+          download: true,
+        }, 'Download Deposit'));
+
+        // Download proof file (only if proof exists)
+        if (deposit.hasProof) {
+          btns.push(el('a', {
+            href: `/api/deposits/${encodeURIComponent(deposit.id)}/proof/download`,
+            className: 'btn btn-small',
+            download: true,
+          }, 'Download Proof'));
+        }
 
         return btns;
       })()),
@@ -1114,6 +1171,10 @@ function el(tag, props = {}, children = []) {
       elem.value = val;
     } else if (key === 'type') {
       elem.type = val;
+    } else if (key === 'href') {
+      elem.href = val;
+    } else if (key === 'download') {
+      elem.setAttribute('download', val === true ? '' : val);
     }
   }
 
