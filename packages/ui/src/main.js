@@ -989,7 +989,7 @@ function renderDetailView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
       depositFileRow(deposit),
-      detailRow('Chain ID', deposit.chainId === '167013' ? 'Taiko Hoodi (167013)' : deposit.chainId),
+      detailRow('Network', deposit.chainId === '167013' ? 'Taiko Hoodi (167013)' : deposit.chainId),
       addressRow('Target Address', deposit.targetAddress),
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
