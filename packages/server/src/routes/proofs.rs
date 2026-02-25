@@ -1,0 +1,171 @@
+use std::sync::Arc;
+
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    routing::{delete, get, post},
+    Json, Router,
+};
+use serde::Serialize;
+
+use crate::{
+    prover::{pipeline, queue::ProofJob, ProofQueue},
+    state::AppState,
+    workspace::scanner::scan_workspace,
+};
+
+/// `POST /api/deposits/:id/prove` — queue proof generation for a deposit.
+async fn start_proof(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<ProofJob>, (StatusCode, String)> {
+    let rpc_url = state
+        .rpc_url
+        .as_ref()
+        .ok_or((
+            StatusCode::BAD_REQUEST,
+            "RPC URL not configured; start server with --rpc-url".to_string(),
+        ))?
+        .clone();
+
+    // Find the deposit
+    let index = scan_workspace(&state.workspace);
+    let deposit = index
+        .deposits
+        .iter()
+        .find(|d| d.id == id)
+        .ok_or((StatusCode::NOT_FOUND, format!("deposit {} not found", id)))?;
+
+    let note_count = deposit.note_count as u32;
+    let deposit_filename = deposit.filename.clone();
+    let deposit_id = deposit.id.clone();
+
+    // Enqueue
+    state
+        .proof_queue
+        .enqueue(&deposit_id, note_count)
+        .await
+        .map_err(|e| (StatusCode::CONFLICT, e))?;
+
+    // Spawn the proof pipeline
+    let queue = state.proof_queue.clone();
+    let workspace = state.workspace.clone();
+    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
+    queue.set_cancel_tx(cancel_tx).await;
+
+    let event_tx = state.event_tx.clone();
+
+    tokio::spawn(async move {
+        match pipeline::run_pipeline(&workspace, &deposit_filename, &rpc_url, queue.clone(), cancel_rx)
+            .await
+        {
+            Ok(bundled) => {
+                // Write proof file
+                let deposit_stem = deposit_filename
+                    .strip_suffix(".json")
+                    .unwrap_or(&deposit_filename);
+                let proof_ts = timestamp_now();
+                let proof_filename = format!("{}.proof-{}.json", deposit_stem, proof_ts);
+                let proof_path = workspace.join(&proof_filename);
+
+                match serde_json::to_vec_pretty(&bundled) {
+                    Ok(json_bytes) => {
+                        if let Err(e) = std::fs::write(&proof_path, json_bytes) {
+                            tracing::error!(error = %e, "failed to write proof file");
+                            queue.fail(0, &format!("failed to write proof file: {}", e)).await;
+                            return;
+                        }
+                        tracing::info!(file = %proof_filename, "proof file written");
+                        queue.complete(&proof_filename).await;
+
+                        let _ = event_tx.send(
+                            serde_json::json!({"type": "workspace:changed"}).to_string(),
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "failed to serialize proof");
+                        queue.fail(0, &format!("serialization error: {}", e)).await;
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!(error = %e, deposit = %deposit_id, "proof pipeline failed");
+                queue.fail(0, &e.to_string()).await;
+            }
+        }
+    });
+
+    let job = state.proof_queue.status().await.unwrap();
+    Ok(Json(job))
+}
+
+/// `GET /api/queue` — get queue status.
+async fn queue_status(
+    State(state): State<Arc<AppState>>,
+) -> Json<Option<ProofJob>> {
+    Json(state.proof_queue.status().await)
+}
+
+/// `DELETE /api/queue/current` — cancel the current proof job.
+async fn cancel_job(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<CancelResponse>, StatusCode> {
+    let cancelled = state.proof_queue.cancel().await;
+    if cancelled {
+        Ok(Json(CancelResponse {
+            cancelled: true,
+            message: "cancellation signal sent".to_string(),
+        }))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+#[derive(Serialize)]
+struct CancelResponse {
+    cancelled: bool,
+    message: String,
+}
+
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/deposits/{id}/prove", post(start_proof))
+        .route("/queue", get(queue_status))
+        .route("/queue/current", delete(cancel_job))
+}
+
+fn timestamp_now() -> String {
+    use std::time::SystemTime;
+    let secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    // Manual UTC formatting: YYYYMMDDTHHMMSS
+    let days = secs / 86400;
+    let tod = secs % 86400;
+    let (y, m, d) = civil_from_days(days as i64);
+    format!(
+        "{:04}{:02}{:02}T{:02}{:02}{:02}",
+        y,
+        m,
+        d,
+        tod / 3600,
+        (tod % 3600) / 60,
+        tod % 60
+    )
+}
+
+fn civil_from_days(days: i64) -> (i32, u32, u32) {
+    let z = days + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y as i32, m, d)
+}

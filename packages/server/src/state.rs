@@ -1,6 +1,8 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use tokio::sync::broadcast;
+
+use crate::prover::ProofQueue;
 
 /// Shared application state.
 pub struct AppState {
@@ -12,4 +14,6 @@ pub struct AppState {
     pub ui_dir: PathBuf,
     /// Broadcast channel for server-sent events (WebSocket).
     pub event_tx: broadcast::Sender<String>,
+    /// Proof generation queue.
+    pub proof_queue: Arc<ProofQueue>,
 }

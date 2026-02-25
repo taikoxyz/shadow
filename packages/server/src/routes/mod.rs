@@ -1,5 +1,6 @@
 mod deposits;
 mod health;
+mod proofs;
 
 use std::sync::Arc;
 
@@ -12,5 +13,6 @@ pub fn api_router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(health::router())
         .merge(deposits::router())
+        .merge(proofs::router())
         .with_state(state)
 }

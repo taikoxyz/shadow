@@ -6,10 +6,12 @@ use clap::Parser;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
+mod prover;
 mod routes;
 mod state;
 mod workspace;
 
+use prover::ProofQueue;
 use state::AppState;
 
 #[derive(Debug, Parser)]
@@ -60,11 +62,15 @@ async fn main() -> Result<()> {
     // Broadcast channel for WebSocket events (proof progress, workspace changes)
     let (event_tx, _) = broadcast::channel::<String>(64);
 
+    // Proof generation queue
+    let proof_queue = ProofQueue::new(event_tx.clone());
+
     let state = Arc::new(AppState {
         workspace,
         rpc_url: cli.rpc_url,
         ui_dir: cli.ui_dir,
         event_tx,
+        proof_queue,
     });
 
     let app = build_router(state);
