@@ -1045,24 +1045,31 @@ function renderNotesTable(deposit) {
 
 function renderProofJobBanner() {
   const job = state.queueJob;
-  if (!job || !['queued', 'running'].includes(job.status)) return null;
+  if (!job || !['queued', 'running', 'failed'].includes(job.status)) return null;
 
+  const isFailed = job.status === 'failed';
   const pct = job.totalNotes > 0 ? Math.round((job.currentNote / job.totalNotes) * 100) : 0;
 
-  return el('div', { className: 'proof-banner' }, [
+  return el('div', { className: `proof-banner${isFailed ? ' proof-banner-failed' : ''}` }, [
     el('div', { className: 'proof-banner-info' }, [
-      el('span', { className: 'spinner' }),
-      el('span', {}, ` Proving ${job.depositId} \u2014 ${job.message || 'in progress...'}`),
+      isFailed
+        ? el('span', {}, '\u26a0\ufe0f')
+        : el('span', { className: 'spinner' }),
+      el('span', {}, isFailed
+        ? ` Proof failed for ${job.depositId} \u2014 ${job.error || job.message || 'unknown error'}`
+        : ` Proving ${job.depositId} \u2014 ${job.message || 'in progress...'}`),
     ]),
     el('div', { className: 'proof-banner-right' }, [
-      el('div', { className: 'progress-bar', style: 'width: 120px' }, [
-        el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
-      ]),
+      !isFailed
+        ? el('div', { className: 'progress-bar', style: 'width: 120px' }, [
+            el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
+          ])
+        : null,
       el('button', {
         className: 'btn btn-danger btn-small',
-        onclick: handleCancelProof,
-      }, 'Kill'),
-    ]),
+        onclick: isFailed ? () => { state.queueJob = null; render(); } : handleCancelProof,
+      }, isFailed ? 'Dismiss' : 'Kill'),
+    ].filter(Boolean)),
   ]);
 }
 
@@ -1186,6 +1193,14 @@ function depositStatus(deposit) {
 }
 
 function cardStatus(deposit) {
+  // Show proving/failed state if a queue job targets this deposit
+  const job = state.queueJob;
+  if (job && job.depositId === deposit.id) {
+    if (job.status === 'running' || job.status === 'queued')
+      return { label: 'Proving…', cls: 'badge-proving' };
+    if (job.status === 'failed')
+      return { label: 'Proof Failed', cls: 'badge-failed' };
+  }
   if (!deposit.hasProof) return { label: 'Unproved', cls: 'badge-no-proof' };
   const notes = deposit.notes || [];
   const allClaimed = notes.length > 0 && notes.every(n => n.claimStatus === 'claimed');
