@@ -41,6 +41,9 @@ let state = {
   // Deposit detail
   depositBalance: null,
   wsConnected: false,
+  // Proof log
+  proofLog: [],         // {time, message} entries accumulated during proving
+  bannerExpanded: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -177,15 +180,23 @@ function handleServerEvent(event) {
       refresh();
       break;
     case 'proof:started':
-    case 'proof:note_progress':
-    case 'proof:completed':
-    case 'proof:failed':
-      // Fetch the real ProofJob from the server — WS events are minimal payloads
-      // without a `status` field, so using them directly breaks the banner.
+      state.proofLog = [];
+      state.proofLog.push({ time: new Date(), message: `Started proving ${event.depositId}` });
       pollQueue();
-      if (event.type === 'proof:completed' || event.type === 'proof:failed') {
-        refresh();
-      }
+      break;
+    case 'proof:note_progress':
+      state.proofLog.push({ time: new Date(), message: event.message || `Note ${event.noteIndex + 1}/${event.totalNotes}` });
+      pollQueue();
+      break;
+    case 'proof:completed':
+      state.proofLog.push({ time: new Date(), message: `Proof complete \u2014 ${event.proofFile || ''}` });
+      pollQueue();
+      refresh();
+      break;
+    case 'proof:failed':
+      state.proofLog.push({ time: new Date(), message: `Failed: ${event.error || 'unknown error'}` });
+      pollQueue();
+      refresh();
       break;
     case 'ws:connected':
       state.wsConnected = true;
@@ -1126,12 +1137,15 @@ function renderProofJobBanner() {
   const isFailed = job.status === 'failed';
   const pct = job.totalNotes > 0 ? Math.round((job.currentNote / job.totalNotes) * 100) : 0;
 
+  const expanded = state.bannerExpanded;
+
   return el('div', { className: `proof-banner${isFailed ? ' proof-banner-failed' : ''}` }, [
+    el('div', { className: 'proof-banner-top' }, [
     el('div', { className: 'proof-banner-info' }, [
       isFailed
         ? el('span', {}, '\u26a0\ufe0f')
         : el('span', { className: 'spinner' }),
-      el('div', { style: 'display: flex; flex-direction: column; gap: 2px' }, [
+      el('div', { style: 'display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0' }, [
         isFailed
           ? el('span', {}, ` Proof failed \u2014 ${job.error || job.message || 'unknown error'}`)
           : el('span', {}, [
@@ -1151,12 +1165,28 @@ function renderProofJobBanner() {
             el('div', { className: 'progress-fill', style: `width: ${pct}%` }),
           ])
         : null,
+      state.proofLog.length > 0
+        ? el('button', {
+            className: 'btn btn-small',
+            style: 'font-size: 0.72rem;',
+            onclick: () => { state.bannerExpanded = !state.bannerExpanded; render(); },
+          }, expanded ? 'Hide log' : 'Show log')
+        : null,
       el('button', {
         className: 'btn btn-danger btn-small',
         onclick: isFailed ? () => { api.cancelProof().catch(() => {}); state.queueJob = null; render(); } : handleCancelProof,
       }, isFailed ? 'Dismiss' : 'Kill Current Job'),
-    ].filter(Boolean)),
-  ]);
+    ].filter(Boolean)),  // proof-banner-right
+    ]),                  // proof-banner-top
+    expanded && state.proofLog.length > 0
+      ? el('div', { className: 'proof-banner-log' }, state.proofLog.map(entry =>
+          el('div', { className: 'proof-log-entry' }, [
+            el('span', { className: 'proof-log-time' }, formatLogTime(entry.time)),
+            el('span', {}, entry.message),
+          ])
+        ))
+      : null,
+  ].filter(Boolean));
 }
 
 // ---------------------------------------------------------------------------
@@ -1334,6 +1364,10 @@ function truncateDepositId(id) {
   if (!id) return '';
   // "deposit-ffe8-fde9-20260224T214613" → show as-is (already compact enough)
   return id;
+}
+
+function formatLogTime(date) {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function formatDate(isoStr) {

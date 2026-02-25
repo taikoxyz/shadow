@@ -856,9 +856,8 @@ body {
 
 .proof-banner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.65rem 1rem;
   margin-bottom: 1rem;
   background: var(--accent-blue-bg);
@@ -866,6 +865,18 @@ body {
   border-radius: var(--radius-md);
   font-size: 0.82rem;
   color: var(--accent-blue);
+}
+
+.proof-banner > .proof-banner-info,
+.proof-banner > .proof-banner-right {
+  /* keep the top row as a horizontal flex */
+}
+
+.proof-banner-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .proof-banner-failed {
@@ -918,6 +929,30 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.proof-banner-log {
+  border-top: 1px solid var(--btn-accent-border);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.proof-log-entry {
+  display: flex;
+  gap: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.proof-log-time {
+  opacity: 0.5;
   flex-shrink: 0;
 }
 
