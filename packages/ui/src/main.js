@@ -941,7 +941,7 @@ function renderDetailView() {
   // Proof action button / hint (shown inside Proofs section)
   const proofAction = (() => {
     if (status === 'proving') {
-      return el('span', {}, 'Proof generation in progress \u2014 see banner above');
+      return el('span', { style: 'font-size: 0.78rem' }, 'Proof generation in progress \u2014 see banner above');
     }
     if (deposit.hasProof) {
       return el('button', {
