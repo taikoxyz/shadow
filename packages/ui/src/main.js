@@ -624,6 +624,24 @@ function makeImportButton() {
   return label;
 }
 
+function renderPrivacyFlow() {
+  const flowSrc = getTheme() === 'light'
+    ? '/privacy-flow-light.svg'
+    : '/privacy-flow.svg';
+  return el('figure', { className: 'privacy-flow' }, [
+    el('img', {
+      className: 'privacy-flow-image',
+      src: flowSrc,
+      alt: 'Address A funds an unspendable sink and Address B claims later via Taiko bridge.',
+      loading: 'lazy',
+    }),
+    el('figcaption', { className: 'privacy-flow-caption' }, [
+      'Address A sends ETH to an unspendable sink. A valid proof later enables Address B to claim ',
+      'from the Taiko bridge.',
+    ]),
+  ]);
+}
+
 function renderListView() {
   const items = [];
 
@@ -635,6 +653,7 @@ function renderListView() {
     el('a', { href: 'https://github.com/taikoxyz/shadow', target: '_blank', rel: 'noopener' }, 'View more on GitHub'),
     '.',
   ]));
+  items.push(renderPrivacyFlow());
 
   // Mining form
   if (state.showMiningForm) {

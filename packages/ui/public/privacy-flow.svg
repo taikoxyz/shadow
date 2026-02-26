@@ -1,0 +1,181 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 920 360"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">Shadow privacy flow</title>
+  <desc id="desc">
+    Address A funds an unspendable sink, then Address B claims later from the Taiko bridge.
+  </desc>
+
+  <defs>
+    <linearGradient id="panelA" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#1f2937"/>
+    </linearGradient>
+    <linearGradient id="panelB" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2d2510"/>
+      <stop offset="100%" stop-color="#4a3a1a"/>
+    </linearGradient>
+    <linearGradient id="panelC" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0d1a2d"/>
+      <stop offset="100%" stop-color="#1a2a4a"/>
+    </linearGradient>
+    <linearGradient id="panelD" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0d2d22"/>
+      <stop offset="100%" stop-color="#1a4a35"/>
+    </linearGradient>
+
+    <marker id="arrowAmber" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#fbbf24"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#60a5fa"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#34d399"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="920" height="360" rx="20" fill="#111113"/>
+  <rect x="1" y="1" width="918" height="358" rx="19" fill="none" stroke="#2c2c38"/>
+
+  <path
+    d="M220 140 C 255 140, 275 140, 310 140"
+    fill="none"
+    stroke="#fbbf24"
+    stroke-width="3"
+    stroke-linecap="round"
+    marker-end="url(#arrowAmber)"
+  />
+  <path
+    d="M510 140 C 550 140, 580 140, 620 140"
+    fill="none"
+    stroke="#60a5fa"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-dasharray="8 8"
+    marker-end="url(#arrowBlue)"
+  >
+    <animate
+      attributeName="stroke-dashoffset"
+      values="16;0"
+      dur="1.6s"
+      repeatCount="indefinite"
+    />
+  </path>
+  <path
+    d="M730 180 C 760 215, 760 235, 730 270"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="3"
+    stroke-linecap="round"
+    marker-end="url(#arrowGreen)"
+  />
+
+  <text x="225" y="122" fill="#fcd34d" font-size="13" font-family="ui-monospace, monospace">
+    1) Address A funds sink
+  </text>
+  <text x="512" y="122" fill="#93c5fd" font-size="13" font-family="ui-monospace, monospace">
+    2) Proof verifies deposit
+  </text>
+  <text x="742" y="224" fill="#6ee7b7" font-size="13" font-family="ui-monospace, monospace">
+    3) Address B claims later
+  </text>
+
+  <g>
+    <rect x="40" y="80" width="180" height="120" rx="14" fill="url(#panelA)" stroke="#3c3c4c"/>
+    <text x="56" y="110" fill="#eaeaf0" font-size="14" font-family="ui-monospace, monospace">Address A</text>
+    <text x="56" y="133" fill="#9090a0" font-size="12" font-family="ui-monospace, monospace">0xa1...f09c</text>
+    <text x="56" y="163" fill="#fcd34d" font-size="12" font-family="ui-monospace, monospace">Send ETH to sink</text>
+  </g>
+
+  <g>
+    <rect x="310" y="80" width="200" height="120" rx="14" fill="url(#panelB)" stroke="#4a3a1a"/>
+    <text x="326" y="110" fill="#fde68a" font-size="14" font-family="ui-monospace, monospace">Unspendable Sink</text>
+    <text x="326" y="133" fill="#fbbf24" font-size="12" font-family="ui-monospace, monospace">0x000...dEaD</text>
+    <text x="326" y="163" fill="#fbbf24" font-size="12" font-family="ui-monospace, monospace">No private key exists</text>
+
+    <g transform="translate(460 160)">
+      <rect x="-10" y="6" width="20" height="13" rx="2" fill="#f59e0b"/>
+      <path d="M-6 6 V2 a6 6 0 0 1 12 0 V6" fill="none" stroke="#fcd34d" stroke-width="2"/>
+    </g>
+
+    <ellipse
+      cx="410"
+      cy="140"
+      rx="94"
+      ry="50"
+      fill="none"
+      stroke="#f59e0b"
+      stroke-width="1.5"
+      opacity="0.3"
+    >
+      <animate attributeName="opacity" dur="3s" values="0.2;0.5;0.2" repeatCount="indefinite"/>
+    </ellipse>
+  </g>
+
+  <g>
+    <rect x="620" y="80" width="220" height="120" rx="14" fill="url(#panelC)" stroke="#1a2a4a"/>
+    <text x="638" y="110" fill="#dbeafe" font-size="14" font-family="ui-monospace, monospace">Taiko Bridge</text>
+    <text x="638" y="133" fill="#93c5fd" font-size="12" font-family="ui-monospace, monospace">Authorizes release</text>
+    <text x="638" y="163" fill="#93c5fd" font-size="12" font-family="ui-monospace, monospace">after valid proof</text>
+  </g>
+
+  <g>
+    <rect x="620" y="230" width="220" height="95" rx="14" fill="url(#panelD)" stroke="#1a4a35"/>
+    <text x="638" y="258" fill="#dcfce7" font-size="14" font-family="ui-monospace, monospace">Address B</text>
+    <text x="638" y="280" fill="#86efac" font-size="12" font-family="ui-monospace, monospace">0xb7...1c2a</text>
+    <text x="638" y="302" fill="#86efac" font-size="12" font-family="ui-monospace, monospace">Claims bridged ETH</text>
+  </g>
+
+  <circle r="6" fill="#f59e0b">
+    <animateMotion
+      dur="6.6s"
+      repeatCount="indefinite"
+      path="M220 140 C 255 140, 275 140, 310 140"
+    />
+    <animate
+      attributeName="opacity"
+      dur="6.6s"
+      values="0;1;1;0"
+      keyTimes="0;0.08;0.8;1"
+      repeatCount="indefinite"
+    />
+  </circle>
+
+  <circle r="6" fill="#60a5fa">
+    <animateMotion
+      dur="6.6s"
+      begin="2.15s"
+      repeatCount="indefinite"
+      path="M510 140 C 550 140, 580 140, 620 140"
+    />
+    <animate
+      attributeName="opacity"
+      dur="6.6s"
+      begin="2.15s"
+      values="0;1;1;0"
+      keyTimes="0;0.1;0.8;1"
+      repeatCount="indefinite"
+    />
+  </circle>
+
+  <circle r="6" fill="#34d399">
+    <animateMotion
+      dur="6.6s"
+      begin="4.3s"
+      repeatCount="indefinite"
+      path="M730 180 C 760 215, 760 235, 730 270"
+    />
+    <animate
+      attributeName="opacity"
+      dur="6.6s"
+      begin="4.3s"
+      values="0;1;1;0"
+      keyTimes="0;0.08;0.8;1"
+      repeatCount="indefinite"
+    />
+  </circle>
+</svg>
