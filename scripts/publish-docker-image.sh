@@ -1,12 +1,22 @@
 #!/usr/bin/env sh
 set -eu
 
-TAG="${1:-latest}"
+TAG_INPUT="${1:-latest}"
+if [ "${TAG_INPUT}" = "--" ]; then
+  TAG_INPUT="${2:-latest}"
+fi
+
+TAG="${TAG_INPUT}"
 REGISTRY="${REGISTRY:-ghcr.io}"
 IMAGE_REPO="${IMAGE_REPO:-shadow}"
 LOCAL_IMAGE="${LOCAL_IMAGE:-shadow-local:latest}"
 DOCKERFILE="${DOCKERFILE:-docker/Dockerfile}"
 PLATFORM="${PLATFORM:-linux/amd64}"
+
+if [ -z "${TAG}" ] || [ "${TAG}" = "--" ]; then
+  echo "Error: invalid tag '${TAG}'."
+  exit 1
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: docker is required."
