@@ -49,13 +49,13 @@ From your secret and notes, Shadow mathematically derives a unique **target addr
 
 ### Step 3: Fund the Target Address
 
-You send ETH to that target address using a normal Ethereum transfer. This looks exactly like any other ETH transaction — there's nothing special or suspicious about it.
+You send ETH to that target address using a normal Ethereum transfer. In the web UI, click **Fund Deposit** and confirm in MetaMask. This looks exactly like any other ETH transaction — there's nothing special or suspicious about it.
 
 ![Step 3: Fund](images/step-fund.svg)
 
 ### Step 4: Generate Your ZK Proof
 
-Now comes the cryptographic magic. You run software that generates a **zero-knowledge proof**. This proof demonstrates, mathematically, that:
+Now comes the cryptographic magic. In the web UI, click **Generate Proof** for your deposit. Proof generation runs inside the Docker container and takes several minutes — real-time progress is shown in the UI via WebSocket. The proof demonstrates, mathematically, that:
 
 - The target address held at least the total amount of your notes
 - You know the secret that derives that address
@@ -65,7 +65,7 @@ Now comes the cryptographic magic. You run software that generates a **zero-know
 
 ### Step 5: Claim Your ETH
 
-Finally, you submit the proof to the Shadow contract on Taiko L2. The contract verifies the proof (without learning your secrets) and mints the ETH to your specified recipient address — minus a small 0.1% fee.
+Click **Claim** next to each note in the web UI and confirm in MetaMask. The Shadow contract on Taiko L2 verifies the proof (without learning your secrets) and mints the ETH to your specified recipient address — minus a small 0.1% fee.
 
 ![Step 5: Claim](images/step-claim.svg)
 
@@ -100,46 +100,32 @@ Shadow is useful for several groups of people:
 
 ## 4. Getting Started: What You Need
 
-### Hardware Requirements
-
-Here's the honest truth: Shadow is **not yet a plug-and-play web app**. Using it today requires some technical setup:
+### Requirements
 
 | Component | Requirement |
 |-----------|-------------|
-| **Computer** | Modern laptop or desktop |
-| **Operating System** | macOS, Linux, or Windows with WSL |
-| **Memory (RAM)** | 16GB+ recommended |
-| **Storage** | 10GB+ free space |
-| **Docker** | Required for Groth16 proof generation |
+| **Docker Desktop** | 8 GB RAM, 4 CPUs allocated |
+| **Web Browser** | With MetaMask installed |
 
-### Software Prerequisites
+### Quick Start
+
+A single Docker image bundles the backend server and the web UI. Start it with one command:
 
 ```bash
-# You'll need these installed:
-- Node.js 18 or higher
-- Rust toolchain
-- Docker Desktop
-- Foundry (for smart contract interactions)
+./start.sh
+# or: curl -sL https://raw.githubusercontent.com/taikoxyz/shadow/main/start.sh | sh
 ```
 
-### Knowledge Required
+Then open the printed URL in your browser and walk through the flow:
 
-You should be comfortable with:
+1. **Create deposit** — fill in recipient addresses and amounts (1-5 notes, up to 8 ETH total)
+2. **Fund deposit** — click "Fund Deposit", confirm the ETH transfer in MetaMask (Hoodi L1, chain 560048)
+3. **Generate proof** — click "Generate Proof"; the server runs RISC Zero + Groth16 inside Docker (takes several minutes; real-time progress via WebSocket)
+4. **Claim** — click "Claim" next to each note, confirm in MetaMask (Hoodi L2, chain 167013)
 
-- Using the command line/terminal
-- Understanding basic Ethereum concepts (wallets, addresses, gas)
-- Running npm/node commands
-- Reading technical documentation
+### Network
 
-### The Current User Experience
-
-**Note:** Right now, Shadow operates on **Taiko Hoodi testnet**. This is a test environment — there's no real money involved. The experience involves:
-
-1. Generating a deposit file (can use the web UI)
-2. Running CLI commands to generate proofs
-3. Submitting claims via the UI
-
-A more user-friendly experience is on the roadmap, but for now, expect a technical setup process.
+Shadow currently operates on **Taiko Hoodi testnet** (chain ID `167013`). This is a test environment — there is no real money involved.
 
 ---
 
@@ -158,7 +144,7 @@ How does Shadow compare to other privacy tools? Let's look at the landscape:
 | **Amount Privacy** | ❌ Public | ✅ Hidden | ✅ Hidden | ✅ Hidden |
 | **Recipient Privacy** | ❌ Public | ✅ Hidden | ✅ Hidden | ✅ Hidden |
 | **Linkability** | Low (no deposit contract) | Medium | Low | Low |
-| **Ease of Use** | Technical | Moderate | Moderate | Moderate |
+| **Ease of Use** | Web app (Docker) | Moderate | Moderate | Moderate |
 
 ### What Makes Shadow Different?
 
@@ -185,29 +171,33 @@ This transparency is refreshing in the privacy space.
 
 ### Where Is Shadow Today?
 
-- **Network**: Taiko Hoodi (testnet)
+- **Network**: Taiko Hoodi testnet (chain ID `167013`)
+- **Interface**: Web UI (server + frontend in a single Docker image)
 - **Phase**: Active development / testing
 - **ETH**: Testnet ETH only (no real value)
 
 ### What You Can't Do (Yet)
 
-- ❌ Use on Ethereum mainnet
-- ❌ Use with real ETH
-- ❌ Hide the recipient address (it's public in the claim)
-- ❌ Hide the amount (it's public in the claim)
-- ❌ Get perfect anonymity (no large anonymity set)
+- Use on Ethereum mainnet
+- Use with real ETH
+- Hide the recipient address (it's public in the claim)
+- Hide the amount (it's public in the claim)
+- Get perfect anonymity (no large anonymity set)
 
 ### What's Working
 
-- ✅ Full deposit → prove → claim flow
-- ✅ ZK proof generation (RISC Zero + Groth16)
-- ✅ Smart contract verification
-- ✅ Web UI for deposit file creation
+- Full web UI flow: deposit, fund, prove, claim
+- One-command Docker launch (`./start.sh`)
+- MetaMask integration with automatic chain switching
+- Real-time proof progress via WebSocket
+- ZK proof generation (RISC Zero + Groth16)
+- Smart contract verification on-chain
+- Deposit file management (create, import, download, delete)
 
 ### What to Watch For
 
 - Mainnet deployment timeline
-- Improved user experience / UI
+- Gasless claims (relayer-based)
 - Potential integrations with wallets
 
 ---
@@ -280,10 +270,11 @@ Shadow represents an interesting approach to Ethereum privacy: instead of poolin
 
 - **Not a mixer** — No large anonymity set
 - **Built on Taiko** — Low fees, Ethereum-compatible
+- **Easy to run** — One command to start, web UI for everything
 - **Technically sophisticated** — Uses RISC Zero ZK proofs
 - **Transparent** — Honest about its limitations
 
-If you're technically inclined and want to experiment with ZK privacy on testnet, Shadow is worth exploring. Just keep your expectations realistic — it's a privacy *tool*, not a perfect anonymity solution.
+Run `./start.sh`, open your browser, and walk through a deposit-to-claim cycle on Hoodi testnet. Just keep your expectations realistic — it's a privacy *tool*, not a perfect anonymity solution.
 
 ---
 

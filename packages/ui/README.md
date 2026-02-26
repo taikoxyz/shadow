@@ -1,31 +1,42 @@
-# Shadow UI (Minimal)
+# Shadow UI
+
+Workspace manager for Shadow deposit and proof files. Talks to the `shadow-server` backend via REST API and WebSocket — all proof generation, workspace scanning, and on-chain queries are handled server-side.
 
 ## Run
 
 ```bash
 pnpm install
-pnpm ui:dev
+pnpm ui:dev       # dev server on :5173 (proxies API/WS to backend on :3000)
+pnpm ui:build     # production build
+pnpm ui:preview   # preview production build
 ```
 
-## Build
+## Architecture
 
-```bash
-pnpm ui:build
-```
+Vanilla JS + Vite. No framework dependencies. CSS custom properties for light/dark theming (persisted in `localStorage`). URL hash routing (`#/deposit/:id`, `#/settings`) survives page refresh.
 
-## What it does
+### Views
 
-- `Deposit`: create a `v2` DEPOSIT file (current schema) with multiple recipient notes and download it as:
-  - `deposit-[first4]-[last4]-timestamp.json`
-  - secret is auto-generated on click; it is never shown in the UI
-  - deposit file `chainId` is fixed to Hoodi L2 (`167013`) in the Deposit flow
-  - note set size is limited to 1..5 notes (protocol maximum)
-  - after `Generate Deposit File`, the form is locked and a summary is shown (`target address`, `total amount`, `file path`), followed by a `Deposit Ether (L1)` action that sends the exact total amount on Hoodi L1 (`560048`)
-  - once send tx is submitted, a tx status indicator is shown until confirmation
-- `Prove`: drop a DEPOSIT file, check target (unspendable) address balance on RPC, list one selectable unclaimed note, and generate the terminal command for local proof generation with proof file name:
-  - `deposit-[first4]-[last4]-timestamp-[note-index].proof.json`
-- `Claim`: drop a proof file, connect wallet, and submit `claim(bytes, PublicInput)` tx to the Shadow contract.
-  - `PublicInput` calldata is `(blockNumber, chainId, amount, recipient, nullifier)`; `stateRoot` is derived on-chain from the checkpoint store using `blockNumber`.
-  - Shadow applies a 0.1% claim fee (`amount / 1000`); the UI shows gross, fee, and net amounts when a proof file is loaded.
-- `Web3`: global wallet connect is available in the header, with buttons to switch to Hoodi L2 (`167013`) or Hoodi L1 (`560048`).
-- Shadow contract address for Prove/Claim must be provided (it is deployment-dependent, especially when the RISC0 guest image ID changes).
+- **List view** (`#/`): shows all deposits as cards with status badges (New / Funding / Funded / Proving / Proved / Partial / Claimed). Toolbar with "New Deposit" form and "Import Deposit" file picker.
+- **Detail view** (`#/deposit/:id`): deposit metadata, funding status with a "Fund Deposit" button (sends ETH via MetaMask), proof generation controls, and a notes table with per-note claim buttons and on-chain status refresh.
+- **Settings** (`#/settings`): RPC endpoint override, light/dark theme toggle, server info (version, contract address, circuit ID), debug logging toggle.
+
+### Real-time updates
+
+WebSocket connection to the backend delivers proof progress events (`proof:started`, `proof:note_progress`, `proof:completed`, `proof:failed`) and workspace change notifications. A global proof banner shows live status with an expandable log, elapsed timer, and kill button. Fallback polling every 5 seconds.
+
+### Key interactions
+
+- **Create deposit**: inline form with 1-5 recipient notes (address, amount, optional label), comment field, client-side validation (address format, amount bounds, 8 ETH total cap).
+- **Fund deposit**: checks on-chain balance via backend RPC, shows required/balance/due amounts, sends exact funding amount through MetaMask with automatic chain switching.
+- **Generate proof**: triggers server-side RISC Zero proof generation. Circuit ID mismatch between local prover and on-chain verifier is detected and blocks proof/fund actions.
+- **Claim note**: fetches calldata from backend, submits `claim` tx via MetaMask, refreshes on-chain status after confirmation.
+- **File management**: view, download, and delete deposit/proof JSON files. Import existing deposit files.
+
+## Tech stack
+
+- **Vanilla JS** — no React/Vue/Angular; DOM built with a lightweight `el()` helper
+- **Vite** — dev server with proxy, production bundler
+- **CSS custom properties** — `data-theme` attribute on `<html>` for light/dark
+- **MetaMask** — wallet connect, chain switching, tx signing (EIP-1193)
+- **Rust backend (Axum)** — REST API + WebSocket on `:3000`

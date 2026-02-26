@@ -142,8 +142,7 @@ cargo run --release --manifest-path packages/server/Cargo.toml --features prove 
   --workspace ./workspace \
   --port 3000 \
   --rpc-url https://rpc.hoodi.taiko.xyz \
-  --shadow-address 0x77cdA0575e66A5FC95404fdA856615AD507d8A07 \
-  --verifier-address 0xF28B5F2850eb776058566A2945589A6A1Fa98e28
+  --shadow-address 0x77cdA0575e66A5FC95404fdA856615AD507d8A07
 
 # Terminal 2 — UI dev server on :5173 (proxies API/WS to :3000)
 pnpm ui:dev
