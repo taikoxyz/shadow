@@ -11,15 +11,18 @@
 #   --pull     Force pull the latest image from registry (skip local check)
 #   --build    Force build the image from source (skip local check and registry)
 #   --clean    Delete all local shadow images and containers, then exit
+#   --memory SIZE      Container memory limit (default: 8g, e.g. 4g, 512m)
+#   --cpus N           Container CPU limit (default: 4)
 #   --verbose [level]  Set verbosity: info (default), debug, or trace
 #                      Also shows docker build/pull output and launcher details
 #
 # What it does:
 #   1. Checks for Docker
-#   2. Resolves the image (local → registry → build from source)
-#   3. Selects an available port (default range: 3000-3099)
-#   4. Creates ./workspace if missing
-#   5. Starts the container and opens the browser
+#   2. Verifies Docker resources (CPU, memory, disk)
+#   3. Resolves the image (local → registry → build from source)
+#   4. Selects an available port (default range: 3000-3099)
+#   5. Creates ./workspace if missing
+#   6. Starts the container and opens the browser
 
 set -e
 
@@ -31,6 +34,8 @@ FORCE_PULL=false
 FORCE_BUILD=false
 VERBOSE=false
 VERBOSE_LEVEL=""
+CONTAINER_MEMORY=""
+CONTAINER_CPUS=""
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -40,6 +45,8 @@ while [ $# -gt 0 ]; do
     --pull)  FORCE_PULL=true; shift ;;
     --build) FORCE_BUILD=true; shift ;;
     --clean)   FORCE_CLEAN=true; shift ;;
+    --memory)  shift; CONTAINER_MEMORY="${1:?--memory requires a value (e.g. 8g)}"; shift ;;
+    --cpus)    shift; CONTAINER_CPUS="${1:?--cpus requires a value (e.g. 4)}"; shift ;;
     --verbose)
       VERBOSE=true; shift
       # Check if next arg is a level (info/debug/trace)
@@ -149,7 +156,76 @@ debug "Registry image: $REGISTRY_IMAGE"
 debug "Expected circuit ID: $EXPECTED_CIRCUIT_ID"
 
 # ---------------------------------------------------------------------------
-# 2. Clean (if requested) and exit
+# 2. Check Docker resources
+# ---------------------------------------------------------------------------
+MIN_MEMORY_GB=8
+MIN_CPUS=4
+MIN_DISK_GB=10
+
+warn() { printf '\033[1;33m  ⚠  \033[0m%s\n' "$*"; }
+
+resource_warning=false
+
+# CPU check
+docker_cpus=$(docker info --format '{{.NCPU}}' 2>/dev/null || echo 0)
+debug "Docker CPUs: $docker_cpus (minimum: $MIN_CPUS)"
+if [ "$docker_cpus" -lt "$MIN_CPUS" ] 2>/dev/null; then
+  warn "Docker has ${docker_cpus} CPUs (minimum: ${MIN_CPUS})"
+  resource_warning=true
+else
+  ok "CPUs: $docker_cpus"
+fi
+
+# Memory check (MemTotal is in bytes)
+mem_bytes=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
+mem_gb=$(echo "$mem_bytes" | awk '{printf "%d", $1 / 1073741824}')
+debug "Docker memory: ${mem_gb}GB (minimum: ${MIN_MEMORY_GB}GB)"
+if [ "$mem_gb" -lt "$MIN_MEMORY_GB" ] 2>/dev/null; then
+  warn "Docker has ${mem_gb}GB memory (minimum: ${MIN_MEMORY_GB}GB)"
+  resource_warning=true
+else
+  ok "Memory: ${mem_gb}GB"
+fi
+
+# Disk check (available space on host — Docker VM disk lives on host filesystem)
+disk_avail_kb=$(df -k / | awk 'NR==2 {print $4}')
+disk_avail_gb=$((disk_avail_kb / 1048576))
+debug "Available disk: ${disk_avail_gb}GB (minimum: ${MIN_DISK_GB}GB)"
+if [ "$disk_avail_gb" -lt "$MIN_DISK_GB" ] 2>/dev/null; then
+  warn "Only ${disk_avail_gb}GB disk space available (minimum: ${MIN_DISK_GB}GB)"
+  resource_warning=true
+else
+  ok "Disk: ${disk_avail_gb}GB available"
+fi
+
+if [ "$resource_warning" = true ]; then
+  warn "ZK proof generation needs adequate resources."
+  warn "Increase limits in Docker Desktop → Settings → Resources."
+fi
+
+# Compute container resource limits (user override > capped default)
+DEFAULT_MEMORY_GB=8
+DEFAULT_CPUS=4
+
+if [ -z "$CONTAINER_MEMORY" ]; then
+  # Cap at Docker's allocation so the container can actually start
+  if [ "$mem_gb" -gt 0 ] && [ "$mem_gb" -lt "$DEFAULT_MEMORY_GB" ]; then
+    CONTAINER_MEMORY="${mem_gb}g"
+  else
+    CONTAINER_MEMORY="${DEFAULT_MEMORY_GB}g"
+  fi
+fi
+if [ -z "$CONTAINER_CPUS" ]; then
+  if [ "$docker_cpus" -gt 0 ] && [ "$docker_cpus" -lt "$DEFAULT_CPUS" ]; then
+    CONTAINER_CPUS="$docker_cpus"
+  else
+    CONTAINER_CPUS="$DEFAULT_CPUS"
+  fi
+fi
+debug "Container limits: --memory $CONTAINER_MEMORY --cpus $CONTAINER_CPUS"
+
+# ---------------------------------------------------------------------------
+# 3. Clean (if requested) and exit
 # ---------------------------------------------------------------------------
 if [ "${FORCE_CLEAN:-false}" = true ]; then
   # Stop and remove shadow containers
@@ -175,7 +251,7 @@ if [ "${FORCE_CLEAN:-false}" = true ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Resolve image (before port selection — builds can take a while)
+# 4. Resolve image (before port selection — builds can take a while)
 # ---------------------------------------------------------------------------
 if [ "$FORCE_BUILD" = true ]; then
   # --build: always build from source
@@ -227,7 +303,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Determine port (after image is ready so long builds don't stale the port)
+# 5. Determine port (after image is ready so long builds don't stale the port)
 # ---------------------------------------------------------------------------
 if [ -n "$PORT" ]; then
   # Verify the requested port is actually free
@@ -241,7 +317,7 @@ URL="http://localhost:$PORT"
 ok "Using port $PORT"
 
 # ---------------------------------------------------------------------------
-# 5. Stop any existing shadow container
+# 6. Stop any existing shadow container
 # ---------------------------------------------------------------------------
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   info "Stopping existing '$CONTAINER' container..."
@@ -252,13 +328,13 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Create workspace
+# 7. Create workspace
 # ---------------------------------------------------------------------------
 mkdir -p "$WORKSPACE"
 ok "Workspace: $WORKSPACE"
 
 # ---------------------------------------------------------------------------
-# 7. Start container
+# 8. Start container
 # ---------------------------------------------------------------------------
 info "Starting Shadow at $URL ..."
 debug "Image: $USE_IMAGE"
@@ -274,6 +350,8 @@ fi
 docker run -d \
   --name "$CONTAINER" \
   --platform linux/amd64 \
+  --memory "$CONTAINER_MEMORY" \
+  --cpus "$CONTAINER_CPUS" \
   -p "${PORT}:3000" \
   -v "$WORKSPACE:/workspace" \
   -e RPC_URL=https://rpc.hoodi.taiko.xyz \
@@ -286,7 +364,7 @@ docker run -d \
 ok "Container started (logs: docker logs -f $CONTAINER)"
 
 # ---------------------------------------------------------------------------
-# 8. Wait and open browser
+# 9. Wait and open browser
 # ---------------------------------------------------------------------------
 if wait_for_server "$URL"; then
   ok "Shadow is running at $URL"
