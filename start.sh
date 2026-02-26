@@ -129,14 +129,17 @@ build_from_source() {
     err "No Dockerfile found. Clone the repo and run from inside it:\n  git clone https://github.com/taikoxyz/shadow && cd shadow && ./start.sh"
   fi
 
-  # Pre-pull base images in parallel while we prepare the build
+  # Pre-pull base images in parallel (matches FROM lines in docker/Dockerfile)
   info "Pre-pulling base images..."
   docker pull node:20-bookworm > /dev/null 2>&1 &
   local pid1=$!
-  docker pull node:20-bookworm-slim > /dev/null 2>&1 &
+  docker pull rust:bookworm > /dev/null 2>&1 &
   local pid2=$!
-  wait "$pid1" && debug "Cached node:20-bookworm" || debug "Failed to pull node:20-bookworm (will use cache or download during build)"
-  wait "$pid2" && debug "Cached node:20-bookworm-slim" || debug "Failed to pull node:20-bookworm-slim (will use cache or download during build)"
+  docker pull debian:bookworm-slim > /dev/null 2>&1 &
+  local pid3=$!
+  wait "$pid1" && debug "Cached node:20-bookworm" || debug "Failed to pull node:20-bookworm"
+  wait "$pid2" && debug "Cached rust:bookworm" || debug "Failed to pull rust:bookworm"
+  wait "$pid3" && debug "Cached debian:bookworm-slim" || debug "Failed to pull debian:bookworm-slim"
 
   # Snapshot disk usage before build
   local disk_before_kb
