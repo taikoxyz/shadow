@@ -1093,15 +1093,15 @@ function renderDetailView() {
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
     ].filter(Boolean)),
 
-    // Funding Status
+    // Funding
     state.depositBalance?.error
       ? el('div', { className: 'detail-section' }, [
-          el('h2', {}, 'Funding Status'),
+          el('h2', {}, 'Funding'),
           el('p', { className: 'form-hint' }, 'Could not load balance \u2014 RPC may be unavailable.'),
         ])
       : state.depositBalance
         ? el('div', { className: 'detail-section' }, [
-            el('h2', {}, 'Funding Status'),
+            el('h2', {}, 'Funding'),
             detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
             detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
             !state.depositBalance.isFunded
@@ -1111,7 +1111,7 @@ function renderDetailView() {
             fundAction,
           ].filter(Boolean))
         : el('div', { className: 'detail-section' }, [
-            el('h2', {}, 'Funding Status'),
+            el('h2', {}, 'Funding'),
             el('p', { className: 'form-hint' }, 'Loading balance...'),
           ]),
 
