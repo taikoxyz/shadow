@@ -406,6 +406,10 @@ function navigateTo(view, id = null) {
 }
 
 async function handleProve(depositId, force = false) {
+  if (hasCircuitMismatch()) {
+    showToast('Proof generation disabled: local circuit ID does not match on-chain verifier.', 'error');
+    return;
+  }
   try {
     const job = await api.startProof(depositId, force);
     state.queueJob = job;
@@ -446,6 +450,10 @@ async function loadAllNoteStatuses(depositId) {
 }
 
 async function handleFundDeposit(deposit) {
+  if (hasCircuitMismatch()) {
+    showToast('Funding disabled: local circuit ID does not match on-chain verifier.', 'error');
+    return;
+  }
   if (!state.walletAddress) {
     await handleConnectWallet();
     if (!state.walletAddress) return;
@@ -671,6 +679,9 @@ function render() {
   app.innerHTML = '';
   app.appendChild(renderHeader());
 
+  const mismatchWarning = renderCircuitMismatchWarning();
+  if (mismatchWarning) app.appendChild(mismatchWarning);
+
   // Global proof job banner
   const banner = renderProofJobBanner();
   if (banner) app.appendChild(banner);
@@ -705,6 +716,26 @@ function render() {
     app.appendChild(renderListView());
   }
 
+}
+
+function hasCircuitMismatch() {
+  return state.config?.circuitMismatch === true;
+}
+
+function renderCircuitMismatchWarning() {
+  if (!hasCircuitMismatch()) return null;
+  return el('div', { className: 'circuit-warning' }, [
+    el('h2', {}, '⚠️ Circuit ID mismatch detected'),
+    el('p', {}, 'This prover circuit does not match the deployed on-chain verifier.'),
+    state.config?.circuitId
+      ? el('p', {}, `On-chain: ${state.config.circuitId}`)
+      : null,
+    state.config?.localCircuitId
+      ? el('p', {}, `Local: ${state.config.localCircuitId}`)
+      : null,
+    el('p', { className: 'circuit-warning-hint' },
+      'Funding and proof generation are disabled to prevent invalid claims.'),
+  ].filter(Boolean));
 }
 
 
@@ -924,6 +955,7 @@ function renderDetailView() {
 
   const totalEth = weiToEth(deposit.totalAmount);
   const status = getDepositStatus(deposit, state.queueJob, state.depositBalance);
+  const circuitMismatch = hasCircuitMismatch();
 
   // Proof action button / hint (shown inside Proofs section)
   const proofAction = (() => {
@@ -934,20 +966,34 @@ function renderDetailView() {
       return el('button', {
         className: 'btn',
         onclick: () => handleProve(deposit.id, true),
-        disabled: isProving(),
+        disabled: isProving() || circuitMismatch,
+        title: circuitMismatch
+          ? 'Disabled: local circuit ID does not match on-chain verifier'
+          : undefined,
       }, 'Regenerate Proof');
     }
     return el('button', {
       className: 'btn btn-primary',
       onclick: () => handleProve(deposit.id),
-      disabled: isProving() || status === 'unfunded',
-      title: status === 'unfunded' ? 'Fund the deposit first' : undefined,
+      disabled: isProving() || status === 'unfunded' || circuitMismatch,
+      title: circuitMismatch
+        ? 'Disabled: local circuit ID does not match on-chain verifier'
+        : status === 'unfunded'
+          ? 'Fund the deposit first'
+          : undefined,
     }, 'Generate Proof');
   })();
 
   // Fund button or submitted tx link
   const fundAction = (() => {
     if (status !== 'unfunded') return null;
+    if (circuitMismatch) {
+      return el(
+        'p',
+        { className: 'form-hint form-hint-top warning-text' },
+        'Funding disabled: local circuit ID does not match on-chain verifier.',
+      );
+    }
     if (state.fundingTxHash) {
       return el('p', { className: 'tx-submitted' }, [
         'Funding tx submitted: ',
@@ -964,6 +1010,10 @@ function renderDetailView() {
         el('button', {
           className: 'btn btn-primary',
           onclick: () => handleFundDeposit(deposit),
+          disabled: circuitMismatch,
+          title: circuitMismatch
+            ? 'Disabled: local circuit ID does not match on-chain verifier'
+            : undefined,
         }, 'Fund Deposit'),
       ]);
     }

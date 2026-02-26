@@ -911,6 +911,33 @@ body {
   background: var(--accent-green);
 }
 
+.circuit-warning {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--accent-red-bg);
+  border: 1px solid var(--accent-red-border);
+  border-radius: var(--radius-md);
+  color: var(--accent-red);
+  box-shadow: var(--shadow-sm);
+}
+
+.circuit-warning h2 {
+  font-size: 1rem;
+  margin-bottom: 0.45rem;
+}
+
+.circuit-warning p + p {
+  margin-top: 0.3rem;
+}
+
+.circuit-warning-hint {
+  font-weight: 600;
+}
+
+.warning-text {
+  color: var(--accent-red);
+}
+
 /* --- Proof Banner --- */
 
 .proof-banner {
