@@ -39,3 +39,6 @@ dist/
 packages/docs/data/deposits/*.json
 packages/docs/data/deposits/note-*.proof.json
 packages/docs/data/deployments/*.json
+
+# Runtime workspace (deposits, proofs, etc.)
+workspace/
