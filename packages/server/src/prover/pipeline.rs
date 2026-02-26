@@ -13,7 +13,7 @@ use shadow_proof_core::{
 };
 
 use super::{
-    queue::ProofQueue,
+    queue::{ProofQueue, ProgressExtra},
     rpc::{self, BlockData},
 };
 
@@ -70,6 +70,7 @@ pub async fn run_pipeline(
     mut cancel_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<BundledProof> {
     let deposit_path = workspace.join(deposit_filename);
+    let pipeline_start = std::time::Instant::now();
 
     // 1. Load and parse deposit
     let raw = std::fs::read(&deposit_path)
@@ -104,6 +105,13 @@ pub async fn run_pipeline(
         bail!("invalid note count: {}", note_count);
     }
 
+    tracing::info!(
+        deposit = %deposit_filename,
+        chain_id = chain_id,
+        note_count = note_count,
+        "pipeline started"
+    );
+
     // Derive crypto values
     let mut amounts: Vec<u128> = Vec::new();
     let mut recipients: Vec<[u8; 20]> = Vec::new();
@@ -121,6 +129,11 @@ pub async fn run_pipeline(
         .map_err(|e| anyhow::anyhow!("notes hash failed: {}", e.as_str()))?;
     let target_address = derive_target_address(&secret, chain_id, &notes_hash);
 
+    tracing::debug!(
+        target_address = %format!("0x{}", hex::encode(target_address)),
+        "target address derived"
+    );
+
     // Verify targetAddress if present
     if let Some(ref expected) = deposit.target_address {
         let expected_bytes = parse_hex_address(expected)?;
@@ -131,7 +144,11 @@ pub async fn run_pipeline(
 
     // 2. Fetch block data and account proof via RPC
     queue
-        .update_progress(0, "Summoning block data from the chain...")
+        .update_progress(0, "Fetching block data from chain...", Some(&ProgressExtra {
+            chain_id: Some(chain_id),
+            stage: Some("rpc_block".into()),
+            ..Default::default()
+        }))
         .await;
 
     let http_client = reqwest::Client::new();
@@ -146,14 +163,25 @@ pub async fn run_pipeline(
         );
     }
 
+    tracing::debug!(chain_id = chain_id, "chain ID verified against RPC");
+
     let block = rpc::eth_get_block(&http_client, rpc_url, "latest").await?;
 
+    tracing::info!(block_number = block.number, "block fetched for proving");
+
     queue
-        .update_progress(0, "Interrogating the Merkle tree...")
+        .update_progress(0, "Fetching account proof from Merkle tree...", Some(&ProgressExtra {
+            chain_id: Some(chain_id),
+            block_number: Some(block.number),
+            stage: Some("rpc_proof".into()),
+            ..Default::default()
+        }))
         .await;
 
     let account_proof =
         rpc::eth_get_proof(&http_client, rpc_url, &target_address, block.number).await?;
+
+    tracing::info!(proof_depth = account_proof.proof_nodes.len(), "account proof fetched");
 
     if account_proof.proof_nodes.is_empty() {
         bail!("account proof is empty; target address may not exist on-chain");
@@ -163,15 +191,26 @@ pub async fn run_pipeline(
     let mut note_results: Vec<NoteProofResult> = Vec::with_capacity(note_count);
 
     for i in 0..note_count {
+        let note_start = std::time::Instant::now();
+
         // Check for cancellation between notes
         if cancel_rx.try_recv().is_ok() {
             bail!("proof generation cancelled by user");
         }
 
+        tracing::info!(note = i, total = note_count, amount = amounts[i], "proving note");
+
         queue
             .update_progress(
                 i as u32,
-                &format!("Cranking your machine... {}/{} \u{1f525}", i + 1, note_count),
+                &format!("Proving note {}/{}", i + 1, note_count),
+                Some(&ProgressExtra {
+                    block_number: Some(block.number),
+                    chain_id: Some(chain_id),
+                    elapsed_secs: Some(pipeline_start.elapsed().as_secs_f64()),
+                    stage: Some("proving".into()),
+                    ..Default::default()
+                }),
             )
             .await;
 
@@ -207,6 +246,30 @@ pub async fn run_pipeline(
             _ = &mut cancel_rx => bail!("proof generation cancelled by user"),
         };
 
+        let note_elapsed = note_start.elapsed();
+        tracing::info!(
+            note = i,
+            elapsed_secs = note_elapsed.as_secs_f64(),
+            seal_len = note_proof.seal_hex.len() / 2,
+            journal_len = note_proof.journal_hex.len() / 2,
+            "note proved"
+        );
+
+        queue
+            .update_progress(
+                i as u32,
+                &format!("Note {}/{} proved in {:.1}s", i + 1, note_count, note_elapsed.as_secs_f64()),
+                Some(&ProgressExtra {
+                    block_number: Some(block.number),
+                    chain_id: Some(chain_id),
+                    elapsed_secs: Some(pipeline_start.elapsed().as_secs_f64()),
+                    note_elapsed_secs: Some(note_elapsed.as_secs_f64()),
+                    stage: Some("note_complete".into()),
+                    ..Default::default()
+                }),
+            )
+            .await;
+
         note_results.push(NoteProofResult {
             note_index: i as u32,
             amount: amounts[i].to_string(),
@@ -229,6 +292,13 @@ pub async fn run_pipeline(
         notes: note_results,
     };
 
+    tracing::info!(
+        deposit = %deposit_filename,
+        total_elapsed_secs = pipeline_start.elapsed().as_secs_f64(),
+        notes_proved = bundled.notes.len(),
+        "pipeline completed"
+    );
+
     Ok(bundled)
 }
 
@@ -246,6 +316,14 @@ fn build_claim_input(
     proof_nodes: &[Vec<u8>],
 ) -> Result<ClaimInput> {
     let proof_depth = proof_nodes.len() as u32;
+
+    tracing::debug!(
+        note_index = note_index,
+        proof_depth = proof_depth,
+        block_number = block.number,
+        "building ClaimInput"
+    );
+
     if proof_depth == 0 {
         bail!("empty account proof");
     }
@@ -305,6 +383,7 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
         // The heavy recursive STARK work happens in Rayon workers which inherit
         // RUST_MIN_STACK (set to 256 MB in configure_risc0_env). This thread
         // only orchestrates, so 8 MB matches the Linux thread default.
+        tracing::info!("spawning prover thread");
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<SingleNoteProof>>();
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -312,11 +391,19 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
                 let outcome = (|| {
                     configure_risc0_env();
                     let receipt_kind = std::env::var("RECEIPT_KIND").unwrap_or_else(|_| "groth16".into());
+                    tracing::debug!(receipt_kind = %receipt_kind, "RISC Zero env configured");
                     let prove_result = prove_claim(&input, &receipt_kind)?;
+                    tracing::debug!("prove_claim completed, exporting proof");
                     let exported = export_proof(&prove_result.receipt)?;
 
                     let receipt_bytes = shadow_prover_lib::serialize_receipt(&prove_result.receipt)?;
                     let receipt_b64 = base64_encode(&receipt_bytes);
+
+                    tracing::debug!(
+                        seal_len = exported.seal_hex.len() / 2,
+                        journal_len = exported.journal_hex.len() / 2,
+                        "proof exported"
+                    );
 
                     let journal_bytes = hex::decode(
                         exported.journal_hex.strip_prefix("0x").unwrap_or(&exported.journal_hex),

@@ -81,6 +81,7 @@ async fn start_proof(
     let event_tx = state.event_tx.clone();
 
     tokio::spawn(async move {
+        let prove_start = std::time::Instant::now();
         match pipeline::run_pipeline(&workspace, &deposit_filename, &rpc_url, queue.clone(), cancel_rx)
             .await
         {
@@ -114,7 +115,7 @@ async fn start_proof(
                             return;
                         }
                         tracing::info!(file = %proof_filename, "proof file written");
-                        queue.complete(&proof_filename).await;
+                        queue.complete(&proof_filename, Some(prove_start.elapsed().as_secs_f64())).await;
 
                         let _ = event_tx.send(
                             serde_json::json!({"type": "workspace:changed"}).to_string(),

@@ -956,6 +956,33 @@ body {
   flex-shrink: 0;
 }
 
+.proof-banner-progress {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.proof-banner-progress-bar {
+  height: 100%;
+  background: var(--accent-blue);
+  transition: width 0.3s ease;
+}
+
+.proof-log-timing {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+.proof-log-detail {
+  font-size: 0.72rem;
+  opacity: 0.5;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
 /* --- Deposit comment --- */
 
 .deposit-comment {

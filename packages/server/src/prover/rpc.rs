@@ -28,6 +28,10 @@ struct RpcError {
 
 /// Perform a raw JSON-RPC call.
 async fn rpc_call(client: &reqwest::Client, url: &str, method: &str, params: Value) -> Result<Value> {
+    let start = std::time::Instant::now();
+    tracing::debug!(rpc_method = %method, "RPC call starting");
+    tracing::trace!(rpc_method = %method, params = %params, "RPC request payload");
+
     let req = RpcRequest {
         jsonrpc: "2.0",
         id: 1,
@@ -45,9 +49,14 @@ async fn rpc_call(client: &reqwest::Client, url: &str, method: &str, params: Val
         .await
         .with_context(|| format!("failed to parse RPC response for {}", method))?;
 
+    let elapsed = start.elapsed();
+
     if let Some(err) = resp.error {
+        tracing::error!(rpc_method = %method, code = err.code, error = %err.message, elapsed_ms = elapsed.as_millis() as u64, "RPC error");
         bail!("RPC error ({}): {}", err.code, err.message);
     }
+
+    tracing::debug!(rpc_method = %method, elapsed_ms = elapsed.as_millis() as u64, "RPC call completed");
 
     resp.result
         .ok_or_else(|| anyhow::anyhow!("RPC response has no result for {}", method))
@@ -57,7 +66,9 @@ async fn rpc_call(client: &reqwest::Client, url: &str, method: &str, params: Val
 pub async fn eth_chain_id(client: &reqwest::Client, url: &str) -> Result<u64> {
     let result = rpc_call(client, url, "eth_chainId", serde_json::json!([])).await?;
     let hex_str = result.as_str().context("eth_chainId: expected string")?;
-    parse_hex_u64(hex_str).context("eth_chainId: invalid hex")
+    let chain_id = parse_hex_u64(hex_str).context("eth_chainId: invalid hex")?;
+    tracing::debug!(chain_id = chain_id, "chain ID retrieved");
+    Ok(chain_id)
 }
 
 /// Block data from `eth_getBlockByNumber`.
@@ -91,6 +102,9 @@ pub async fn eth_get_block(client: &reqwest::Client, url: &str, block_tag: &str)
 
     // Compute block hash as keccak256(headerRlp)
     let hash = keccak256(&header_rlp);
+
+    tracing::info!(block_number = number, "block data fetched");
+    tracing::debug!(header_rlp_len = header_rlp.len(), block_hash = %format!("0x{}", hex::encode(hash)), "block header encoded");
 
     // Optionally verify against reported hash
     if let Some(reported_hash) = block.get("hash").and_then(|v| v.as_str()) {
@@ -161,6 +175,13 @@ pub async fn eth_get_proof(
             .with_context(|| format!("proof node {} is not a string", i))?;
         proof_nodes.push(parse_hex_bytes(hex_str)?);
     }
+
+    tracing::info!(address = %address_hex, proof_depth = proof_nodes.len(), "account proof fetched");
+    tracing::debug!(
+        total_proof_bytes = proof_nodes.iter().map(|n| n.len()).sum::<usize>(),
+        node_sizes = ?proof_nodes.iter().map(|n| n.len()).collect::<Vec<_>>(),
+        "account proof details"
+    );
 
     Ok(AccountProofData {
         balance,

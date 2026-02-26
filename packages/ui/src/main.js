@@ -7,6 +7,7 @@
  */
 
 import * as api from './api.js';
+const { log } = api;
 import './style.css';
 import { createElement, Eye, Settings, Sun, Moon, FileKey, ArrowDownToLine, X, RefreshCcw } from 'lucide';
 
@@ -44,6 +45,7 @@ let state = {
   // Proof log
   proofLog: [],         // {time, message} entries accumulated during proving
   bannerExpanded: false,
+  proofStartTime: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -181,20 +183,47 @@ function handleServerEvent(event) {
       break;
     case 'proof:started':
       state.proofLog = [];
-      state.proofLog.push({ time: new Date(), message: `Started proving ${event.depositId}` });
+      state.proofStartTime = performance.now();
+      state.proofLog.push({ time: new Date(), message: `Started proving ${event.depositId}`, stage: 'started' });
       pollQueue();
       break;
-    case 'proof:note_progress':
-      state.proofLog.push({ time: new Date(), message: event.message || `Note ${event.noteIndex + 1}/${event.totalNotes}` });
+    case 'proof:note_progress': {
+      const entry = {
+        time: new Date(),
+        message: event.message || `Note ${event.noteIndex + 1}/${event.totalNotes}`,
+        stage: event.stage || 'proving',
+      };
+      if (event.elapsedSecs != null) entry.elapsed = event.elapsedSecs;
+      if (event.noteElapsedSecs != null) entry.noteElapsed = event.noteElapsedSecs;
+      if (event.blockNumber != null) entry.blockNumber = event.blockNumber;
+      if (event.chainId != null) entry.chainId = event.chainId;
+      state.proofLog.push(entry);
       pollQueue();
       break;
-    case 'proof:completed':
-      state.proofLog.push({ time: new Date(), message: `Proof complete \u2014 ${event.proofFile || ''}` });
+    }
+    case 'proof:completed': {
+      const totalElapsed = event.elapsedSecs
+        ? formatElapsed(event.elapsedSecs)
+        : state.proofStartTime
+          ? formatElapsed((performance.now() - state.proofStartTime) / 1000)
+          : '';
+      state.proofLog.push({
+        time: new Date(),
+        message: `Proof complete${totalElapsed ? ` in ${totalElapsed}` : ''} \u2014 ${event.proofFile || ''}`,
+        stage: 'completed',
+      });
+      state.proofStartTime = null;
       pollQueue();
       refresh();
       break;
+    }
     case 'proof:failed':
-      state.proofLog.push({ time: new Date(), message: `Failed: ${event.error || 'unknown error'}` });
+      state.proofLog.push({
+        time: new Date(),
+        message: `Failed: ${event.error || 'unknown error'}`,
+        stage: 'failed',
+      });
+      state.proofStartTime = null;
       pollQueue();
       refresh();
       break;
@@ -1136,6 +1165,9 @@ function renderProofJobBanner() {
 
   const isFailed = job.status === 'failed';
   const pct = job.totalNotes > 0 ? Math.round((job.currentNote / job.totalNotes) * 100) : 0;
+  const elapsedStr = state.proofStartTime
+    ? formatElapsed((performance.now() - state.proofStartTime) / 1000)
+    : '';
 
   const expanded = state.bannerExpanded;
 
@@ -1149,12 +1181,14 @@ function renderProofJobBanner() {
         isFailed
           ? el('span', {}, ` Proof failed \u2014 ${job.error || job.message || 'unknown error'}`)
           : el('span', {}, [
-              ` ${job.message || 'Proving...'} in `,
+              ` ${job.message || 'Proving...'}`,
+              elapsedStr ? el('span', { style: 'opacity: 0.6' }, ` (${elapsedStr})`) : null,
+              ' in ',
               el('a', {
                 href: `#/deposit/${encodeURIComponent(job.depositId)}`,
                 className: 'detail-address-link',
               }, job.depositId),
-            ]),
+            ].filter(Boolean)),
         isFailed ? null : el('span', { style: 'font-size: 0.75rem; opacity: 0.7' },
           'Your fan noise is the sound of privacy being forged. Hang tight \u2615'),
       ].filter(Boolean)),
@@ -1173,6 +1207,14 @@ function renderProofJobBanner() {
       }, isFailed ? 'Dismiss' : 'Kill Current Job'),
     ].filter(Boolean)),  // proof-banner-right
     ]),                  // proof-banner-top
+    !isFailed && job.totalNotes > 0
+      ? el('div', { className: 'proof-banner-progress' }, [
+          el('div', {
+            className: 'proof-banner-progress-bar',
+            style: `width: ${pct}%`,
+          }),
+        ])
+      : null,
     expanded
       ? el('div', { className: 'proof-banner-log' },
           state.proofLog.length > 0
@@ -1180,7 +1222,13 @@ function renderProofJobBanner() {
                 el('div', { className: 'proof-log-entry' }, [
                   el('span', { className: 'proof-log-time' }, formatLogTime(entry.time)),
                   el('span', {}, entry.message),
-                ])
+                  entry.noteElapsed
+                    ? el('span', { className: 'proof-log-timing' }, `${entry.noteElapsed.toFixed(1)}s`)
+                    : null,
+                  entry.blockNumber
+                    ? el('span', { className: 'proof-log-detail' }, `blk #${entry.blockNumber}`)
+                    : null,
+                ].filter(Boolean))
               )
             : [el('div', { className: 'proof-log-entry' }, [
                 el('span', { className: 'proof-log-time' }, '—'),
@@ -1254,6 +1302,21 @@ function renderSettingsView() {
             state.config.rpcUrl ? detailRow('RPC URL', state.config.rpcUrl) : null,
           ].filter(Boolean))
         : el('p', { className: 'form-hint' }, 'Server not connected'),
+    ]),
+
+    el('div', { className: 'detail-section' }, [
+      el('h2', {}, 'Debug Logging'),
+      el('p', { className: 'form-hint', style: 'margin-bottom: 0.75rem' },
+        'Enable verbose console logging for debugging WebSocket events, API calls, and proof progress.'),
+      el('button', {
+        className: `btn btn-small${localStorage.getItem('shadow-debug') === '1' ? ' btn-accent' : ''}`,
+        onclick: () => {
+          const current = localStorage.getItem('shadow-debug') === '1';
+          if (current) localStorage.removeItem('shadow-debug');
+          else localStorage.setItem('shadow-debug', '1');
+          render();
+        },
+      }, localStorage.getItem('shadow-debug') === '1' ? 'Disable Debug Logging' : 'Enable Debug Logging'),
     ]),
   ]);
 }
@@ -1366,6 +1429,13 @@ function truncateDepositId(id) {
   if (!id) return '';
   // "deposit-ffe8-fde9-20260224T214613" → show as-is (already compact enough)
   return id;
+}
+
+function formatElapsed(secs) {
+  if (secs < 60) return `${Math.round(secs)}s`;
+  const min = Math.floor(secs / 60);
+  const sec = Math.round(secs % 60);
+  return `${min}m ${sec}s`;
 }
 
 function formatLogTime(date) {

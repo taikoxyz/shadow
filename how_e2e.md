@@ -42,12 +42,6 @@ docker run --rm -it \
   shadow-local
 ```
 
-Or with docker-compose:
-
-```bash
-docker compose up --build
-```
-
 Wait for `listening on 0.0.0.0:3000` in the logs, then open http://localhost:3000.
 
 ## 4. Mine a new deposit
@@ -97,7 +91,7 @@ curl -X POST http://localhost:3000/api/deposits/<DEPOSIT_ID>/prove
 Monitor progress in the container logs:
 
 ```bash
-docker compose logs -f
+docker logs -f shadow
 ```
 
 Groth16 proving takes several minutes depending on hardware.
@@ -131,9 +125,10 @@ Status should change to `claimed`.
 
 | Command | Purpose |
 |---------|---------|
-| `docker compose up --build` | Build + run |
-| `docker compose down` | Stop |
-| `docker compose logs -f` | Tail logs |
+| `./start.sh` | Pull/build + run |
+| `./start.sh --clean` | Remove images and containers |
+| `docker logs -f shadow` | Tail logs |
+| `docker stop shadow` | Stop |
 | `curl localhost:3000/api/health` | Health check |
 | `curl localhost:3000/api/config` | Server config |
 | `curl localhost:3000/api/deposits` | List deposits |
