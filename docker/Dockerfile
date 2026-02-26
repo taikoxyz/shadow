@@ -24,7 +24,8 @@ FROM --platform=${TARGETPLATFORM} node:20-bookworm AS ui-builder
 WORKDIR /build
 
 # Install pnpm
-RUN npm install -g pnpm@9
+RUN --mount=type=cache,target=/root/.npm \
+    npm install -g pnpm@9
 
 # Copy UI package files for dependency installation
 COPY packages/ui/package.json ./
@@ -45,14 +46,16 @@ FROM --platform=${TARGETPLATFORM} rust:bookworm AS rust-builder
 ENV CMAKE_BUILD_PARALLEL_LEVEL=0
 
 # Install build dependencies
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
       pkg-config \
-      libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
+      libssl-dev
 
 # Install RISC Zero toolchain
 RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
     cargo install rzup --locked
 RUN for i in 1 2 3 4 5; do \
       echo "Attempt $i: Installing RISC Zero toolchain..." && \
@@ -66,10 +69,10 @@ WORKDIR /build
 COPY packages/risc0-prover/ ./packages/risc0-prover/
 COPY packages/server/ ./packages/server/
 
-# Build the server binary with proof generation enabled.
+# Build both binaries in a single step to share cache mounts and incremental state.
 # Cache mounts persist cargo registry and build artifacts across Docker builds,
-# so only changed source gets recompiled. The final binaries are copied out
-# explicitly since cache mounts are not included in the image layer.
+# so only changed source gets recompiled. The final binaries are copied to /tmp
+# since cache mounts are not included in the image layer.
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
     --mount=type=cache,target=/build/packages/server/target \
@@ -78,12 +81,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
       --release \
       --manifest-path packages/server/Cargo.toml \
       --features prove && \
-    cp packages/server/target/release/shadow-server /tmp/shadow-server
-
-# Also build the CLI host binary (useful for standalone proof generation)
-RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    --mount=type=cache,target=/build/packages/risc0-prover/target \
+    cp packages/server/target/release/shadow-server /tmp/shadow-server && \
     cargo build \
       --release \
       --manifest-path packages/risc0-prover/Cargo.toml \
@@ -98,10 +96,11 @@ RUN /tmp/shadow-risc0-host circuit-id > /tmp/circuit-id.txt
 # -----------------------------------------------------------------------------
 FROM --platform=${TARGETPLATFORM} debian:bookworm-slim
 
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+      ca-certificates
 
 # Copy RISC Zero toolchain (needed for local proving).
 # rzup installs r0vm and extensions into ~/.risc0; we also look for r0vm in

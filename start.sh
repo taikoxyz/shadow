@@ -11,6 +11,7 @@
 #   --pull     Force pull the latest image from registry (skip local check)
 #   --build    Force build the image from source (skip local check and registry)
 #   --clean    Delete all local shadow images and containers, then exit
+#   --clear-cache      Remove Docker BuildKit build cache, then exit
 #   --benchmark        Monitor CPU/memory during proving and write metrics to workspace
 #   --memory SIZE      Container memory limit (default: 8g, e.g. 4g, 512m)
 #   --cpus N           Container CPU limit (default: 4)
@@ -46,8 +47,9 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --pull)  FORCE_PULL=true; shift ;;
     --build) FORCE_BUILD=true; shift ;;
-    --clean)     FORCE_CLEAN=true; shift ;;
-    --benchmark) BENCHMARK=true; shift ;;
+    --clean)       FORCE_CLEAN=true; shift ;;
+    --clear-cache) CLEAR_CACHE=true; shift ;;
+    --benchmark)   BENCHMARK=true; shift ;;
     --memory)  shift; CONTAINER_MEMORY="${1:?--memory requires a value (e.g. 8g)}"; shift ;;
     --cpus)    shift; CONTAINER_CPUS="${1:?--cpus requires a value (e.g. 4)}"; shift ;;
     --verbose)
@@ -298,6 +300,16 @@ if [ "${FORCE_CLEAN:-false}" = true ]; then
   else
     ok "Removed $removed image(s)"
   fi
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 3b. Clear Docker build cache (if requested) and exit
+# ---------------------------------------------------------------------------
+if [ "${CLEAR_CACHE:-false}" = true ]; then
+  info "Clearing Docker BuildKit build cache..."
+  docker builder prune --all --force
+  ok "Build cache cleared"
   exit 0
 fi
 
