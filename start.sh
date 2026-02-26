@@ -141,7 +141,9 @@ build_from_source() {
       -t shadow-local \
       "$dockerfile_dir" > /dev/null 2>&1
   fi
-  ok "Image built"
+  local built_id
+  built_id=$(docker inspect --format '{{ index .Config.Labels "org.taikoxyz.shadow.circuit-id" }}' shadow-local 2>/dev/null || true)
+  ok "Image built — circuit ID: ${built_id:-unknown}"
 }
 
 # ---------------------------------------------------------------------------
