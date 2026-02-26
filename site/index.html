@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shadow</title>
+  <meta name="description" content="Run Shadow locally with one command.">
+  <style>
+    :root {
+      --bg-1: #070a16;
+      --bg-2: #0d1326;
+      --line: #294a7a;
+      --text: #dfe9ff;
+      --muted: #8fa7d5;
+      --accent: #7ee0ff;
+      --accent-2: #5ec7ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      color: var(--text);
+      font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 800px at 10% -10%, rgba(84, 118, 255, 0.2), transparent 60%),
+        radial-gradient(900px 600px at 95% 105%, rgba(45, 227, 255, 0.18), transparent 65%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2));
+    }
+
+    .shell {
+      width: min(920px, 92vw);
+      border: 1px solid rgba(126, 224, 255, 0.24);
+      background: rgba(7, 12, 27, 0.72);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      border-radius: 18px;
+      overflow: hidden;
+      backdrop-filter: blur(6px);
+    }
+
+    .top {
+      border-bottom: 1px solid rgba(126, 224, 255, 0.2);
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 20px rgba(126, 224, 255, 0.7);
+    }
+
+    .body {
+      padding: 34px 22px 26px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.7rem, 2.5vw, 2.2rem);
+      line-height: 1.15;
+      letter-spacing: 0.01em;
+    }
+
+    p {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .cmd-wrap {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(14, 25, 48, 0.85), rgba(9, 18, 35, 0.9));
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    code {
+      display: block;
+      margin: 0;
+      padding: 14px;
+      overflow-x: auto;
+      white-space: nowrap;
+      font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      color: #c4f3ff;
+      background: rgba(6, 15, 32, 0.95);
+      border: 1px solid rgba(94, 199, 255, 0.22);
+      border-radius: 10px;
+      font-size: 0.96rem;
+      line-height: 1.4;
+    }
+
+    button {
+      justify-self: end;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #061427;
+      font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover {
+      filter: brightness(1.06);
+    }
+
+    .meta {
+      margin-top: 14px;
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="top">
+      <span class="dot" aria-hidden="true"></span>
+      Shadow
+    </div>
+    <section class="body">
+      <h1>Run Shadow Locally</h1>
+      <p>Copy and run this command to start the Docker server on your machine.</p>
+      <div class="cmd-wrap">
+        <code id="cmd">curl -fsSL https://raw.githubusercontent.com/taikoxyz/shadow/main/start.sh | sh</code>
+        <button id="copy" type="button">Copy Command</button>
+      </div>
+      <div class="meta">Opens the UI at <strong>http://localhost:3000</strong> after startup.</div>
+    </section>
+  </main>
+  <script>
+    const copyButton = document.getElementById("copy");
+    const command = document.getElementById("cmd").textContent;
+
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(command);
+        copyButton.textContent = "Copied";
+        setTimeout(() => {
+          copyButton.textContent = "Copy Command";
+        }, 1200);
+      } catch (err) {
+        copyButton.textContent = "Copy Failed";
+      }
+    });
+  </script>
+</body>
+</html>
