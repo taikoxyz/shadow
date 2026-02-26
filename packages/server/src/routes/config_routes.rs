@@ -19,6 +19,7 @@ async fn get_config(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> 
         version: env!("CARGO_PKG_VERSION").to_string(),
         workspace: state.workspace.display().to_string(),
         rpc_url: state.rpc_url.clone(),
+        chain_id: state.chain_id.map(|id| id.to_string()),
         circuit_id: None,
         shadow_address: state.shadow_address.clone(),
         verifier_address: state.verifier_address.clone(),
@@ -44,6 +45,8 @@ struct ConfigResponse {
     workspace: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     rpc_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chain_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     circuit_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

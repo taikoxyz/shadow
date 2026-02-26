@@ -10,6 +10,8 @@ pub struct AppState {
     pub workspace: PathBuf,
     /// Ethereum JSON-RPC URL (optional).
     pub rpc_url: Option<String>,
+    /// Chain ID fetched from RPC at startup (optional).
+    pub chain_id: Option<u64>,
     /// Directory containing built UI static files.
     pub ui_dir: PathBuf,
     /// Broadcast channel for server-sent events (WebSocket).

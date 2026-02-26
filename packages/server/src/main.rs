@@ -82,9 +82,27 @@ async fn main() -> Result<()> {
         .as_ref()
         .map(|url| ChainClient::new(url.clone()));
 
+    // Fetch chain ID from RPC at startup
+    let chain_id = if let Some(ref rpc_url) = cli.rpc_url {
+        let http = reqwest::Client::new();
+        match prover::rpc::eth_chain_id(&http, rpc_url).await {
+            Ok(id) => {
+                tracing::info!(chain_id = id, "chain ID from RPC");
+                Some(id)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to fetch chain ID from RPC");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let state = Arc::new(AppState {
         workspace,
         rpc_url: cli.rpc_url,
+        chain_id,
         ui_dir: cli.ui_dir,
         event_tx,
         proof_queue,

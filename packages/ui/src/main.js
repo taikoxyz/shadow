@@ -20,6 +20,26 @@ function lucideIcon(iconNode, extraClass) {
 }
 
 // ---------------------------------------------------------------------------
+// Network registry — chain ID → display name, explorer, default RPC
+// ---------------------------------------------------------------------------
+const NETWORKS = {
+  '167000': { name: 'Taiko Mainnet', explorer: 'https://taikoscan.io', rpc: 'https://rpc.taiko.xyz' },
+  '167013': { name: 'Taiko Hoodi',   explorer: 'https://hoodi.taikoscan.io', rpc: 'https://rpc.hoodi.taiko.xyz' },
+};
+
+function networkName(chainId) {
+  return NETWORKS[chainId]?.name || `Chain ${chainId}`;
+}
+
+function explorerUrl(chainId) {
+  return NETWORKS[chainId]?.explorer || '';
+}
+
+function defaultRpc(chainId) {
+  return NETWORKS[chainId]?.rpc || '';
+}
+
+// ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
@@ -312,6 +332,21 @@ async function handleFundDeposit(deposit) {
     await handleConnectWallet();
     if (!state.walletAddress) return;
   }
+
+  // Ensure wallet is on the deposit's chain
+  const requiredChainHex = '0x' + parseInt(deposit.chainId, 10).toString(16);
+  if (state.walletChainId !== requiredChainHex) {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: requiredChainHex }],
+      });
+    } catch (switchErr) {
+      showToast(`Please switch your wallet to ${networkName(deposit.chainId)} (chain ${deposit.chainId})`, 'error');
+      return;
+    }
+  }
+
   const bal = state.depositBalance;
   if (!bal) { showToast('Balance not loaded yet', 'error'); return; }
 
@@ -471,7 +506,8 @@ async function handleMineDeposit(formData) {
   render();
 
   try {
-    const chainId = formData.chainId || state.config?.chainId || '167013';
+    const chainId = formData.chainId || state.config?.chainId;
+    if (!chainId) { showToast('Chain ID not available — check server RPC config', 'error'); state.mining = false; render(); return; }
     const result = await api.createDeposit(chainId, formData.notes, formData.comment);
     state.showMiningForm = false;
     state.mining = false;
@@ -549,7 +585,7 @@ function renderHeader() {
   const headerLeft = el('div', { className: 'header-left' }, [
     el('div', { className: 'header-title-group' }, [
       el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
-      el('span', { className: 'header-network' }, 'on Taiko Hoodi'),
+      el('span', { className: 'header-network' }, state.config?.chainId ? `on ${networkName(state.config.chainId)}` : ''),
     ]),
     el('span', { className: 'header-count' },
       `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`),
@@ -812,8 +848,8 @@ function renderMiningForm() {
     ]);
     container.appendChild(header);
 
-    // Chain ID (fixed — not configurable by user)
-    const chainId = state.config?.chainId || '167013';
+    // Chain ID (from server config)
+    const chainId = state.config?.chainId;
 
     // Comment field
     container.appendChild(el('div', { className: 'form-group' }, [
@@ -1063,10 +1099,11 @@ function renderDetailView() {
   const fundAction = (() => {
     if (status !== 'unfunded') return null;
     if (state.fundingTxHash) {
-      const explorerUrl = `https://hoodi.taikoscan.io/tx/${state.fundingTxHash}`;
+      const explorer = explorerUrl(deposit.chainId);
+      const txExplorerUrl = explorer ? `${explorer}/tx/${state.fundingTxHash}` : '';
       return el('p', { style: 'margin-top: 0.5rem; font-size: 0.82rem' }, [
         'Funding tx submitted: ',
-        el('a', { href: explorerUrl, target: '_blank', rel: 'noopener', style: 'color: var(--accent-blue)' },
+        el('a', { href: txExplorerUrl, target: '_blank', rel: 'noopener', style: 'color: var(--accent-blue)' },
           `${state.fundingTxHash.slice(0, 18)}...`),
       ]);
     }
@@ -1100,8 +1137,8 @@ function renderDetailView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
       depositFileRow(deposit),
-      detailRow('Network', deposit.chainId === '167013' ? 'Taiko Hoodi (167013)' : deposit.chainId),
-      addressRow('Target Address', deposit.targetAddress),
+      detailRow('Network', `${networkName(deposit.chainId)} (${deposit.chainId})`),
+      addressRow('Target Address', deposit.targetAddress, deposit.chainId),
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
@@ -1116,7 +1153,7 @@ function renderDetailView() {
       : state.depositBalance
         ? el('div', { className: 'detail-section' }, [
             el('h2', {}, 'Funding Status'),
-            addressRow('Target Address', deposit.targetAddress),
+            addressRow('Target Address', deposit.targetAddress, deposit.chainId),
             detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
             detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
             !state.depositBalance.isFunded
@@ -1176,7 +1213,8 @@ function renderNotesTable(deposit) {
           }, [
             (() => {
               const a = document.createElement('a');
-              a.href = `https://hoodi.taikoscan.io/address/${note.recipient}`;
+              const explorer = explorerUrl(deposit.chainId);
+              a.href = explorer ? `${explorer}/address/${note.recipient}` : '#';
               a.target = '_blank';
               a.rel = 'noopener';
               a.textContent = note.recipient;
@@ -1192,7 +1230,7 @@ function renderNotesTable(deposit) {
             (() => {
               const claimTx = state.claimTxHashes[`${deposit.id}-${note.index}`];
               if (claimTx) {
-                const url = `https://hoodi.taikoscan.io/tx/${claimTx}`;
+                const url = `${explorerUrl(deposit.chainId)}/tx/${claimTx}`;
                 return el('div', { style: 'font-size: 0.78rem' }, [
                   el('a', { href: url, target: '_blank', rel: 'noopener', style: 'color: var(--accent-blue)' },
                     `TX: ${claimTx.slice(0, 18)}...`),
@@ -1326,13 +1364,13 @@ function renderSettingsView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'RPC Endpoint'),
       el('p', { className: 'form-hint', style: 'margin-bottom: 0.75rem' },
-        `Used by the UI for balance checks. Proof generation uses the server\u2019s RPC. Clear to use default: ${state.config?.rpcUrl || 'https://rpc.hoodi.taiko.xyz'}`),
+        `Used by the UI for balance checks. Proof generation uses the server\u2019s RPC. Clear to use default: ${state.config?.rpcUrl || defaultRpc(state.config?.chainId) || ''}`),
       el('div', { className: 'form-group' }, [
         el('label', { className: 'form-label' }, 'JSON-RPC URL'),
         el('input', {
           className: 'form-input',
           id: 'settings-rpc',
-          placeholder: state.config?.rpcUrl || 'https://rpc.hoodi.taiko.xyz',
+          placeholder: state.config?.rpcUrl || defaultRpc(state.config?.chainId) || '',
         }),
       ]),
       el('button', {
@@ -1550,9 +1588,10 @@ function detailRow(label, value) {
   ]);
 }
 
-function addressRow(label, address) {
+function addressRow(label, address, chainId) {
   const link = document.createElement('a');
-  link.href = `https://hoodi.taikoscan.io/address/${address}`;
+  const explorer = explorerUrl(chainId);
+  link.href = explorer ? `${explorer}/address/${address}` : '#';
   link.target = '_blank';
   link.rel = 'noopener';
   link.textContent = address;
