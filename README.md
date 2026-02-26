@@ -79,7 +79,8 @@ pnpm docker:run
 
 ## Publishing Docker Image (Manual)
 
-Docker publish is manual-only. To dispatch the GitHub Actions publish workflow:
+Docker publish is local-only. `pnpm docker:publish` does not use GitHub Actions.
+It reuses a local image if present; otherwise it builds locally, then pushes to GHCR.
 
 ```bash
 pnpm docker:publish
@@ -91,8 +92,11 @@ Optional args:
 # publish with a custom tag (default: dev)
 pnpm docker:publish -- latest
 
-# publish from a custom git ref (default: main)
-pnpm docker:publish -- latest release/my-branch
+# publish to a custom registry (default: ghcr.io)
+REGISTRY=ghcr.io pnpm docker:publish -- latest
+
+# force rebuilding by removing the cached local publish image
+docker image rm shadow-publish-local:latest
 ```
 
 ## Local Development (without Docker)
