@@ -171,6 +171,21 @@ build_from_source() {
   local built_id
   built_id=$(docker run --rm --entrypoint cat shadow-local /tmp/circuit-id.txt 2>/dev/null | tr -d '[:space:]' || true)
 
+  # Tag with circuit ID, build timestamp, and git commit for easy identification
+  local build_ts git_sha
+  build_ts=$(date -u +"%Y%m%d-%H%M%S")
+  git_sha=$(git -C "$dockerfile_dir" rev-parse --short HEAD 2>/dev/null || echo "")
+  if [ -n "$built_id" ]; then
+    docker tag shadow-local "shadow-local:${built_id}"
+    debug "Tagged shadow-local:${built_id}"
+  fi
+  docker tag shadow-local "shadow-local:${build_ts}"
+  debug "Tagged shadow-local:${build_ts}"
+  if [ -n "$git_sha" ]; then
+    docker tag shadow-local "shadow-local:${git_sha}"
+    debug "Tagged shadow-local:${git_sha}"
+  fi
+
   local image_size
   image_size=$(docker image inspect shadow-local --format '{{.Size}}' 2>/dev/null || echo "0")
   image_size_mb=$((image_size / 1048576))
@@ -270,12 +285,12 @@ if [ "${FORCE_CLEAN:-false}" = true ]; then
     info "Removing container '$CONTAINER'..."
     docker rm -f "$CONTAINER" > /dev/null
   fi
-  # Remove local shadow images
+  # Remove local shadow images (including circuit-ID-tagged variants)
   removed=0
-  for image in shadow-local "$REGISTRY_IMAGE"; do
+  for image in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep '^shadow-local') "$REGISTRY_IMAGE"; do
     if docker image inspect "$image" > /dev/null 2>&1; then
       info "Removing image '$image'..."
-      docker rmi "$image" > /dev/null
+      docker rmi "$image" > /dev/null 2>&1 || true
       removed=$((removed + 1))
     fi
   done
@@ -291,7 +306,13 @@ fi
 # 4. Resolve image
 # ---------------------------------------------------------------------------
 if [ "$FORCE_BUILD" = true ]; then
-  # --build: always build from source
+  # --build: remove old shadow images to reclaim disk, then build from source
+  for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep '^shadow-local') "$REGISTRY_IMAGE"; do
+    if docker image inspect "$img" > /dev/null 2>&1; then
+      debug "Removing old image '$img'..."
+      docker rmi "$img" > /dev/null 2>&1 || true
+    fi
+  done
   build_from_source
   USE_IMAGE="shadow-local"
 

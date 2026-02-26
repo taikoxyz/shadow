@@ -39,7 +39,7 @@ RUN pnpm build
 # -----------------------------------------------------------------------------
 FROM --platform=${TARGETPLATFORM} rust:bookworm AS rust-builder
 
-ENV CARGO_BUILD_JOBS=0
+# Use all available CPU cores for builds (cargo defaults to all CPUs when unset)
 ENV CMAKE_BUILD_PARALLEL_LEVEL=0
 
 # Install build dependencies

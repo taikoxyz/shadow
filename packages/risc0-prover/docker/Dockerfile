@@ -12,8 +12,8 @@ FROM node:20-bookworm AS builder
 
 ENV PNPM_HOME=/root/.pnpm
 ENV PATH="/root/.cargo/bin:/root/.risc0/bin:${PNPM_HOME}:${PATH}"
-ENV CARGO_BUILD_JOBS=2
-ENV CMAKE_BUILD_PARALLEL_LEVEL=2
+# Use all available CPU cores for builds (cargo defaults to all CPUs when unset)
+ENV CMAKE_BUILD_PARALLEL_LEVEL=0
 
 # Install build dependencies
 RUN apt-get update && \
