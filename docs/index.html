@@ -119,7 +119,9 @@
     </main>
     <script>
       const copyButton = document.getElementById("copy-button");
-      const commandHost = "https://raw.githubusercontent.com/taikoxyz/shadow/main/start.sh";
+      const cacheBuster = Date.now();
+      const commandHost =
+        `https://raw.githubusercontent.com/taikoxyz/shadow/main/start.sh?v=${cacheBuster}`;
       const commandText = `curl -fsSL ${commandHost} | sh`;
       document.getElementById("command").textContent = commandText;
 
