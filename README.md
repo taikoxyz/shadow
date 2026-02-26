@@ -63,6 +63,20 @@ The server provides:
 
 Place deposit files in `./workspace/` or create new deposits from the UI.
 
+## Building the Docker Image
+
+```bash
+pnpm docker:build
+```
+
+This builds the image for `linux/amd64` (required by RISC Zero) and prints the circuit ID on success. On Apple Silicon, the build runs under emulation.
+
+To run the built image:
+
+```bash
+pnpm docker:run
+```
+
 ## Quick Start (Local Development)
 
 ### Prerequisites
