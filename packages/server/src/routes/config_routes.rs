@@ -25,16 +25,18 @@ async fn get_config(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> 
         local_circuit_id,
         circuit_mismatch: None,
         shadow_address: state.shadow_address.clone(),
-        verifier_address: state.verifier_address.clone(),
     };
 
-    // Try to read circuit ID from on-chain verifier
-    if let (Some(ref chain_client), Some(ref verifier)) =
-        (&state.chain_client, &state.verifier_address)
+    // Resolve Risc0CircuitVerifier from Shadow, then read its imageId
+    if let (Some(ref chain_client), Some(ref shadow_addr)) =
+        (&state.chain_client, &state.shadow_address)
     {
-        match chain_client.read_circuit_id(verifier).await {
-            Ok(cid) => config.circuit_id = Some(cid),
-            Err(e) => tracing::warn!(error = %e, "failed to read circuit ID from verifier"),
+        match chain_client.read_circuit_verifier_address(shadow_addr).await {
+            Ok(verifier) => match chain_client.read_circuit_id(&verifier).await {
+                Ok(cid) => config.circuit_id = Some(cid),
+                Err(e) => tracing::warn!(error = %e, "failed to read circuit ID from verifier"),
+            },
+            Err(e) => tracing::warn!(error = %e, "failed to resolve circuit verifier from Shadow"),
         }
     }
 
@@ -63,8 +65,6 @@ struct ConfigResponse {
     circuit_mismatch: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     shadow_address: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    verifier_address: Option<String>,
 }
 
 #[cfg(feature = "prove")]
