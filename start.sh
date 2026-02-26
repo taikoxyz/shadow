@@ -108,14 +108,14 @@ wait_for_server() {
   return 1
 }
 
-# Check if a local image matches the expected circuit ID label
+# Check if a local image matches the expected circuit ID
 image_matches_circuit_id() {
   local image="$1"
-  local label
-  label=$(docker inspect --format '{{ index .Config.Labels "org.taikoxyz.shadow.circuit-id" }}' "$image" 2>/dev/null || true)
-  debug "Image '$image' circuit ID: ${label:-<none>}"
+  local cid
+  cid=$(docker run --rm --entrypoint cat "$image" /tmp/circuit-id.txt 2>/dev/null | tr -d '[:space:]' || true)
+  debug "Image '$image' circuit ID: ${cid:-<none>}"
   debug "Expected circuit ID: $EXPECTED_CIRCUIT_ID"
-  [ "$label" = "$EXPECTED_CIRCUIT_ID" ]
+  [ "$cid" = "$EXPECTED_CIRCUIT_ID" ]
 }
 
 # Build image from source
@@ -142,7 +142,7 @@ build_from_source() {
       "$dockerfile_dir" > /dev/null 2>&1
   fi
   local built_id
-  built_id=$(docker inspect --format '{{ index .Config.Labels "org.taikoxyz.shadow.circuit-id" }}' shadow-local 2>/dev/null || true)
+  built_id=$(docker run --rm --entrypoint cat shadow-local /tmp/circuit-id.txt 2>/dev/null | tr -d '[:space:]' || true)
   ok "Image built — circuit ID: ${built_id:-unknown}"
 }
 

@@ -52,6 +52,9 @@ RUN pnpm install --filter shadow-risc0-prover... --frozen-lockfile --ignore-scri
 # Build Rust binary
 RUN cargo build --manifest-path packages/risc0-prover/Cargo.toml --release -p shadow-risc0-host
 
+# Extract circuit ID from the compiled binary
+RUN packages/risc0-prover/target/release/shadow-risc0-host circuit-id > /tmp/circuit-id.txt
+
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime - Minimal image for running the prover
 # -----------------------------------------------------------------------------
@@ -98,6 +101,9 @@ COPY --from=builder /workspace/node_modules ./node_modules
 # Copy entrypoint script
 COPY packages/risc0-prover/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Copy circuit ID from builder stage (used by CI to tag the image)
+COPY --from=builder /tmp/circuit-id.txt /tmp/circuit-id.txt
 
 # Labels for container registry
 LABEL org.opencontainers.image.title="Taiko Shadow Prover"
