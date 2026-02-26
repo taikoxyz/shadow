@@ -842,8 +842,21 @@ function makeImportButton() {
   return label;
 }
 
+function compareDepositsNewestFirst(a, b) {
+  const aTime = a.createdAt ? Date.parse(a.createdAt) : Number.NaN;
+  const bTime = b.createdAt ? Date.parse(b.createdAt) : Number.NaN;
+  const aValid = Number.isFinite(aTime);
+  const bValid = Number.isFinite(bTime);
+
+  if (aValid && bValid) return bTime - aTime;
+  if (aValid) return -1;
+  if (bValid) return 1;
+  return b.filename.localeCompare(a.filename);
+}
+
 function renderListView() {
   const items = [];
+  const sortedDeposits = [...state.deposits].sort(compareDepositsNewestFirst);
 
   // Tagline / hero description
   items.push(el('p', { className: 'list-tagline' }, [
@@ -875,8 +888,6 @@ function renderListView() {
     items.push(el('div', { className: 'list-toolbar' }, [
       el('button', {
         className: 'btn btn-primary',
-        disabled: isProving(),
-        title: isProving() ? 'Proof generation in progress' : undefined,
         onclick: () => { state.showMiningForm = true; render(); },
       }, '+ New Deposit'),
       makeImportButton(),
@@ -884,7 +895,7 @@ function renderListView() {
   }
 
   items.push(
-    el('div', { className: 'deposit-list' }, state.deposits.map(renderDepositCard)),
+    el('div', { className: 'deposit-list' }, sortedDeposits.map(renderDepositCard)),
   );
 
   return el('div', {}, items);
@@ -1003,19 +1014,8 @@ function renderDetailView() {
   const totalEth = weiToEth(deposit.totalAmount);
   const status = getDepositStatus(deposit, state.queueJob, state.depositBalance);
   const circuitMismatch = hasCircuitMismatch();
-  const fundingStatusTag = (() => {
-    if (state.depositBalance?.error) {
-      return el('span', { className: 'badge badge-failed' }, 'Unavailable');
-    }
-    if (!state.depositBalance) {
-      return el('span', { className: 'badge badge-unknown' }, 'Loading');
-    }
-    return el(
-      'span',
-      { className: `badge ${state.depositBalance.isFunded ? 'badge-funded' : 'badge-funding'}` },
-      state.depositBalance.isFunded ? 'Funded' : 'Unfunded',
-    );
-  })();
+  const cardStatus = getCardStatus(deposit, state.queueJob, state.depositBalance);
+  const overviewStatusTag = el('span', { className: `badge ${cardStatus.cls}` }, cardStatus.label);
 
   // Proof action button / hint (shown inside Proofs section)
   const proofAction = (() => {
@@ -1104,7 +1104,7 @@ function renderDetailView() {
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
-      detailRow('Status', fundingStatusTag),
+      detailRow('Status', overviewStatusTag),
     ].filter(Boolean)),
 
     // Funding

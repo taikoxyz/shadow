@@ -29,10 +29,10 @@ function resolveNoProofStatus(depositBalance) {
 export function getDepositStatus(deposit, queueJob, depositBalance) {
   const queueStatus = queueStatusForDeposit(queueJob, deposit.id);
   if (queueStatus) return queueStatus;
+  const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
+  if (allClaimed) return 'claimed';
+  if (anyClaimed) return 'partial';
   if (deposit.hasProof) {
-    const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
-    if (allClaimed) return 'claimed';
-    if (anyClaimed) return 'partial';
     return 'proved';
   }
   return resolveNoProofStatus(depositBalance);
@@ -42,10 +42,10 @@ export function getCardStatus(deposit, queueJob, depositBalance) {
   const queueStatus = queueStatusForDeposit(queueJob, deposit.id);
   if (queueStatus === 'proving') return { label: 'Proving…', cls: 'badge-proving' };
   if (queueStatus === 'failed') return { label: 'Proof Failed', cls: 'badge-failed' };
+  const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
+  if (allClaimed) return { label: 'Claimed', cls: 'badge-claimed' };
+  if (anyClaimed) return { label: 'Partial', cls: 'badge-claimed' };
   if (deposit.hasProof) {
-    const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
-    if (allClaimed) return { label: 'Claimed', cls: 'badge-claimed' };
-    if (anyClaimed) return { label: 'Partial', cls: 'badge-claimed' };
     return { label: 'Proved', cls: 'badge-proof' };
   }
   const noProofStatus = resolveNoProofStatus(depositBalance);
