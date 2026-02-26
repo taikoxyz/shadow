@@ -258,23 +258,19 @@ if [ "$resource_warning" = true ]; then
   warn "Increase limits in Docker Desktop → Settings → Resources."
 fi
 
-# Compute container resource limits (user override > capped default)
-DEFAULT_MEMORY_GB=8
-DEFAULT_CPUS=4
-
+# Compute container resource limits: use ALL available resources (minimum 8GB/4 CPUs)
 if [ -z "$CONTAINER_MEMORY" ]; then
-  # Cap at Docker's allocation so the container can actually start
-  if [ "$mem_gb" -gt 0 ] && [ "$mem_gb" -lt "$DEFAULT_MEMORY_GB" ]; then
+  if [ "$mem_gb" -gt "$MIN_MEMORY_GB" ]; then
     CONTAINER_MEMORY="${mem_gb}g"
   else
-    CONTAINER_MEMORY="${DEFAULT_MEMORY_GB}g"
+    CONTAINER_MEMORY="${MIN_MEMORY_GB}g"
   fi
 fi
 if [ -z "$CONTAINER_CPUS" ]; then
-  if [ "$docker_cpus" -gt 0 ] && [ "$docker_cpus" -lt "$DEFAULT_CPUS" ]; then
+  if [ "$docker_cpus" -gt "$MIN_CPUS" ]; then
     CONTAINER_CPUS="$docker_cpus"
   else
-    CONTAINER_CPUS="$DEFAULT_CPUS"
+    CONTAINER_CPUS="$MIN_CPUS"
   fi
 fi
 debug "Container limits: --memory $CONTAINER_MEMORY --cpus $CONTAINER_CPUS"
