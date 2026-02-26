@@ -48,11 +48,6 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-/** GET /api/health */
-export function getHealth() {
-  return apiFetch('/health');
-}
-
 /** GET /api/config */
 export function getConfig() {
   return apiFetch('/config');
@@ -61,11 +56,6 @@ export function getConfig() {
 /** GET /api/deposits */
 export function getDeposits() {
   return apiFetch('/deposits');
-}
-
-/** GET /api/deposits/:id */
-export function getDeposit(id) {
-  return apiFetch(`/deposits/${encodeURIComponent(id)}`);
 }
 
 /** POST /api/deposits — mine a new deposit */

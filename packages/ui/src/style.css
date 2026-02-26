@@ -102,6 +102,38 @@ body {
   padding: 1.5rem;
 }
 
+/* --- Shared UI Helpers --- */
+
+.loading-copy {
+  margin-top: 1rem;
+}
+
+.list-toolbar {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.badge-shrink {
+  flex-shrink: 0;
+}
+
+.link-accent,
+.detail-address-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.link-accent:hover,
+.detail-address-link:hover {
+  text-decoration: underline;
+}
+
+.text-muted-60 {
+  opacity: 0.6;
+}
+
 /* --- Header --- */
 
 .header {
@@ -347,14 +379,6 @@ body {
   color: var(--text-primary);
 }
 
-.detail-address-link {
-  color: var(--accent-blue);
-  text-decoration: none;
-}
-.detail-address-link:hover {
-  text-decoration: underline;
-}
-
 /* --- Notes Table --- */
 
 .notes-table {
@@ -500,6 +524,11 @@ body {
   flex-wrap: wrap;
 }
 
+.actions-right {
+  margin-top: 0.75rem;
+  justify-content: flex-end;
+}
+
 /* --- Forms --- */
 
 .form-group {
@@ -564,6 +593,14 @@ body {
   margin-top: 0.2rem;
 }
 
+.form-hint-top {
+  margin-top: 0.5rem;
+}
+
+.form-hint-spaced {
+  margin-bottom: 0.75rem;
+}
+
 .form-row {
   display: flex;
   gap: 0.75rem;
@@ -571,6 +608,46 @@ body {
 
 .form-row > * {
   flex: 1;
+}
+
+.form-group-recipient {
+  flex: 2;
+}
+
+.form-group-amount {
+  flex: 1;
+}
+
+.form-input-note-label {
+  max-width: 300px;
+}
+
+.form-input-textarea {
+  min-height: 56px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.form-label-inline {
+  margin-bottom: 0;
+}
+
+.form-actions-row {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.settings-theme-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-theme-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
 }
 
 /* --- Mining Form Panel --- */
@@ -613,6 +690,13 @@ body {
   color: var(--text-secondary);
 }
 
+.mining-notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
 .mining-status {
   font-size: 0.8rem;
   color: var(--text-secondary);
@@ -620,36 +704,6 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-/* --- Progress --- */
-
-.progress-bar {
-  height: 3px;
-  background: var(--bg-surface);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 0.5rem;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--accent-green);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.proof-status-box {
-  border: 1px solid var(--accent-green-border);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  margin-top: 1.5rem;
-  background: var(--accent-green-bg);
-}
-
-.proof-status-message {
-  font-size: 0.82rem;
-  margin-bottom: 0.5rem;
 }
 
 /* --- Empty State --- */
@@ -872,11 +926,6 @@ body {
   color: var(--accent-blue);
 }
 
-.proof-banner > .proof-banner-info,
-.proof-banner > .proof-banner-right {
-  /* keep the top row as a horizontal flex */
-}
-
 .proof-banner-top {
   display: flex;
   align-items: center;
@@ -930,6 +979,23 @@ body {
   text-overflow: ellipsis;
 }
 
+.proof-banner-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.proof-banner-subtext {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.proof-banner-toggle {
+  font-size: 0.72rem;
+}
+
 .proof-banner-right {
   display: flex;
   align-items: center;
@@ -974,6 +1040,10 @@ body {
   opacity: 0.5;
   margin-left: 0.5rem;
   flex-shrink: 0;
+}
+
+.proof-action-hint {
+  font-size: 0.78rem;
 }
 
 /* --- Deposit comment --- */
@@ -1021,6 +1091,21 @@ body {
   justify-content: center;
 }
 
+.tx-submitted {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.note-recipient-cell {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.note-tx {
+  font-size: 0.78rem;
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 640px) {
@@ -1052,5 +1137,9 @@ body {
   .form-row {
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .settings-theme-row {
+    flex-wrap: wrap;
   }
 }
