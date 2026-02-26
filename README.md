@@ -83,13 +83,17 @@ Docker publish is local-only. `pnpm docker:publish` does not use GitHub Actions.
 It reuses a local image if present; otherwise it builds locally, then pushes to GHCR.
 
 ```bash
+# publish using default tag "latest"
 pnpm docker:publish
 ```
 
 Optional args:
 
 ```bash
-# publish with a custom tag (default: latest)
+# publish with an explicit tag (pnpm forwards args after `--`)
+pnpm docker:publish -- latest
+
+# publish with a custom tag
 pnpm docker:publish -- dev
 
 # publish to a custom registry (default: ghcr.io)
@@ -98,6 +102,10 @@ REGISTRY=ghcr.io pnpm docker:publish -- dev
 # force rebuilding by removing the cached local image
 docker image rm shadow-local:latest
 ```
+
+Prerequisites:
+- `gh auth status` is authenticated for the target org/repo
+- token has `read:packages` and `write:packages` scopes
 
 ## Local Development (without Docker)
 
