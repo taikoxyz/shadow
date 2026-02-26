@@ -852,6 +852,8 @@ function renderPrivacyFlow() {
       src: flowSrc,
       alt: 'Address A funds an unspendable sink and Address B claims later via Taiko bridge.',
       loading: 'lazy',
+      draggable: false,
+      ondragstart: (event) => event.preventDefault(),
     }),
     el('figcaption', { className: 'privacy-flow-caption' }, [
       'Address A sends ETH to an unspendable sink. A valid proof later enables Address B to claim ',
