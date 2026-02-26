@@ -64,11 +64,62 @@ let state = {
 };
 
 const PROOF_LOG_LIMIT = 300;
+const PROOF_LOG_STORAGE_KEY = 'shadow-proof-log-v1';
 
 function pushProofLog(entry) {
   state.proofLog.push(entry);
   if (state.proofLog.length > PROOF_LOG_LIMIT) {
     state.proofLog.splice(0, state.proofLog.length - PROOF_LOG_LIMIT);
+  }
+  persistProofLogState();
+}
+
+function persistProofLogState() {
+  try {
+    const serializableLog = state.proofLog.map((entry) => {
+      const ts = entry.time instanceof Date ? entry.time : new Date(entry.time);
+      return {
+        ...entry,
+        time: Number.isNaN(ts.getTime()) ? new Date().toISOString() : ts.toISOString(),
+      };
+    });
+    sessionStorage.setItem(
+      PROOF_LOG_STORAGE_KEY,
+      JSON.stringify({
+        proofLog: serializableLog,
+        proofStartTime: state.proofStartTime,
+        lastQueueLogSignature: state.lastQueueLogSignature,
+      }),
+    );
+  } catch {
+    // Best-effort persistence only.
+  }
+}
+
+function restoreProofLogState() {
+  try {
+    const raw = sessionStorage.getItem(PROOF_LOG_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.proofLog)) {
+      state.proofLog = parsed.proofLog
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const time = new Date(entry.time);
+          if (Number.isNaN(time.getTime())) return null;
+          return { ...entry, time };
+        })
+        .filter(Boolean)
+        .slice(-PROOF_LOG_LIMIT);
+    }
+    if (typeof parsed.proofStartTime === 'number' && Number.isFinite(parsed.proofStartTime)) {
+      state.proofStartTime = parsed.proofStartTime;
+    }
+    if (typeof parsed.lastQueueLogSignature === 'string') {
+      state.lastQueueLogSignature = parsed.lastQueueLogSignature;
+    }
+  } catch {
+    // Ignore malformed stored state.
   }
 }
 
@@ -124,6 +175,8 @@ function applyRoute() {
 const app = document.getElementById('app');
 
 async function init() {
+  restoreProofLogState();
+
   // Apply current hash on load (before fetch so we know which view to show)
   applyRoute();
 
@@ -213,6 +266,7 @@ async function pollQueue() {
     } else {
       state.lastQueueLogSignature = null;
     }
+    persistProofLogState();
     render();
   } catch { /* ignore */ }
 }
@@ -233,13 +287,14 @@ function handleServerEvent(event) {
       }
       break;
     case 'proof:started':
-      state.proofStartTime = performance.now();
+      state.proofStartTime = Date.now();
       pushProofLog({
         time: new Date(),
         message: `Started proving ${event.depositId}`,
         stage: 'started',
         depositId: event.depositId,
       });
+      persistProofLogState();
       render();
       pollQueue();
       break;
@@ -263,7 +318,7 @@ function handleServerEvent(event) {
       const totalElapsed = event.elapsedSecs
         ? formatElapsed(event.elapsedSecs)
         : state.proofStartTime
-          ? formatElapsed((performance.now() - state.proofStartTime) / 1000)
+          ? formatElapsed((Date.now() - state.proofStartTime) / 1000)
           : '';
       pushProofLog({
         time: new Date(),
@@ -272,6 +327,7 @@ function handleServerEvent(event) {
         depositId: event.depositId,
       });
       state.proofStartTime = null;
+      persistProofLogState();
       render();
       pollQueue();
       refresh();
@@ -285,6 +341,7 @@ function handleServerEvent(event) {
         depositId: event.depositId,
       });
       state.proofStartTime = null;
+      persistProofLogState();
       render();
       pollQueue();
       refresh();
@@ -1037,7 +1094,7 @@ function renderProofJobBanner() {
 
   const isFailed = job.status === 'failed';
   const elapsedStr = state.proofStartTime
-    ? formatElapsed((performance.now() - state.proofStartTime) / 1000)
+    ? formatElapsed((Date.now() - state.proofStartTime) / 1000)
     : '';
 
   const expanded = state.bannerExpanded;
