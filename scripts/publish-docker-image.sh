@@ -40,7 +40,8 @@ else
 fi
 
 CIRCUIT_ID="$(
-  docker run --rm --entrypoint cat "${LOCAL_IMAGE}" /tmp/circuit-id.txt | tr -d '[:space:]'
+  docker run --rm --platform "${PLATFORM}" --entrypoint cat "${LOCAL_IMAGE}" /tmp/circuit-id.txt \
+    | tr -d '[:space:]'
 )"
 if [ -z "${CIRCUIT_ID}" ]; then
   echo "Error: failed to extract circuit ID from ${LOCAL_IMAGE}"
