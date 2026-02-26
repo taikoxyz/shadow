@@ -39,8 +39,8 @@ RUN pnpm build
 # -----------------------------------------------------------------------------
 FROM --platform=${TARGETPLATFORM} rust:bookworm AS rust-builder
 
-ENV CARGO_BUILD_JOBS=2
-ENV CMAKE_BUILD_PARALLEL_LEVEL=2
+ENV CARGO_BUILD_JOBS=0
+ENV CMAKE_BUILD_PARALLEL_LEVEL=0
 
 # Install build dependencies
 RUN apt-get update && \
