@@ -19,7 +19,7 @@ import {
   deleteIcon,
   refreshIcon,
 } from './lib/icons.js';
-import { networkName, defaultRpc, explorerEntityUrl } from './lib/networks.js';
+import { networkName, defaultRpc, explorerEntityUrl, chainParams } from './lib/networks.js';
 import {
   weiToEth,
   truncateDepositId,
@@ -463,19 +463,9 @@ async function handleFundDeposit(deposit) {
     if (!state.walletAddress) return;
   }
 
-  // Ensure wallet is on the deposit's chain
+  // Ensure wallet is on the deposit's chain (adds network to wallet if needed)
   const requiredChainHex = '0x' + parseInt(deposit.chainId, 10).toString(16);
-  if (state.walletChainId !== requiredChainHex) {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: requiredChainHex }],
-      });
-    } catch {
-      showToast(`Please switch your wallet to ${networkName(deposit.chainId)} (chain ${deposit.chainId})`, 'error');
-      return;
-    }
-  }
+  if (!await ensureChain(requiredChainHex)) return;
 
   const bal = state.depositBalance;
   if (!bal) { showToast('Balance not loaded yet', 'error'); return; }
@@ -563,6 +553,44 @@ async function handleRefreshNote(depositId, noteIndex) {
   }
 }
 
+/**
+ * Ensure the connected wallet is on `chainIdHex` (e.g. "0x28bf5").
+ * Tries wallet_switchEthereumChain; falls back to wallet_addEthereumChain
+ * if the chain isn't in the wallet yet (error 4902).
+ * Returns true if the wallet is now on the correct chain, false otherwise.
+ */
+async function ensureChain(chainIdHex) {
+  if (state.walletChainId === chainIdHex) return true;
+  try {
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: chainIdHex }],
+    });
+    state.walletChainId = chainIdHex;
+    return true;
+  } catch (switchErr) {
+    if (switchErr.code === 4902) {
+      const decimalId = parseInt(chainIdHex, 16).toString();
+      const params = chainParams(decimalId);
+      if (params) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [params],
+          });
+          state.walletChainId = chainIdHex;
+          return true;
+        } catch {
+          // User rejected adding the chain — fall through to error toast
+        }
+      }
+    }
+    const decimalId = parseInt(chainIdHex, 16);
+    showToast(`Switch MetaMask to ${networkName(decimalId.toString())} (chain ${decimalId})`, 'error');
+    return false;
+  }
+}
+
 async function handleConnectWallet() {
   if (!window.ethereum) {
     showToast('MetaMask not detected. Install it to claim on-chain.', 'error');
@@ -589,19 +617,8 @@ async function handleClaim(depositId, noteIndex) {
     showToast('Preparing claim transaction...', 'info');
     const txData = await api.getClaimTx(depositId, noteIndex);
 
-    // Ensure wallet is on the correct chain, prompting a switch if needed
-    if (state.walletChainId !== txData.chainId) {
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: txData.chainId }],
-        });
-        state.walletChainId = txData.chainId;
-      } catch {
-        showToast(`Switch MetaMask to chain ${parseInt(txData.chainId, 16)}`, 'error');
-        return;
-      }
-    }
+    // Ensure wallet is on the correct chain (adds network to wallet if needed)
+    if (!await ensureChain(txData.chainId)) return;
 
     const txHash = await window.ethereum.request({
       method: 'eth_sendTransaction',
