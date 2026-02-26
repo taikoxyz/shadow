@@ -1316,9 +1316,8 @@ function renderSettingsView() {
       state.config
         ? el('div', {}, [
             detailRow('Version', `v${state.config.version}`),
-            state.config.shadowAddress ? detailRow('Shadow Contract', state.config.shadowAddress) : null,
+            state.config.shadowAddress ? addressRow('Shadow Contract', state.config.shadowAddress, state.config.chainId) : null,
             state.config.circuitId ? detailRow('Circuit ID', state.config.circuitId) : null,
-            state.config.verifierAddress ? detailRow('Verifier', state.config.verifierAddress) : null,
             state.config.rpcUrl ? detailRow('RPC URL', state.config.rpcUrl) : null,
           ].filter(Boolean))
         : el('p', { className: 'form-hint' }, 'Server not connected'),
