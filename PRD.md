@@ -59,13 +59,13 @@ Current implementation:
 2. App/CLI derives `targetAddress` and displays it.
 3. Anyone funds `targetAddress` with ETH.
 4. Claimer generates a ZK proof for a single `noteIndex` using:
-   - A checkpointed L1 `stateRoot` at some `blockNumber` (queried from `ICheckpointStore` on Hoodi L2)
+   - A canonical L1 `blockHash` at some `blockNumber` (fetched from `TaikoAnchor.blockHashes(blockNumber)` on Hoodi L2)
    - An Ethereum account trie proof (`eth_getProof`) for `targetAddress` at that block
 5. Claimer submits an L2 transaction calling `Shadow.claim(proof, input)`.
 
 ## ZK Proof Statement (What Must Be Proven)
 
-Given private inputs `(secret, noteIndex, full note set, accountProofNodes...)` and public inputs `(blockNumber, stateRoot, chainId, recipient, amount, nullifier)` the proof must show:
+Given private inputs `(secret, noteIndex, full note set, accountProofNodes...)` and public inputs `(blockNumber, blockHash, chainId, recipient, amount, nullifier)` the proof must show:
 
 1. Note validity
    - `noteIndex` is within note set bounds.
@@ -73,8 +73,8 @@ Given private inputs `(secret, noteIndex, full note set, accountProofNodes...)` 
 2. Target address derivation
    - `targetAddress` is derived deterministically from `(secret, chainId, notesHash)`.
 3. Balance authorization (account proof)
-   - The provided Merkle-Patricia trie proof is valid under the supplied block header.
-   - It authenticates the account record for `targetAddress` in the state trie.
+   - The circuit verifies `keccak256(block_header_rlp) == blockHash`, then extracts `stateRoot` from the block header (stateRoot is never a public input — it is derived privately inside the circuit).
+   - The provided Merkle-Patricia trie proof authenticates the account record for `targetAddress` under that `stateRoot`.
    - The extracted account balance satisfies `balance(targetAddress) >= sum(noteAmounts)`.
 4. Nullifier correctness
    - `nullifier` is derived correctly for `(secret, chainId, noteIndex)`.
@@ -91,9 +91,9 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
   - Mints `amount - fee` to the note `recipient` and (if `fee > 0`) mints `fee` to an immutable `feeRecipient` (currently set to the initial owner at deployment).
 
 - `ShadowVerifier`:
-  - Loads a checkpoint from `ICheckpointStore.getCheckpoint(blockNumber)`.
-  - Uses checkpoint `stateRoot` as the circuit `stateRoot` public input (it is not user-provided calldata).
-  - Trust model: the checkpoint is provided by a Taiko **system-level** contract and is guaranteed by the Taiko rollup protocol; Shadow trusts checkpoint correctness and finality.
+  - Fetches the canonical `blockHash` from `TaikoAnchor.blockHashes(blockNumber)`.
+  - Uses the `blockHash` as a public input to the circuit (it is not user-provided calldata).
+  - Trust model: `TaikoAnchor` is a Taiko **system-level** contract whose block hashes are guaranteed by the rollup protocol; Shadow trusts their correctness and finality.
   - Calls `ICircuitVerifier.verifyProof(proof, publicInputsArray)`.
   - Note: no freshness constraint is enforced (old blocks are acceptable).
 
@@ -112,7 +112,13 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
 - RPC: `https://rpc.hoodi.taiko.xyz`
 - Anchor contract: `0x1670130000000000000000000000000000010001`
 
-## CLI / Proving UX
+## UX
+
+### Web UI (primary)
+
+A single Docker image bundles the Rust backend server and the Vite frontend. Run `./start.sh` (or `curl ... | sh`) to start the container, then open the browser at the printed URL. The UI supports: creating deposits, funding via MetaMask, generating proofs (server-side), and submitting claims.
+
+### CLI
 
 - Install prerequisites + build host binary:
   - `node packages/risc0-prover/scripts/install-cli.mjs`
@@ -122,7 +128,6 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
 
 ## Non-Goals
 
-- UI / web app implementation.
 - Mixer-like deposit contracts.
 - Enforcing block recency.
 
