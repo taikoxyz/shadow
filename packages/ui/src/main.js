@@ -62,6 +62,15 @@ let state = {
   proofStartTime: null,
 };
 
+const PROOF_LOG_LIMIT = 300;
+
+function pushProofLog(entry) {
+  state.proofLog.push(entry);
+  if (state.proofLog.length > PROOF_LOG_LIMIT) {
+    state.proofLog.splice(0, state.proofLog.length - PROOF_LOG_LIMIT);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
@@ -202,13 +211,14 @@ function handleServerEvent(event) {
       }
       break;
     case 'proof:started':
-      // Only reset log if this is genuinely a new proof job (not a replayed
-      // event after WS reconnect while the same job is still running).
-      if (state.proofLog.length === 0 || state.proofLog[0]?.depositId !== event.depositId) {
-        state.proofLog = [];
-        state.proofStartTime = performance.now();
-      }
-      state.proofLog.push({ time: new Date(), message: `Started proving ${event.depositId}`, stage: 'started', depositId: event.depositId });
+      state.proofStartTime = performance.now();
+      pushProofLog({
+        time: new Date(),
+        message: `Started proving ${event.depositId}`,
+        stage: 'started',
+        depositId: event.depositId,
+      });
+      render();
       pollQueue();
       break;
     case 'proof:note_progress': {
@@ -216,12 +226,14 @@ function handleServerEvent(event) {
         time: new Date(),
         message: event.message || `Note ${event.noteIndex + 1}/${event.totalNotes}`,
         stage: event.stage || 'proving',
+        depositId: event.depositId,
       };
       if (event.elapsedSecs != null) entry.elapsed = event.elapsedSecs;
       if (event.noteElapsedSecs != null) entry.noteElapsed = event.noteElapsedSecs;
       if (event.blockNumber != null) entry.blockNumber = event.blockNumber;
       if (event.chainId != null) entry.chainId = event.chainId;
-      state.proofLog.push(entry);
+      pushProofLog(entry);
+      render();
       pollQueue();
       break;
     }
@@ -231,23 +243,27 @@ function handleServerEvent(event) {
         : state.proofStartTime
           ? formatElapsed((performance.now() - state.proofStartTime) / 1000)
           : '';
-      state.proofLog.push({
+      pushProofLog({
         time: new Date(),
         message: `Proof complete${totalElapsed ? ` in ${totalElapsed}` : ''} \u2014 ${event.proofFile || ''}`,
         stage: 'completed',
+        depositId: event.depositId,
       });
       state.proofStartTime = null;
+      render();
       pollQueue();
       refresh();
       break;
     }
     case 'proof:failed':
-      state.proofLog.push({
+      pushProofLog({
         time: new Date(),
         message: `Failed: ${event.error || 'unknown error'}`,
         stage: 'failed',
+        depositId: event.depositId,
       });
       state.proofStartTime = null;
+      render();
       pollQueue();
       refresh();
       break;
@@ -910,6 +926,7 @@ function renderNotesTable(deposit) {
         el('th', {}, '#'),
         el('th', {}, 'Recipient'),
         el('th', {}, 'Amount'),
+        el('th', {}, 'Label'),
         el('th', {}, 'Status'),
         el('th', {}, ''),
       ]),
@@ -924,6 +941,7 @@ function renderNotesTable(deposit) {
             explorerLink(deposit.chainId, 'address', note.recipient),
           ]),
           el('td', {}, `${weiToEth(note.amount)} ETH`),
+          el('td', { className: 'note-label-cell' }, note.label || '-'),
           el('td', {}, [
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),
           ]),
@@ -984,6 +1002,9 @@ function renderNotesTable(deposit) {
 function renderProofJobBanner() {
   const job = state.queueJob;
   if (!job || !['queued', 'running', 'failed'].includes(job.status)) return null;
+  const logEntries = state.proofLog.filter(
+    (entry) => entry.depositId == null || entry.depositId === job.depositId,
+  );
 
   const isFailed = job.status === 'failed';
   const elapsedStr = state.proofStartTime
@@ -1030,8 +1051,8 @@ function renderProofJobBanner() {
     null,
     expanded
       ? el('div', { className: 'proof-banner-log' },
-          state.proofLog.length > 0
-            ? state.proofLog.map(entry =>
+          logEntries.length > 0
+            ? logEntries.map(entry =>
                 el('div', { className: 'proof-log-entry' }, [
                   el('span', { className: 'proof-log-time' }, formatLogTime(entry.time)),
                   el('span', {}, entry.message),

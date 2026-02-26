@@ -1102,6 +1102,12 @@ body {
   word-break: break-all;
 }
 
+.note-label-cell {
+  max-width: 220px;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .note-tx {
   font-size: 0.78rem;
 }

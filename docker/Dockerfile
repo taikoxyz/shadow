@@ -100,7 +100,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt/lists \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates
+      ca-certificates \
+      docker.io
 
 # Copy RISC Zero toolchain (needed for local proving).
 # rzup installs r0vm and extensions into ~/.risc0; we also look for r0vm in
