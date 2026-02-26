@@ -89,6 +89,7 @@ function persistProofLogState() {
         proofLog: serializableLog,
         proofStartTime: state.proofStartTime,
         lastQueueLogSignature: state.lastQueueLogSignature,
+        bannerExpanded: state.bannerExpanded,
       }),
     );
   } catch {
@@ -117,6 +118,9 @@ function restoreProofLogState() {
     }
     if (typeof parsed.lastQueueLogSignature === 'string') {
       state.lastQueueLogSignature = parsed.lastQueueLogSignature;
+    }
+    if (typeof parsed.bannerExpanded === 'boolean') {
+      state.bannerExpanded = parsed.bannerExpanded;
     }
   } catch {
     // Ignore malformed stored state.
@@ -1220,7 +1224,7 @@ function renderProofJobBanner() {
       !isFailed
         ? el('button', {
             className: 'btn btn-small proof-banner-toggle',
-            onclick: () => { state.bannerExpanded = !state.bannerExpanded; render(); },
+            onclick: () => { state.bannerExpanded = !state.bannerExpanded; persistProofLogState(); render(); },
           }, expanded ? 'Hide log' : 'Show log')
         : null,
       el('button', {
