@@ -11,6 +11,7 @@
 #   --pull     Force pull the latest image from registry (skip local check)
 #   --build    Force build the image from source (skip local check and registry)
 #   --clean    Delete all local shadow images and containers, then exit
+#   --benchmark        Monitor CPU/memory during proving and write metrics to workspace
 #   --memory SIZE      Container memory limit (default: 8g, e.g. 4g, 512m)
 #   --cpus N           Container CPU limit (default: 4)
 #   --verbose [level]  Set verbosity: info (default), debug, or trace
@@ -34,6 +35,7 @@ FORCE_PULL=false
 FORCE_BUILD=false
 VERBOSE=false
 VERBOSE_LEVEL=""
+BENCHMARK=false
 CONTAINER_MEMORY=""
 CONTAINER_CPUS=""
 
@@ -44,7 +46,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --pull)  FORCE_PULL=true; shift ;;
     --build) FORCE_BUILD=true; shift ;;
-    --clean)   FORCE_CLEAN=true; shift ;;
+    --clean)     FORCE_CLEAN=true; shift ;;
+    --benchmark) BENCHMARK=true; shift ;;
     --memory)  shift; CONTAINER_MEMORY="${1:?--memory requires a value (e.g. 8g)}"; shift ;;
     --cpus)    shift; CONTAINER_CPUS="${1:?--cpus requires a value (e.g. 4)}"; shift ;;
     --verbose)
@@ -125,6 +128,22 @@ build_from_source() {
   if [ ! -f "$dockerfile_dir/docker/Dockerfile" ]; then
     err "No Dockerfile found. Clone the repo and run from inside it:\n  git clone https://github.com/taikoxyz/shadow && cd shadow && ./start.sh"
   fi
+
+  # Pre-pull base images in parallel while we prepare the build
+  info "Pre-pulling base images..."
+  docker pull node:20-bookworm > /dev/null 2>&1 &
+  local pid1=$!
+  docker pull node:20-bookworm-slim > /dev/null 2>&1 &
+  local pid2=$!
+  wait "$pid1" && debug "Cached node:20-bookworm" || debug "Failed to pull node:20-bookworm (will use cache or download during build)"
+  wait "$pid2" && debug "Cached node:20-bookworm-slim" || debug "Failed to pull node:20-bookworm-slim (will use cache or download during build)"
+
+  # Snapshot disk usage before build
+  local disk_before_kb
+  disk_before_kb=$(docker system df --format '{{.Size}}' 2>/dev/null | head -1 || echo "0")
+  local build_start
+  build_start=$(date +%s)
+
   info "Building from source (this takes a while the first time)..."
   debug "Dockerfile: $dockerfile_dir/docker/Dockerfile"
   debug "Build context: $dockerfile_dir"
@@ -141,9 +160,25 @@ build_from_source() {
       -t shadow-local \
       "$dockerfile_dir" > /dev/null 2>&1
   fi
+
+  # Build metrics
+  local build_end elapsed_s elapsed_min elapsed_sec
+  build_end=$(date +%s)
+  elapsed_s=$((build_end - build_start))
+  elapsed_min=$((elapsed_s / 60))
+  elapsed_sec=$((elapsed_s % 60))
+
   local built_id
   built_id=$(docker run --rm --entrypoint cat shadow-local /tmp/circuit-id.txt 2>/dev/null | tr -d '[:space:]' || true)
+
+  local image_size
+  image_size=$(docker image inspect shadow-local --format '{{.Size}}' 2>/dev/null || echo "0")
+  image_size_mb=$((image_size / 1048576))
+
   ok "Image built — circuit ID: ${built_id:-unknown}"
+  info "Build time: ${elapsed_min}m ${elapsed_sec}s"
+  info "Image size: ${image_size_mb}MB"
+  info "Docker CPUs: ${docker_cpus:-?} | Memory: ${mem_gb:-?}GB"
 }
 
 # ---------------------------------------------------------------------------
@@ -253,7 +288,7 @@ if [ "${FORCE_CLEAN:-false}" = true ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Resolve image (before port selection — builds can take a while)
+# 4. Resolve image
 # ---------------------------------------------------------------------------
 if [ "$FORCE_BUILD" = true ]; then
   # --build: always build from source
@@ -305,7 +340,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Determine port (after image is ready so long builds don't stale the port)
+# 5. Determine port
 # ---------------------------------------------------------------------------
 if [ -n "$PORT" ]; then
   # Verify the requested port is actually free
@@ -373,4 +408,76 @@ if wait_for_server "$URL"; then
   open_browser "$URL"
 else
   err "Server did not respond in time. Check: docker logs $CONTAINER"
+fi
+
+# ---------------------------------------------------------------------------
+# 10. Benchmark monitor (if requested) — blocks until container stops or Ctrl+C
+# ---------------------------------------------------------------------------
+if [ "$BENCHMARK" = true ]; then
+  BENCH_FILE="$WORKSPACE/benchmark.csv"
+  BENCH_SUMMARY="$WORKSPACE/benchmark-summary.txt"
+
+  # Write CSV header
+  printf 'timestamp,cpu_pct,mem_usage,mem_limit,mem_pct,net_io,block_io,pids\n' > "$BENCH_FILE"
+
+  info "Benchmark monitoring enabled — sampling every 2s"
+  info "Metrics: $BENCH_FILE"
+  info "Press Ctrl+C to stop monitoring and write summary"
+
+  # Write summary on exit
+  cleanup_benchmark() {
+    if [ ! -f "$BENCH_FILE" ] || [ "$(wc -l < "$BENCH_FILE")" -le 1 ]; then
+      info "No benchmark samples collected"
+      exit 0
+    fi
+
+    # Parse CSV to find peaks
+    peak_cpu=$(awk -F',' 'NR>1 {gsub(/%/,"",$2); if($2+0 > max) max=$2+0} END {printf "%.1f", max}' "$BENCH_FILE")
+    peak_mem=$(awk -F',' 'NR>1 {if($3 > max) max=$3} END {print max}' "$BENCH_FILE")
+    peak_mem_pct=$(awk -F',' 'NR>1 {gsub(/%/,"",$5); if($5+0 > max) max=$5+0} END {printf "%.1f", max}' "$BENCH_FILE")
+    sample_count=$(awk 'END {print NR-1}' "$BENCH_FILE")
+    duration_s=$((sample_count * 2))
+    duration_min=$((duration_s / 60))
+    duration_sec=$((duration_s % 60))
+
+    {
+      echo "Shadow Proving Benchmark"
+      echo "========================"
+      echo "Date:           $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      echo "Duration:       ${duration_min}m ${duration_sec}s (${sample_count} samples)"
+      echo "Peak CPU:       ${peak_cpu}%"
+      echo "Peak memory:    ${peak_mem} (${peak_mem_pct}% of limit)"
+      echo "Docker CPUs:    ${docker_cpus:-?}"
+      echo "Docker memory:  ${mem_gb:-?}GB"
+      echo "Container:      --memory $CONTAINER_MEMORY --cpus $CONTAINER_CPUS"
+      echo ""
+      echo "Raw metrics:    $BENCH_FILE"
+    } > "$BENCH_SUMMARY"
+
+    echo ""
+    ok "Benchmark summary written to $BENCH_SUMMARY"
+    cat "$BENCH_SUMMARY"
+    exit 0
+  }
+
+  trap cleanup_benchmark INT TERM
+
+  # Sample docker stats every 2s until container stops
+  while docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; do
+    stats=$(docker stats --no-stream --format '{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}},{{.NetIO}},{{.BlockIO}},{{.PIDs}}' "$CONTAINER" 2>/dev/null || true)
+    if [ -n "$stats" ]; then
+      mem_usage=$(echo "$stats" | cut -d',' -f2 | cut -d'/' -f1 | tr -d ' ')
+      mem_limit=$(echo "$stats" | cut -d',' -f2 | cut -d'/' -f2 | tr -d ' ')
+      cpu=$(echo "$stats" | cut -d',' -f1)
+      mem_pct=$(echo "$stats" | cut -d',' -f3)
+      net_io=$(echo "$stats" | cut -d',' -f4)
+      block_io=$(echo "$stats" | cut -d',' -f5)
+      pids=$(echo "$stats" | cut -d',' -f6)
+      printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "$(date +%s)" "$cpu" "$mem_usage" "$mem_limit" "$mem_pct" "$net_io" "$block_io" "$pids" >> "$BENCH_FILE"
+    fi
+    sleep 2
+  done
+
+  # Container stopped — write summary
+  cleanup_benchmark
 fi
