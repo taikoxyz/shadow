@@ -96,12 +96,19 @@ RUN /tmp/shadow-risc0-host circuit-id > /tmp/circuit-id.txt
 # -----------------------------------------------------------------------------
 FROM --platform=${TARGETPLATFORM} debian:bookworm-slim
 
+ARG DOCKER_CLI_VERSION=29.2.0
+
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt/lists \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
-      docker.io
+      curl \
+      tar
+
+# Install a modern Docker CLI (daemon is provided by host via mounted socket).
+RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" \
+    | tar -xz --strip-components=1 -C /usr/local/bin docker/docker
 
 # Copy RISC Zero toolchain (needed for local proving).
 # rzup installs r0vm and extensions into ~/.risc0; we also look for r0vm in
