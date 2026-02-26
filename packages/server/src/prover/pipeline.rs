@@ -385,15 +385,26 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
         // only orchestrates, so 8 MB matches the Linux thread default.
         tracing::info!("spawning prover thread");
         let (tx, rx) = tokio::sync::oneshot::channel::<Result<SingleNoteProof>>();
+        let note_index = input.note_index;
         std::thread::Builder::new()
+            .name("shadow-prover".into())
             .stack_size(256 * 1024 * 1024)
             .spawn(move || {
                 let outcome = (|| {
+                    tracing::info!(note_index = note_index, "prover thread started");
                     configure_risc0_env();
                     let receipt_kind = std::env::var("RECEIPT_KIND").unwrap_or_else(|_| "groth16".into());
-                    tracing::debug!(receipt_kind = %receipt_kind, "RISC Zero env configured");
+                    tracing::info!(
+                        note_index = note_index,
+                        receipt_kind = %receipt_kind,
+                        "RISC Zero env configured"
+                    );
                     let prove_result = prove_claim(&input, &receipt_kind)?;
-                    tracing::debug!("prove_claim completed, exporting proof");
+                    tracing::info!(
+                        note_index = note_index,
+                        elapsed_secs = prove_result.elapsed.as_secs_f64(),
+                        "prove_claim completed; exporting proof"
+                    );
                     let exported = export_proof(&prove_result.receipt)?;
 
                     let receipt_bytes = shadow_prover_lib::serialize_receipt(&prove_result.receipt)?;
@@ -417,10 +428,24 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
                         receipt_base64: Some(receipt_b64),
                     })
                 })();
+                match &outcome {
+                    Ok(_) => tracing::info!(note_index = note_index, "prover thread finished"),
+                    Err(e) => {
+                        let chain: Vec<String> = std::iter::once(e.to_string())
+                            .chain(e.chain().skip(1).map(|c| c.to_string()))
+                            .collect();
+                        tracing::error!(
+                            note_index = note_index,
+                            detail = %chain.join(" | "),
+                            "prover thread failed"
+                        );
+                    }
+                }
                 let _ = tx.send(outcome);
             })
             .context("failed to spawn prover thread")?;
 
+        tracing::info!(note_index = note_index, "waiting for prover thread result");
         let result = rx.await.context("prover thread dropped sender")??;
 
         return Ok(result);
