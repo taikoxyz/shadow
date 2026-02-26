@@ -89,14 +89,14 @@ pnpm docker:publish
 Optional args:
 
 ```bash
-# publish with a custom tag (default: dev)
-pnpm docker:publish -- latest
+# publish with a custom tag (default: latest)
+pnpm docker:publish -- dev
 
 # publish to a custom registry (default: ghcr.io)
-REGISTRY=ghcr.io pnpm docker:publish -- latest
+REGISTRY=ghcr.io pnpm docker:publish -- dev
 
-# force rebuilding by removing the cached local publish image
-docker image rm shadow-publish-local:latest
+# force rebuilding by removing the cached local image
+docker image rm shadow-local:latest
 ```
 
 ## Local Development (without Docker)

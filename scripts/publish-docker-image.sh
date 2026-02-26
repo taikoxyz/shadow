@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
 set -eu
 
-TAG="${1:-dev}"
+TAG="${1:-latest}"
 REGISTRY="${REGISTRY:-ghcr.io}"
-IMAGE_REPO="${IMAGE_REPO:-taiko-shadow}"
-LOCAL_IMAGE="${LOCAL_IMAGE:-shadow-publish-local:latest}"
-DOCKERFILE="${DOCKERFILE:-packages/risc0-prover/docker/Dockerfile}"
+IMAGE_REPO="${IMAGE_REPO:-shadow}"
+LOCAL_IMAGE="${LOCAL_IMAGE:-shadow-local:latest}"
+DOCKERFILE="${DOCKERFILE:-docker/Dockerfile}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 
 if ! command -v docker >/dev/null 2>&1; then
