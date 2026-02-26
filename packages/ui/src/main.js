@@ -733,8 +733,6 @@ function renderCircuitMismatchWarning() {
     state.config?.localCircuitId
       ? el('p', {}, `Local: ${state.config.localCircuitId}`)
       : null,
-    el('p', { className: 'circuit-warning-hint' },
-      'Funding and proof generation are disabled to prevent invalid claims.'),
   ].filter(Boolean));
 }
 
@@ -743,13 +741,15 @@ function renderHeader() {
   const headerLeft = el('div', { className: 'header-left' }, [
     el('div', { className: 'header-title-group' }, [
       el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
-      el('span', { className: 'header-network' }, state.config?.chainId ? `on ${networkName(state.config.chainId)}` : ''),
     ]),
     el('span', { className: 'header-count' },
       `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`),
   ]);
 
   const headerActions = el('div', { className: 'header-actions' }, [
+    state.config?.chainId
+      ? el('span', { className: 'header-count' }, networkName(state.config.chainId))
+      : null,
     state.walletAddress
       ? el('span', { className: 'wallet-badge' }, [
           el('span', { className: 'wallet-dot' }),

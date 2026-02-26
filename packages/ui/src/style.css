@@ -181,12 +181,6 @@ body {
   flex-direction: column;
 }
 
-.header-network {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  margin-top: -0.15rem;
-}
-
 .header-count {
   font-size: 0.72rem;
   font-weight: 500;
@@ -201,8 +195,9 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
-
 
 /* --- Breadcrumb --- */
 
@@ -919,19 +914,18 @@ body {
   border-radius: var(--radius-md);
   color: var(--accent-red);
   box-shadow: var(--shadow-sm);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .circuit-warning h2 {
-  font-size: 1rem;
+  font-size: 0.86rem;
+  line-height: 1.35;
   margin-bottom: 0.45rem;
 }
 
 .circuit-warning p + p {
   margin-top: 0.3rem;
-}
-
-.circuit-warning-hint {
-  font-weight: 600;
 }
 
 .warning-text {
@@ -1150,6 +1144,11 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .deposit-card-meta {
