@@ -36,7 +36,7 @@
   --radius-lg: 12px;
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
-  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   /* Button palette */
   --btn-primary-bg: #15803d;
   --btn-primary-border: #16a34a;
@@ -47,7 +47,7 @@
   --btn-accent-border: #1a2a4a;
   --btn-accent-hover-bg: #0f1e3d;
   --btn-accent-hover-border: #253550;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--bg-base);
