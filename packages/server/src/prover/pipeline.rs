@@ -47,7 +47,7 @@ pub struct NoteProofResult {
     pub seal: String,
     /// Journal bytes (0x-prefixed hex). Empty if `prove` feature disabled.
     pub journal: String,
-    /// ABI-encoded `(bytes seal, bytes32 journalDigest)` for direct on-chain use.
+    /// ABI-encoded `(bytes seal, bytes journal)` for direct on-chain use.
     /// Empty string if proof generation is not available (feature `prove` disabled).
     pub proof: String,
     /// Base64-encoded receipt (for verification/re-export).
@@ -519,41 +519,46 @@ fn base64_encode(data: &[u8]) -> String {
     out
 }
 
-/// Encode proof for on-chain `Risc0CircuitVerifier.verify()`.
+/// Encode proof for on-chain `Risc0CircuitVerifier.decodeProof()`.
 ///
-/// The contract decodes: `(bytes seal, bytes32 journalDigest) = abi.decode(_proof, (bytes, bytes32))`
-/// So we encode: `abi.encode(seal_bytes, sha256(journal_bytes))`
+/// The contract decodes: `(bytes seal, bytes journal) = abi.decode(_proof, (bytes, bytes))`
+/// SHA-256 of the journal is computed inside the contract; we pass the full journal bytes.
 #[cfg(feature = "prove")]
 fn encode_proof_for_chain(seal_hex: &str, journal_bytes: &[u8]) -> Result<Vec<u8>> {
-    use sha2::{Sha256, Digest};
-
     let seal = hex::decode(seal_hex.strip_prefix("0x").unwrap_or(seal_hex))?;
 
-    // Compute journal digest (SHA-256)
-    let journal_digest: [u8; 32] = Sha256::digest(journal_bytes).into();
+    let seal_padded_len = (seal.len() + 31) / 32 * 32;
+    let journal_padded_len = (journal_bytes.len() + 31) / 32 * 32;
 
-    // ABI encode: (bytes seal, bytes32 journalDigest)
-    // Layout: offset_seal (32) | journalDigest (32) | seal_len (32) | seal_data (padded)
+    // ABI encode: (bytes seal, bytes journal)
+    // Head: offset_seal (32) | offset_journal (32)
+    // Tail: seal_len (32) + seal_data (padded) + journal_len (32) + journal_data (padded)
     let mut encoded = Vec::new();
 
-    // Offset of dynamic param `seal`: 64 bytes (after the two head slots)
-    let mut offset = [0u8; 32];
-    offset[31] = 64;
-    encoded.extend_from_slice(&offset);
+    // Offset of seal: 64 (past the two head slots)
+    let mut seal_offset = [0u8; 32];
+    seal_offset[28..32].copy_from_slice(&64u32.to_be_bytes());
+    encoded.extend_from_slice(&seal_offset);
 
-    // journalDigest (bytes32 — static type, stored inline)
-    encoded.extend_from_slice(&journal_digest);
+    // Offset of journal: 64 + 32 + seal_padded_len
+    let journal_offset = 64u32 + 32 + seal_padded_len as u32;
+    let mut j_offset = [0u8; 32];
+    j_offset[28..32].copy_from_slice(&journal_offset.to_be_bytes());
+    encoded.extend_from_slice(&j_offset);
 
-    // Seal length (uint256)
-    let mut len_bytes = [0u8; 32];
-    len_bytes[28..32].copy_from_slice(&(seal.len() as u32).to_be_bytes());
-    encoded.extend_from_slice(&len_bytes);
-
-    // Seal data (padded to 32-byte boundary)
+    // Seal length + data
+    let mut seal_len = [0u8; 32];
+    seal_len[28..32].copy_from_slice(&(seal.len() as u32).to_be_bytes());
+    encoded.extend_from_slice(&seal_len);
     encoded.extend_from_slice(&seal);
-    let seal_padded_len = (seal.len() + 31) / 32 * 32;
-    let padding = seal_padded_len - seal.len();
-    encoded.extend(std::iter::repeat(0u8).take(padding));
+    encoded.extend(std::iter::repeat(0u8).take(seal_padded_len - seal.len()));
+
+    // Journal length + data
+    let mut journal_len = [0u8; 32];
+    journal_len[28..32].copy_from_slice(&(journal_bytes.len() as u32).to_be_bytes());
+    encoded.extend_from_slice(&journal_len);
+    encoded.extend_from_slice(journal_bytes);
+    encoded.extend(std::iter::repeat(0u8).take(journal_padded_len - journal_bytes.len()));
 
     Ok(encoded)
 }
