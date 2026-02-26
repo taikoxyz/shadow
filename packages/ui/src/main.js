@@ -60,6 +60,7 @@ let state = {
   proofLog: [],         // {time, message} entries accumulated during proving
   bannerExpanded: false,
   proofStartTime: null,
+  lastQueueLogSignature: null,
 };
 
 const PROOF_LOG_LIMIT = 300;
@@ -191,6 +192,27 @@ async function refresh() {
 async function pollQueue() {
   try {
     state.queueJob = await api.getQueueStatus();
+    const job = state.queueJob;
+    if (job && ['queued', 'running', 'failed'].includes(job.status)) {
+      const sig = `${job.depositId}|${job.status}|${job.currentNote}|${job.message}`;
+      if (state.lastQueueLogSignature !== sig) {
+        const hasExact = state.proofLog.some(
+          (entry) => entry.depositId === job.depositId && entry.message === job.message,
+        );
+        if (!hasExact) {
+          pushProofLog({
+            time: new Date(),
+            message: job.message || 'Proving...',
+            stage: job.status,
+            depositId: job.depositId,
+            currentNote: job.currentNote,
+          });
+        }
+        state.lastQueueLogSignature = sig;
+      }
+    } else {
+      state.lastQueueLogSignature = null;
+    }
     render();
   } catch { /* ignore */ }
 }
@@ -1005,6 +1027,13 @@ function renderProofJobBanner() {
   const logEntries = state.proofLog.filter(
     (entry) => entry.depositId == null || entry.depositId === job.depositId,
   );
+  const fallbackEntry = job
+    ? {
+        time: new Date(),
+        message: job.message || 'Proving...',
+        currentNote: job.currentNote,
+      }
+    : null;
 
   const isFailed = job.status === 'failed';
   const elapsedStr = state.proofStartTime
@@ -1065,9 +1094,12 @@ function renderProofJobBanner() {
                 ].filter(Boolean))
               )
             : [el('div', { className: 'proof-log-entry' }, [
-                el('span', { className: 'proof-log-time' }, '—'),
-                el('span', { className: 'text-muted-60' }, 'Waiting for events...'),
-              ])]
+                el('span', { className: 'proof-log-time' }, fallbackEntry ? formatLogTime(fallbackEntry.time) : '—'),
+                el('span', { className: 'text-muted-60' }, fallbackEntry ? fallbackEntry.message : 'Waiting for events...'),
+                fallbackEntry?.currentNote != null
+                  ? el('span', { className: 'proof-log-detail' }, `note #${fallbackEntry.currentNote + 1}`)
+                  : null,
+              ].filter(Boolean))]
         )
       : null,
   ].filter(Boolean));
