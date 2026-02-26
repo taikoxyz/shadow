@@ -28,6 +28,8 @@ out/
 **/out/
 cache/
 **/cache/
+.cache/
+**/.cache/
 broadcast/
 **/broadcast/
 
