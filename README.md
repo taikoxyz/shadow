@@ -2,15 +2,38 @@
 
 Privacy-preserving ETH claims on Taiko L2 using zero-knowledge proofs.
 
-## Quick Start (Docker)
-
-The easiest way to run Shadow is with Docker Compose:
+## Quick Start
 
 ```bash
-docker compose up
+./start.sh
 ```
 
-This starts the Shadow server at **http://localhost:3000** with:
+Or run without cloning:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/taikoxyz/shadow/main/start.sh | sh
+```
+
+This will pull the Shadow Docker image (or build from source if unavailable), create a `./workspace` directory, start the server, and open **http://localhost:3000** in your browser.
+
+Options:
+
+| Flag | Description |
+|------|-------------|
+| `--pull` | Force pull the latest image from registry |
+| `--build` | Force build the image from source |
+| `--clean` | Delete all local shadow images and containers, then exit |
+| `--verbose` | Show detailed output (docker build/pull logs, config details) |
+| `[port]` | Pin to a specific port (default: auto-select from 3000-3099) |
+
+```bash
+./start.sh --pull          # force latest from registry
+./start.sh --build         # build from source
+./start.sh --build 3001    # build from source, use port 3001
+./start.sh --clean         # remove all shadow images and containers
+```
+
+The server provides:
 - Web UI for managing deposits and proofs
 - REST API + WebSocket for real-time updates
 - In-process ZK proof generation (RISC Zero Groth16)

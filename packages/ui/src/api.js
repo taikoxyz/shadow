@@ -6,6 +6,21 @@
  */
 
 const API_BASE = '/api';
+
+// Debug logging — enable via localStorage.setItem('shadow-debug', '1') or ?debug URL param
+function isDebugEnabled() {
+  if (localStorage.getItem('shadow-debug') === '1') return true;
+  if (new URLSearchParams(location.search).has('debug')) return true;
+  return false;
+}
+
+export const log = {
+  debug: (...args) => { if (isDebugEnabled()) console.debug('[shadow]', ...args); },
+  info: (...args) => { if (isDebugEnabled()) console.log('[shadow]', ...args); },
+  warn: (...args) => console.warn('[shadow]', ...args),
+  error: (...args) => console.error('[shadow]', ...args),
+};
+
 let wsConnection = null;
 let wsReconnectTimer = null;
 const wsListeners = new Set();
@@ -15,15 +30,22 @@ const wsListeners = new Set();
 // ---------------------------------------------------------------------------
 
 async function apiFetch(path, options = {}) {
+  const method = options.method || 'GET';
+  log.debug(`API ${method} ${path}`);
+  const start = performance.now();
   const resp = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   });
+  const elapsed = (performance.now() - start).toFixed(0);
   if (!resp.ok) {
     const text = await resp.text().catch(() => resp.statusText);
-    throw new Error(`API ${options.method || 'GET'} ${path}: ${resp.status} ${text}`);
+    log.error(`API ${method} ${path}: ${resp.status} (${elapsed}ms)`, text);
+    throw new Error(`API ${method} ${path}: ${resp.status} ${text}`);
   }
-  return resp.json();
+  const data = await resp.json();
+  log.debug(`API ${method} ${path}: ${resp.status} (${elapsed}ms)`);
+  return data;
 }
 
 /** GET /api/health */
@@ -129,7 +151,7 @@ export function onServerEvent(callback) {
 
 function notifyListeners(event) {
   for (const listener of wsListeners) {
-    try { listener(event); } catch (err) { console.error('[ws] listener error:', err); }
+    try { listener(event); } catch (err) { log.error('WS listener error:', err); }
   }
 }
 
@@ -143,7 +165,7 @@ function ensureWebSocket() {
     wsConnection = new WebSocket(url);
 
     wsConnection.onopen = () => {
-      console.log('[ws] connected');
+      log.info('WebSocket connected');
       wsReconnectDelay = 1000; // reset backoff on success
       if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
 
@@ -161,15 +183,16 @@ function ensureWebSocket() {
     wsConnection.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'pong') return; // ignore pong responses
+        if (data.type === 'pong') return;
+        log.info(`WS ${data.type}`, data);
         notifyListeners(data);
       } catch {
-        // ignore non-JSON messages
+        log.warn('WS non-JSON message:', event.data);
       }
     };
 
     wsConnection.onclose = () => {
-      console.log(`[ws] disconnected, reconnecting in ${wsReconnectDelay}ms...`);
+      log.info(`WebSocket disconnected, reconnecting in ${wsReconnectDelay}ms`);
       if (wsPingInterval) { clearInterval(wsPingInterval); wsPingInterval = null; }
       notifyListeners({ type: 'ws:disconnected' });
       scheduleReconnect();

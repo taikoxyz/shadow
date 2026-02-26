@@ -45,6 +45,22 @@ impl ProofJob {
     }
 }
 
+/// Optional extra data attached to progress events for richer UI display.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressExtra {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_number: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elapsed_secs: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note_elapsed_secs: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
+}
+
 /// The proof queue manages a single proof job at a time.
 pub struct ProofQueue {
     /// Current job state (None if idle).
@@ -102,11 +118,13 @@ impl ProofQueue {
             "depositId": deposit_id
         }));
 
+        tracing::info!(deposit_id = %deposit_id, total_notes = total_notes, "proof job enqueued");
+
         Ok(())
     }
 
     /// Update job progress (called by the pipeline during proving).
-    pub async fn update_progress(&self, current_note: u32, message: &str) {
+    pub async fn update_progress(&self, current_note: u32, message: &str, extra: Option<&ProgressExtra>) {
         let mut current = self.current.lock().await;
         if let Some(ref mut job) = *current {
             job.status = JobStatus::Running;
@@ -115,18 +133,30 @@ impl ProofQueue {
             let snapshot = job.clone();
             let _ = self.job_tx.send(Some(snapshot.clone()));
 
-            self.broadcast_event(serde_json::json!({
+            let mut event = serde_json::json!({
                 "type": "proof:note_progress",
                 "depositId": snapshot.deposit_id,
                 "noteIndex": current_note,
                 "totalNotes": snapshot.total_notes,
                 "message": message
-            }));
+            });
+            if let Some(extra) = extra {
+                if let Ok(extra_val) = serde_json::to_value(extra) {
+                    if let Some(obj) = extra_val.as_object() {
+                        for (k, v) in obj {
+                            event.as_object_mut().unwrap().insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+            }
+            self.broadcast_event(event);
+
+            tracing::debug!(deposit_id = %snapshot.deposit_id, note = current_note, total = snapshot.total_notes, message = %message, "proof progress");
         }
     }
 
     /// Mark the current job as completed.
-    pub async fn complete(&self, proof_file: &str) {
+    pub async fn complete(&self, proof_file: &str, elapsed_secs: Option<f64>) {
         let mut current = self.current.lock().await;
         if let Some(ref mut job) = *current {
             let deposit_id = job.deposit_id.clone();
@@ -138,8 +168,11 @@ impl ProofQueue {
             self.broadcast_event(serde_json::json!({
                 "type": "proof:completed",
                 "depositId": deposit_id,
-                "proofFile": proof_file
+                "proofFile": proof_file,
+                "elapsedSecs": elapsed_secs
             }));
+
+            tracing::info!(deposit_id = %deposit_id, proof_file = %proof_file, "proof job completed");
         }
     }
 
@@ -160,6 +193,8 @@ impl ProofQueue {
                 "noteIndex": note_index,
                 "error": error
             }));
+
+            tracing::error!(deposit_id = %deposit_id, note_index = note_index, error = %error, "proof job failed");
         }
     }
 
@@ -168,6 +203,7 @@ impl ProofQueue {
         let mut cancel_tx = self.cancel_tx.lock().await;
         if let Some(tx) = cancel_tx.take() {
             let _ = tx.send(());
+            tracing::info!("proof job cancelled by user");
             let mut current = self.current.lock().await;
             if let Some(ref mut job) = *current {
                 job.status = JobStatus::Cancelled;
