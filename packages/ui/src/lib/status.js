@@ -51,5 +51,5 @@ export function getCardStatus(deposit, queueJob, depositBalance) {
   const noProofStatus = resolveNoProofStatus(depositBalance);
   if (noProofStatus === 'funding') return { label: 'Funding', cls: 'badge-funding' };
   if (noProofStatus === 'funded') return { label: 'Funded', cls: 'badge-funded' };
-  return { label: 'Unfunded', cls: 'badge-no-proof' };
+  return { label: 'New', cls: 'badge-no-proof' };
 }
