@@ -77,6 +77,24 @@ To run the built image:
 pnpm docker:run
 ```
 
+## Publishing Docker Image (Manual)
+
+Docker publish is manual-only. To dispatch the GitHub Actions publish workflow:
+
+```bash
+pnpm docker:publish
+```
+
+Optional args:
+
+```bash
+# publish with a custom tag (default: dev)
+pnpm docker:publish -- latest
+
+# publish from a custom git ref (default: main)
+pnpm docker:publish -- latest release/my-branch
+```
+
 ## Local Development (without Docker)
 
 ### Prerequisites

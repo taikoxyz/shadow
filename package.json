@@ -18,6 +18,7 @@
     "server:test": "cargo test --manifest-path packages/server/Cargo.toml",
     "docker:build": "docker build --platform linux/amd64 -f docker/Dockerfile -t shadow-local . && echo && echo 'Circuit ID:' && docker inspect --format '{{index .Config.Labels \"org.taikoxyz.shadow.circuit-id\"}}' shadow-local",
     "docker:run": "docker run --rm -p 3000:3000 -v $(pwd)/workspace:/workspace shadow-local",
+    "docker:publish": "./scripts/publish-docker-image.sh",
     "test": "pnpm run contracts:test"
   }
 }

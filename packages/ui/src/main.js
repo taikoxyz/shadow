@@ -1003,6 +1003,19 @@ function renderDetailView() {
   const totalEth = weiToEth(deposit.totalAmount);
   const status = getDepositStatus(deposit, state.queueJob, state.depositBalance);
   const circuitMismatch = hasCircuitMismatch();
+  const fundingStatusTag = (() => {
+    if (state.depositBalance?.error) {
+      return el('span', { className: 'badge badge-failed' }, 'Unavailable');
+    }
+    if (!state.depositBalance) {
+      return el('span', { className: 'badge badge-unknown' }, 'Loading');
+    }
+    return el(
+      'span',
+      { className: `badge ${state.depositBalance.isFunded ? 'badge-funded' : 'badge-funding'}` },
+      state.depositBalance.isFunded ? 'Funded' : 'Unfunded',
+    );
+  })();
 
   // Proof action button / hint (shown inside Proofs section)
   const proofAction = (() => {
@@ -1091,6 +1104,7 @@ function renderDetailView() {
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
+      detailRow('Status', fundingStatusTag),
     ].filter(Boolean)),
 
     // Funding
@@ -1107,7 +1121,6 @@ function renderDetailView() {
             !state.depositBalance.isFunded
               ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ETH`)
               : null,
-            detailRow('Status', state.depositBalance.isFunded ? 'Funded' : 'Unfunded \u2014 send ETH to target address'),
             fundAction,
           ].filter(Boolean))
         : el('div', { className: 'detail-section' }, [
