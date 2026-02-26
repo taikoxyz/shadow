@@ -77,35 +77,57 @@ To run the built image:
 pnpm docker:run
 ```
 
-## Quick Start (Local Development)
+## Local Development (without Docker)
 
 ### Prerequisites
 
 - Rust toolchain (1.80+)
 - Node.js 20+ with pnpm
 - Foundry (for contract tests)
+- RISC Zero toolchain (only for proving): `cargo install rzup --locked && rzup install`
 
-### 1. Build and run the server
+### Option A: Without proving (UI/API dev only)
 
 ```bash
-# Build the server (without ZK proving — for UI/API dev)
-cd packages/server
-cargo build --release
+mkdir -p workspace
 
-# Build the UI
-cd packages/ui
-pnpm install && pnpm build
-
-# Start the server
-./packages/server/target/release/shadow-server \
+# Terminal 1 — server on :3000
+cargo run --manifest-path packages/server/Cargo.toml -- \
   --workspace ./workspace \
-  --ui-dir ./packages/ui/dist \
-  --rpc-url https://rpc.hoodi.taiko.xyz \
-  --shadow-address 0x77cdA0575e66A5FC95404fdA856615AD507d8A07 \
-  --verifier-address 0x38b6e672eD9577258e1339bA9263cD034C147014
+  --port 3000
+
+# Terminal 2 — UI dev server on :5173 (proxies API/WS to :3000)
+pnpm ui:dev
 ```
 
-Open **http://localhost:3000** in your browser.
+Open **http://localhost:5173**.
+
+### Option B: With ZK proving (full flow)
+
+```bash
+mkdir -p workspace
+
+# Terminal 1 — server on :3000 with proving enabled
+cargo run --release --manifest-path packages/server/Cargo.toml --features prove -- \
+  --workspace ./workspace \
+  --port 3000 \
+  --rpc-url https://rpc.hoodi.taiko.xyz \
+  --shadow-address 0x77cdA0575e66A5FC95404fdA856615AD507d8A07 \
+  --verifier-address 0xF28B5F2850eb776058566A2945589A6A1Fa98e28
+
+# Terminal 2 — UI dev server on :5173 (proxies API/WS to :3000)
+pnpm ui:dev
+```
+
+Open **http://localhost:5173**.
+
+The server will warn on startup if the local circuit ID doesn't match the on-chain verifier — this is expected when building locally. You can still prove; just redeploy the verifier before submitting on-chain.
+
+To check your local circuit ID:
+
+```bash
+cargo run --manifest-path packages/risc0-prover/Cargo.toml -p shadow-risc0-host -- circuit-id
+```
 
 ### 2. Create a deposit
 
@@ -165,12 +187,12 @@ From the UI, click **Claim** next to each note (requires MetaMask connected to T
 | Contract | Address |
 |----------|---------|
 | Shadow (proxy) | `0x77cdA0575e66A5FC95404fdA856615AD507d8A07` |
-| ShadowVerifier | `0x7b72dea854747aF1Ab0aAC0f836A1f7Af5301dF0` |
-| Risc0CircuitVerifier | `0x38b6e672eD9577258e1339bA9263cD034C147014` |
+| ShadowVerifier | `0x1c71DFbcD55e29844b48D744CD9ee47370111cC4` |
+| Risc0CircuitVerifier | `0xF28B5F2850eb776058566A2945589A6A1Fa98e28` |
 | RiscZeroGroth16Verifier | `0xd1934807041B168f383870A0d8F565aDe2DF9D7D` |
-| DummyEtherMinter | `0xfB99C215cFCC28015A93406bcc7170Bb7ca4E2E4` |
+| DummyEtherMinter | `0x6DC226aA43E86fE77735443fB50a0A90e5666AA4` |
 
-Circuit ID (imageId): `0x37a5e85c934ec15f7752cfced2f407f40e6c28978dffcb3b895dc100a76acaf8`
+Circuit ID (imageId): `0x90c445f6632e0b603305712aacf0ac4910a801b2c1aa73749d12c08319d96844`
 Chain ID: `167013` (Taiko Hoodi testnet)
 
 ## Architecture

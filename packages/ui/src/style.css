@@ -144,6 +144,17 @@ body {
   text-decoration: underline;
 }
 
+.header-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-network {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: -0.15rem;
+}
+
 .header-count {
   font-size: 0.72rem;
   font-weight: 500;
@@ -248,54 +259,48 @@ body {
 .badge {
   display: inline-flex;
   align-items: center;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  padding: 0.12rem 0.45rem;
-  border-radius: 4px;
-  letter-spacing: 0.02em;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  border: none;
 }
 
 .badge-proof {
   background: var(--accent-green-bg);
   color: var(--accent-green);
-  border: 1px solid var(--accent-green-border);
 }
 
 .badge-no-proof {
   background: var(--accent-amber-bg);
   color: var(--accent-amber);
-  border: 1px solid var(--accent-amber-border);
 }
 
 .badge-proving {
   background: var(--accent-blue-bg);
   color: var(--accent-blue);
-  border: 1px solid var(--btn-accent-border);
 }
 
 .badge-failed {
   background: var(--accent-red-bg);
   color: var(--accent-red);
-  border: 1px solid var(--accent-red-border);
 }
 
 .badge-claimed {
   background: var(--accent-blue-bg);
   color: var(--accent-blue);
-  border: 1px solid var(--btn-accent-border);
 }
 
 .badge-unclaimed {
   background: var(--accent-amber-bg);
   color: var(--accent-amber);
-  border: 1px solid var(--accent-amber-border);
 }
 
 .badge-unknown {
   background: var(--bg-surface);
   color: var(--text-muted);
-  border: 1px solid var(--border);
 }
 
 /* --- Detail View --- */
@@ -956,18 +961,6 @@ body {
   flex-shrink: 0;
 }
 
-.proof-banner-progress {
-  height: 3px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.proof-banner-progress-bar {
-  height: 100%;
-  background: var(--accent-blue);
-  transition: width 0.3s ease;
-}
 
 .proof-log-timing {
   font-size: 0.72rem;

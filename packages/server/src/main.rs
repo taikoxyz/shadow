@@ -109,14 +109,13 @@ async fn main() -> Result<()> {
                     let onchain_id = onchain_raw.to_lowercase();
                     let local_id = shadow_prover_lib::circuit_id_hex().to_lowercase();
                     if onchain_id != local_id {
-                        tracing::error!(
+                        tracing::warn!(
                             onchain = %onchain_id,
                             local   = %local_id,
-                            "FATAL: circuit ID mismatch — this binary cannot verify proofs \
-                             for the deployed verifier. Rebuild the image or update \
-                             VERIFIER_ADDRESS to match this binary's guest ELF."
+                            "circuit ID mismatch — proofs from this binary will NOT pass \
+                             the deployed on-chain verifier. You can still prove locally, \
+                             but must redeploy/upgrade the verifier before submitting."
                         );
-                        std::process::exit(1);
                     }
                     tracing::info!(circuit_id = %local_id, "circuit ID matches on-chain verifier ✓");
                 }

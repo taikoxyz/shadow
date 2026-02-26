@@ -118,7 +118,7 @@ LABEL org.opencontainers.image.vendor="Taiko"
 # Circuit ID and chain metadata (update when deploying new versions)
 # These labels help identify which on-chain verifier this image is compatible with.
 # "Circuit ID" is the RISC Zero guest program hash — not to be confused with Docker image digest.
-LABEL org.taikoxyz.shadow.circuit-id="0x37a5e85c934ec15f7752cfced2f407f40e6c28978dffcb3b895dc100a76acaf8"
+LABEL org.taikoxyz.shadow.circuit-id="0x90c445f6632e0b603305712aacf0ac4910a801b2c1aa73749d12c08319d96844"
 LABEL org.taikoxyz.shadow.chain-id="167013"
 
 EXPOSE 3000
