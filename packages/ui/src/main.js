@@ -589,10 +589,18 @@ async function handleClaim(depositId, noteIndex) {
     showToast('Preparing claim transaction...', 'info');
     const txData = await api.getClaimTx(depositId, noteIndex);
 
-    // Verify wallet is on the correct chain
-    if (state.walletChainId && state.walletChainId !== txData.chainId) {
-      showToast(`Switch MetaMask to chain ${parseInt(txData.chainId, 16)}`, 'error');
-      return;
+    // Ensure wallet is on the correct chain, prompting a switch if needed
+    if (state.walletChainId !== txData.chainId) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: txData.chainId }],
+        });
+        state.walletChainId = txData.chainId;
+      } catch {
+        showToast(`Switch MetaMask to chain ${parseInt(txData.chainId, 16)}`, 'error');
+        return;
+      }
     }
 
     const txHash = await window.ethereum.request({
