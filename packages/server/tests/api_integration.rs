@@ -3,15 +3,7 @@
 //! These tests start a real Axum server on a random port and hit the endpoints
 //! with an HTTP client.
 
-use std::{
-    io::Write,
-    net::SocketAddr,
-    path::PathBuf,
-    sync::Arc,
-};
-
-use axum::Router;
-use tokio::net::TcpListener;
+use std::io::Write;
 
 // We can't import from the binary crate directly, so we replicate
 // the router construction here. In a real setup, the router construction

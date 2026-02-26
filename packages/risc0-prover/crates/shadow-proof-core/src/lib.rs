@@ -145,6 +145,7 @@ pub enum ClaimValidationError {
     InsufficientAccountBalance,
     InvalidBlockHeaderHash,
     InvalidBlockHeaderShape,
+    BlockNumberMismatch,
 }
 
 
@@ -170,6 +171,7 @@ impl ClaimValidationError {
             Self::InsufficientAccountBalance => "account balance is insufficient for note total",
             Self::InvalidBlockHeaderHash => "block header hash mismatch",
             Self::InvalidBlockHeaderShape => "invalid block header shape",
+            Self::BlockNumberMismatch => "block header number mismatch",
         }
     }
 }
@@ -232,7 +234,11 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
 
     let notes_hash = compute_notes_hash(note_count, &input.amounts, &input.recipient_hashes)?;
     let target_address = derive_target_address(&input.secret, input.chain_id, &notes_hash);
-    let state_root = parse_state_root_from_block_header(&input.block_hash, &input.block_header_rlp)?;
+    let state_root = parse_state_root_from_block_header(
+        &input.block_hash,
+        input.block_number,
+        &input.block_header_rlp,
+    )?;
     let account_balance =
         verify_account_proof_and_get_balance(&state_root, &target_address, &input.proof_nodes)?;
     if !balance_gte_total(&account_balance, total_amount) {
@@ -380,6 +386,38 @@ mod tests {
         out
     }
 
+    fn u64_to_min_be_bytes(value: u64) -> Vec<u8> {
+        if value == 0 {
+            return Vec::new();
+        }
+        let buf = value.to_be_bytes();
+        let first = buf.iter().position(|b| *b != 0).unwrap_or(buf.len());
+        buf[first..].to_vec()
+    }
+
+    fn make_block_header_rlp(block_number: u64, state_root: [u8; 32]) -> Vec<u8> {
+        let fields = vec![
+            rlp_encode_bytes(&[0x11u8; 32]), // parentHash
+            rlp_encode_bytes(&[0x22u8; 32]), // sha3Uncles
+            rlp_encode_bytes(&[0x33u8; 20]), // miner
+            rlp_encode_bytes(&state_root),   // stateRoot
+            rlp_encode_bytes(&[0x44u8; 32]), // transactionsRoot
+            rlp_encode_bytes(&[0x55u8; 32]), // receiptsRoot
+            rlp_encode_bytes(&[0u8; 256]),   // logsBloom
+            rlp_encode_bytes(&[]),           // difficulty
+            rlp_encode_bytes(&u64_to_min_be_bytes(block_number)), // number
+            rlp_encode_bytes(&[0x01]),       // gasLimit
+            rlp_encode_bytes(&[]),           // gasUsed
+            rlp_encode_bytes(&[0x02]),       // timestamp
+            rlp_encode_bytes(&[]),           // extraData
+            rlp_encode_bytes(&[0x66u8; 32]), // mixHash
+            rlp_encode_bytes(&[0x77u8; 8]),  // nonce
+            rlp_encode_bytes(&[0x01]),       // baseFeePerGas
+            rlp_encode_bytes(&[0x88u8; 32]), // withdrawalsRoot
+        ];
+        rlp_encode_list(&fields)
+    }
+
     fn nibbles_to_compact_path(nibbles: &[u8], is_leaf: bool) -> Vec<u8> {
         let is_odd = (nibbles.len() % 2) == 1;
         let flags = (if is_leaf { 0x2 } else { 0x0 }) | (if is_odd { 0x1 } else { 0x0 });
@@ -448,6 +486,28 @@ mod tests {
         let (is_leaf, decoded) = decode_compact_nibbles(&encoded).unwrap();
         assert!(!is_leaf);
         assert_eq!(decoded, odd);
+    }
+
+    #[test]
+    fn parse_state_root_from_block_header_accepts_matching_block_number() {
+        let state_root = [0xaau8; 32];
+        let block_number = 4_739_555u64;
+        let header = make_block_header_rlp(block_number, state_root);
+        let block_hash = keccak256(&header);
+
+        let parsed = parse_state_root_from_block_header(&block_hash, block_number, &header).unwrap();
+        assert_eq!(parsed, state_root);
+    }
+
+    #[test]
+    fn parse_state_root_from_block_header_rejects_block_number_mismatch() {
+        let state_root = [0xbbu8; 32];
+        let block_number = 4_739_555u64;
+        let header = make_block_header_rlp(block_number, state_root);
+        let block_hash = keccak256(&header);
+
+        let err = parse_state_root_from_block_header(&block_hash, block_number + 1, &header).unwrap_err();
+        assert!(matches!(err, ClaimValidationError::BlockNumberMismatch));
     }
 
     #[test]
@@ -651,6 +711,7 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
 
 fn parse_state_root_from_block_header(
     expected_block_hash: &[u8; 32],
+    expected_block_number: u64,
     block_header_rlp: &[u8],
 ) -> Result<[u8; 32], ClaimValidationError> {
     if keccak256(block_header_rlp) != *expected_block_hash {
@@ -658,11 +719,29 @@ fn parse_state_root_from_block_header(
     }
 
     let fields = decode_rlp_list_payload_items(block_header_rlp)?;
-    if fields.len() < 4 || fields[3].len() != 32 {
+    if fields.len() < 9 || fields[3].len() != 32 {
         return Err(ClaimValidationError::InvalidBlockHeaderShape);
+    }
+    let block_number =
+        parse_u64_from_rlp_quantity(fields[8]).ok_or(ClaimValidationError::InvalidBlockHeaderShape)?;
+    if block_number != expected_block_number {
+        return Err(ClaimValidationError::BlockNumberMismatch);
     }
 
     Ok(to_32(fields[3]))
+}
+
+fn parse_u64_from_rlp_quantity(bytes: &[u8]) -> Option<u64> {
+    if bytes.len() > 8 {
+        return None;
+    }
+
+    let mut out = 0u64;
+    for b in bytes {
+        out = out.checked_mul(256)?;
+        out = out.checked_add(*b as u64)?;
+    }
+    Some(out)
 }
 
 #[derive(Clone, Copy)]
