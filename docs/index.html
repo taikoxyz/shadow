@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shadow</title>
+    <style>
+      :root {
+        --bg-base: #111113;
+        --bg-raised: #18181c;
+        --bg-surface: #1e1e24;
+        --bg-hover: #26262e;
+        --border: #2c2c38;
+        --border-hover: #3c3c4c;
+        --text-primary: #eaeaf0;
+        --text-secondary: #9090a0;
+        --accent-green: #34d399;
+        --btn-primary-bg: #15803d;
+        --btn-primary-border: #16a34a;
+        --btn-primary-hover-bg: #166534;
+        --btn-primary-hover-border: #15803d;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1.25rem;
+        background: var(--bg-base);
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+      }
+
+      .home {
+        width: min(760px, 100%);
+        background: var(--bg-raised);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+      }
+
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1rem;
+      }
+
+      p {
+        margin: 0 0 0.9rem;
+        color: var(--text-secondary);
+        font-size: 0.84rem;
+      }
+
+      .command-wrap {
+        display: flex;
+        gap: 0.5rem;
+        align-items: stretch;
+      }
+
+      code {
+        flex: 1;
+        display: block;
+        padding: 0.65rem 0.75rem;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--bg-surface);
+        font-size: 0.8rem;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+
+      button {
+        border: 1px solid var(--btn-primary-border);
+        border-radius: var(--radius-sm);
+        background: var(--btn-primary-bg);
+        color: #fff;
+        padding: 0.5rem 0.85rem;
+        font-family: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      button:hover {
+        background: var(--btn-primary-hover-bg);
+        border-color: var(--btn-primary-hover-border);
+      }
+
+      button:focus-visible {
+        outline: 2px solid var(--accent-green);
+        outline-offset: 2px;
+      }
+
+      @media (max-width: 680px) {
+        .command-wrap {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="home">
+      <h1>Shadow</h1>
+      <p>Copy this command to start the local Docker server:</p>
+      <div class="command-wrap">
+        <code id="command"></code>
+        <button id="copy-button" type="button">Copy</button>
+      </div>
+    </main>
+    <script>
+      const copyButton = document.getElementById("copy-button");
+      const commandHost = "https://raw.githubusercontent.com/taikoxyz/shadow/main/start.sh";
+      const commandText = `curl -fsSL ${commandHost} | sh`;
+      document.getElementById("command").textContent = commandText;
+
+      copyButton.addEventListener("click", async () => {
+        const originalLabel = copyButton.textContent;
+        try {
+          await navigator.clipboard.writeText(commandText);
+        } catch {
+          const fallback = document.createElement("textarea");
+          fallback.value = commandText;
+          fallback.setAttribute("readonly", "");
+          fallback.style.position = "absolute";
+          fallback.style.left = "-9999px";
+          document.body.appendChild(fallback);
+          fallback.select();
+          document.execCommand("copy");
+          fallback.remove();
+        }
+
+        copyButton.textContent = "Copied";
+        setTimeout(() => {
+          copyButton.textContent = originalLabel;
+        }, 1400);
+      });
+    </script>
+  </body>
+</html>
