@@ -103,9 +103,28 @@ impl ChainClient {
         self.is_consumed(shadow_address, nullifier).await
     }
 
+    /// Resolve the Risc0CircuitVerifier address from the Shadow proxy.
+    ///
+    /// Walks: Shadow.verifier() → ShadowVerifier.circuitVerifier()
+    pub async fn read_circuit_verifier_address(&self, shadow_address: &str) -> Result<String> {
+        let shadow_verifier_raw = self
+            .eth_call(shadow_address, "0x2b7ac3f3", "latest") // verifier()
+            .await
+            .context("Shadow.verifier() call failed")?;
+        let shadow_verifier = decode_address(&shadow_verifier_raw)
+            .context("Shadow.verifier() returned invalid address")?;
+
+        let circuit_verifier_raw = self
+            .eth_call(&shadow_verifier, "0xd0ea9ff0", "latest") // circuitVerifier()
+            .await
+            .context("ShadowVerifier.circuitVerifier() call failed")?;
+        decode_address(&circuit_verifier_raw)
+            .context("ShadowVerifier.circuitVerifier() returned invalid address")
+    }
+
     /// Read the circuit ID from the Risc0CircuitVerifier contract.
     ///
-    /// `verifier_address` is the verifier contract address (0x-prefixed hex).
+    /// `verifier_address` is the Risc0CircuitVerifier contract address (0x-prefixed hex).
     pub async fn read_circuit_id(&self, verifier_address: &str) -> Result<String> {
         // imageId() selector: keccak256("imageId()")[..4]
         let selector = "0xef3f7dd5"; // keccak256("imageId()")[..4]
@@ -117,7 +136,6 @@ impl ChainClient {
 
         Ok(result)
     }
-
 
     /// Query ETH balance of an address (returns wei as decimal string).
     pub async fn get_balance(&self, address: &str) -> Result<String> {
@@ -189,4 +207,15 @@ impl ChainClient {
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("eth_call: no result"))
     }
+}
+
+/// Decode an ABI-encoded address (32-byte padded) into a checksummed 0x-prefixed string.
+fn decode_address(raw: &str) -> Result<String> {
+    let hex = raw.strip_prefix("0x").unwrap_or(raw);
+    if hex.len() < 40 {
+        bail!("response too short to contain an address: {}", raw);
+    }
+    // Address occupies the last 20 bytes (40 hex chars) of the 32-byte ABI word
+    let addr = &hex[hex.len() - 40..];
+    Ok(format!("0x{}", addr))
 }

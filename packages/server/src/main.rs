@@ -37,10 +37,6 @@ struct Cli {
     #[arg(long, env = "SHADOW_ADDRESS")]
     shadow_address: Option<String>,
 
-    /// Risc0CircuitVerifier contract address for reading the circuit ID.
-    #[arg(long, env = "VERIFIER_ADDRESS")]
-    verifier_address: Option<String>,
-
     /// Directory containing the built UI static files.
     #[arg(long, default_value = "/app/ui")]
     ui_dir: PathBuf,
@@ -108,7 +104,6 @@ async fn main() -> Result<()> {
         proof_queue,
         chain_client,
         shadow_address: cli.shadow_address,
-        verifier_address: cli.verifier_address,
     });
 
     // ---------------------------------------------------------------------------
@@ -118,33 +113,37 @@ async fn main() -> Result<()> {
     // ---------------------------------------------------------------------------
     #[cfg(feature = "prove")]
     {
-        if let (Some(ref chain), Some(ref verifier_addr)) =
-            (&state.chain_client, &state.verifier_address)
+        if let (Some(ref chain), Some(ref shadow_addr)) =
+            (&state.chain_client, &state.shadow_address)
         {
-            tracing::info!("verifying circuit ID against on-chain verifier...");
-            match chain.read_circuit_id(verifier_addr).await {
-                Ok(onchain_raw) => {
-                    let onchain_id = onchain_raw.to_lowercase();
-                    let local_id = shadow_prover_lib::circuit_id_hex().to_lowercase();
-                    if onchain_id != local_id {
-                        tracing::warn!(
-                            onchain = %onchain_id,
-                            local   = %local_id,
-                            "circuit ID mismatch — proofs from this binary will NOT pass \
-                             the deployed on-chain verifier. You can still prove locally, \
-                             but must redeploy/upgrade the verifier before submitting."
-                        );
+            tracing::info!("resolving circuit verifier from Shadow contract...");
+            match chain.read_circuit_verifier_address(shadow_addr).await {
+                Ok(verifier_addr) => {
+                    tracing::info!(verifier = %verifier_addr, "resolved Risc0CircuitVerifier");
+                    match chain.read_circuit_id(&verifier_addr).await {
+                        Ok(onchain_raw) => {
+                            let onchain_id = onchain_raw.to_lowercase();
+                            let local_id = shadow_prover_lib::circuit_id_hex().to_lowercase();
+                            if onchain_id != local_id {
+                                tracing::warn!(
+                                    onchain = %onchain_id,
+                                    local   = %local_id,
+                                    "circuit ID mismatch — proofs from this binary will NOT pass \
+                                     the deployed on-chain verifier. You can still prove locally, \
+                                     but must redeploy/upgrade the verifier before submitting."
+                                );
+                            } else {
+                                tracing::info!(circuit_id = %local_id, "circuit ID matches on-chain verifier ✓");
+                            }
+                        }
+                        Err(e) => tracing::warn!("could not read circuit ID from verifier: {:#}", e),
                     }
-                    tracing::info!(circuit_id = %local_id, "circuit ID matches on-chain verifier ✓");
                 }
-                Err(e) => {
-                    tracing::warn!("could not read circuit ID from verifier: {:#}", e);
-                }
+                Err(e) => tracing::warn!("could not resolve circuit verifier from Shadow: {:#}", e),
             }
-        } else if state.verifier_address.is_none() {
+        } else if state.shadow_address.is_none() {
             tracing::warn!(
-                "VERIFIER_ADDRESS not configured — circuit ID check skipped. \
-                 Set VERIFIER_ADDRESS to validate the local guest ELF against the on-chain verifier."
+                "SHADOW_ADDRESS not configured — circuit ID check skipped."
             );
         }
     }

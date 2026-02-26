@@ -184,16 +184,16 @@ function noteRow(state, index, walletAddress, onRemove) {
         el('span', { className: 'form-field-error', id: `mine-amount-error-${index}` },
           state.miningErrors[`amount-${index}`] || ''),
       ]),
-    ]),
-    el('div', { className: 'form-group' }, [
-      el('label', { className: 'form-label' }, 'Label (optional)'),
-      el('input', {
-        className: 'form-input form-input-note-label',
-        id: `mine-label-${index}`,
-        placeholder: `note #${index}`,
-        value: note.label,
-        oninput: (event) => { state.miningNotes[index].label = event.target.value; },
-      }),
+      el('div', { className: 'form-group form-group-label' }, [
+        el('label', { className: 'form-label' }, 'Label (optional)'),
+        el('input', {
+          className: 'form-input',
+          id: `mine-label-${index}`,
+          placeholder: `note #${index}`,
+          value: note.label,
+          oninput: (event) => { state.miningNotes[index].label = event.target.value; },
+        }),
+      ]),
     ]),
   ]);
 }

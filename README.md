@@ -187,12 +187,12 @@ From the UI, click **Claim** next to each note (requires MetaMask connected to T
 | Contract | Address |
 |----------|---------|
 | Shadow (proxy) | `0x77cdA0575e66A5FC95404fdA856615AD507d8A07` |
-| ShadowVerifier | `0x1c71DFbcD55e29844b48D744CD9ee47370111cC4` |
-| Risc0CircuitVerifier | `0xF28B5F2850eb776058566A2945589A6A1Fa98e28` |
+| ShadowVerifier | `0x41B15F5Ed8339122231f16eF4f260B08CCB9C726` |
+| Risc0CircuitVerifier | `0x6E84a9749B9887C3e80b40a1fBB976888dD1f00D` |
 | RiscZeroGroth16Verifier | `0xd1934807041B168f383870A0d8F565aDe2DF9D7D` |
 | DummyEtherMinter | `0x6DC226aA43E86fE77735443fB50a0A90e5666AA4` |
 
-Circuit ID (imageId): `0x90c445f6632e0b603305712aacf0ac4910a801b2c1aa73749d12c08319d96844`
+Circuit ID (imageId): `0x6ca03c648024c754d607fdb67ed03e60f426b1286e6f2f64141a4841fccd5d7a`
 Chain ID: `167013` (Taiko Hoodi testnet)
 
 ## Architecture

@@ -19,7 +19,7 @@ import {
   deleteIcon,
   refreshIcon,
 } from './lib/icons.js';
-import { networkName, defaultRpc, explorerEntityUrl } from './lib/networks.js';
+import { networkName, defaultRpc, explorerEntityUrl, chainParams } from './lib/networks.js';
 import {
   weiToEth,
   truncateDepositId,
@@ -55,12 +55,107 @@ let state = {
   miningErrors: {},     // { 'recipient-0': 'msg', 'amount-1': 'msg', 'total': 'msg' }
   // Deposit detail
   depositBalance: null,
+  depositBalances: {},  // { depositId: BalanceResponse } for list cards
   claimTxHashes: {},   // { 'depositId-noteIndex': txHash }
   // Proof log
   proofLog: [],         // {time, message} entries accumulated during proving
   bannerExpanded: false,
   proofStartTime: null,
+  lastQueueLogSignature: null,
 };
+
+const PROOF_LOG_LIMIT = 300;
+const PROOF_LOG_STORAGE_KEY = 'shadow-proof-log-v1';
+
+function pushProofLog(entry) {
+  state.proofLog.push(entry);
+  if (state.proofLog.length > PROOF_LOG_LIMIT) {
+    state.proofLog.splice(0, state.proofLog.length - PROOF_LOG_LIMIT);
+  }
+  persistProofLogState();
+}
+
+function persistProofLogState() {
+  try {
+    const serializableLog = state.proofLog.map((entry) => {
+      const ts = entry.time instanceof Date ? entry.time : new Date(entry.time);
+      return {
+        ...entry,
+        time: Number.isNaN(ts.getTime()) ? new Date().toISOString() : ts.toISOString(),
+      };
+    });
+    sessionStorage.setItem(
+      PROOF_LOG_STORAGE_KEY,
+      JSON.stringify({
+        proofLog: serializableLog,
+        proofStartTime: state.proofStartTime,
+        lastQueueLogSignature: state.lastQueueLogSignature,
+        bannerExpanded: state.bannerExpanded,
+      }),
+    );
+  } catch {
+    // Best-effort persistence only.
+  }
+}
+
+function restoreProofLogState() {
+  try {
+    const raw = sessionStorage.getItem(PROOF_LOG_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.proofLog)) {
+      state.proofLog = parsed.proofLog
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const time = new Date(entry.time);
+          if (Number.isNaN(time.getTime())) return null;
+          return { ...entry, time };
+        })
+        .filter(Boolean)
+        .slice(-PROOF_LOG_LIMIT);
+    }
+    if (typeof parsed.proofStartTime === 'number' && Number.isFinite(parsed.proofStartTime)) {
+      state.proofStartTime = parsed.proofStartTime;
+    }
+    if (typeof parsed.lastQueueLogSignature === 'string') {
+      state.lastQueueLogSignature = parsed.lastQueueLogSignature;
+    }
+    if (typeof parsed.bannerExpanded === 'boolean') {
+      state.bannerExpanded = parsed.bannerExpanded;
+    }
+  } catch {
+    // Ignore malformed stored state.
+  }
+}
+
+function isActiveProofJob(job = state.queueJob) {
+  return Boolean(job && ['queued', 'running'].includes(job.status));
+}
+
+function syncProofStartTimeWithJob(job = state.queueJob) {
+  if (!job) {
+    if (state.proofStartTime != null) {
+      state.proofStartTime = null;
+      persistProofLogState();
+    }
+    return;
+  }
+
+  if (isActiveProofJob(job)) {
+    if (state.proofStartTime != null) return;
+    const startedEntry = [...state.proofLog]
+      .reverse()
+      .find((entry) => entry.depositId === job.depositId && entry.stage === 'started');
+    state.proofStartTime = startedEntry ? new Date(startedEntry.time).getTime() : Date.now();
+    persistProofLogState();
+    return;
+  }
+
+  if (state.proofStartTime != null) {
+    state.proofStartTime = null;
+    persistProofLogState();
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Theme
@@ -114,6 +209,8 @@ function applyRoute() {
 const app = document.getElementById('app');
 
 async function init() {
+  restoreProofLogState();
+
   // Apply current hash on load (before fetch so we know which view to show)
   applyRoute();
 
@@ -127,6 +224,11 @@ async function init() {
 
   // Poll queue status periodically (fallback for missed WS events)
   setInterval(pollQueue, 5000);
+  setInterval(() => {
+    if (isActiveProofJob() && state.proofStartTime != null) {
+      render();
+    }
+  }, 1000);
 
   // Check if wallet is already connected
   if (window.ethereum) {
@@ -165,6 +267,7 @@ async function refresh() {
     state.deposits = deposits;
     state.config = config;
     state.queueJob = queueJob;
+    syncProofStartTimeWithJob(state.queueJob);
     state.loading = false;
   } catch (err) {
     state.error = err.message;
@@ -172,6 +275,9 @@ async function refresh() {
   }
 
   render();
+
+  // Fetch on-chain balances for unproved deposits (drives list card status badges)
+  loadDepositBalancesForList();
 
   // Auto-refresh note statuses if viewing a deposit detail
   if (state.view === 'detail' && state.selectedId) {
@@ -182,6 +288,29 @@ async function refresh() {
 async function pollQueue() {
   try {
     state.queueJob = await api.getQueueStatus();
+    const job = state.queueJob;
+    syncProofStartTimeWithJob(job);
+    if (job && ['queued', 'running', 'failed'].includes(job.status)) {
+      const sig = `${job.depositId}|${job.status}|${job.currentNote}|${job.message}`;
+      if (state.lastQueueLogSignature !== sig) {
+        const hasExact = state.proofLog.some(
+          (entry) => entry.depositId === job.depositId && entry.message === job.message,
+        );
+        if (!hasExact) {
+          pushProofLog({
+            time: new Date(),
+            message: job.message || 'Proving...',
+            stage: job.status,
+            depositId: job.depositId,
+            currentNote: job.currentNote,
+          });
+        }
+        state.lastQueueLogSignature = sig;
+      }
+    } else {
+      state.lastQueueLogSignature = null;
+    }
+    persistProofLogState();
     render();
   } catch { /* ignore */ }
 }
@@ -202,13 +331,15 @@ function handleServerEvent(event) {
       }
       break;
     case 'proof:started':
-      // Only reset log if this is genuinely a new proof job (not a replayed
-      // event after WS reconnect while the same job is still running).
-      if (state.proofLog.length === 0 || state.proofLog[0]?.depositId !== event.depositId) {
-        state.proofLog = [];
-        state.proofStartTime = performance.now();
-      }
-      state.proofLog.push({ time: new Date(), message: `Started proving ${event.depositId}`, stage: 'started', depositId: event.depositId });
+      state.proofStartTime = Date.now();
+      pushProofLog({
+        time: new Date(),
+        message: `Started proving ${event.depositId}`,
+        stage: 'started',
+        depositId: event.depositId,
+      });
+      persistProofLogState();
+      render();
       pollQueue();
       break;
     case 'proof:note_progress': {
@@ -216,12 +347,14 @@ function handleServerEvent(event) {
         time: new Date(),
         message: event.message || `Note ${event.noteIndex + 1}/${event.totalNotes}`,
         stage: event.stage || 'proving',
+        depositId: event.depositId,
       };
       if (event.elapsedSecs != null) entry.elapsed = event.elapsedSecs;
       if (event.noteElapsedSecs != null) entry.noteElapsed = event.noteElapsedSecs;
       if (event.blockNumber != null) entry.blockNumber = event.blockNumber;
       if (event.chainId != null) entry.chainId = event.chainId;
-      state.proofLog.push(entry);
+      pushProofLog(entry);
+      render();
       pollQueue();
       break;
     }
@@ -229,25 +362,31 @@ function handleServerEvent(event) {
       const totalElapsed = event.elapsedSecs
         ? formatElapsed(event.elapsedSecs)
         : state.proofStartTime
-          ? formatElapsed((performance.now() - state.proofStartTime) / 1000)
+          ? formatElapsed((Date.now() - state.proofStartTime) / 1000)
           : '';
-      state.proofLog.push({
+      pushProofLog({
         time: new Date(),
         message: `Proof complete${totalElapsed ? ` in ${totalElapsed}` : ''} \u2014 ${event.proofFile || ''}`,
         stage: 'completed',
+        depositId: event.depositId,
       });
       state.proofStartTime = null;
+      persistProofLogState();
+      render();
       pollQueue();
       refresh();
       break;
     }
     case 'proof:failed':
-      state.proofLog.push({
+      pushProofLog({
         time: new Date(),
         message: `Failed: ${event.error || 'unknown error'}`,
         stage: 'failed',
+        depositId: event.depositId,
       });
       state.proofStartTime = null;
+      persistProofLogState();
+      render();
       pollQueue();
       refresh();
       break;
@@ -275,6 +414,10 @@ function navigateTo(view, id = null) {
 }
 
 async function handleProve(depositId, force = false) {
+  if (hasCircuitMismatch()) {
+    showToast('Proof generation disabled: local circuit ID does not match on-chain verifier.', 'error');
+    return;
+  }
   try {
     const job = await api.startProof(depositId, force);
     state.queueJob = job;
@@ -304,6 +447,20 @@ async function loadDepositBalance(depositId) {
   render();
 }
 
+function loadDepositBalancesForList() {
+  for (const deposit of state.deposits) {
+    if (deposit.hasProof) continue;
+    api.getDepositBalance(deposit.id)
+      .then((bal) => {
+        state.depositBalances[deposit.id] = bal;
+        render();
+      })
+      .catch(() => {
+        state.depositBalances[deposit.id] = { error: true };
+      });
+  }
+}
+
 async function loadAllNoteStatuses(depositId) {
   const deposit = state.deposits.find((d) => d.id === depositId);
   if (!deposit) return;
@@ -315,24 +472,18 @@ async function loadAllNoteStatuses(depositId) {
 }
 
 async function handleFundDeposit(deposit) {
+  if (hasCircuitMismatch()) {
+    showToast('Funding disabled: local circuit ID does not match on-chain verifier.', 'error');
+    return;
+  }
   if (!state.walletAddress) {
     await handleConnectWallet();
     if (!state.walletAddress) return;
   }
 
-  // Ensure wallet is on the deposit's chain
+  // Ensure wallet is on the deposit's chain (adds network to wallet if needed)
   const requiredChainHex = '0x' + parseInt(deposit.chainId, 10).toString(16);
-  if (state.walletChainId !== requiredChainHex) {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: requiredChainHex }],
-      });
-    } catch {
-      showToast(`Please switch your wallet to ${networkName(deposit.chainId)} (chain ${deposit.chainId})`, 'error');
-      return;
-    }
-  }
+  if (!await ensureChain(requiredChainHex)) return;
 
   const bal = state.depositBalance;
   if (!bal) { showToast('Balance not loaded yet', 'error'); return; }
@@ -374,6 +525,15 @@ async function handleCancelProof() {
   }
 }
 
+function confirmCancelProof() {
+  const depositId = state.queueJob?.depositId || 'this deposit';
+  confirmAction(
+    'Kill current proof job?',
+    `This will stop proving for ${depositId}. You can start it again later.`,
+    () => { handleCancelProof(); },
+  );
+}
+
 async function handleDeleteDeposit(id, includeProof) {
   try {
     await api.deleteDeposit(id, includeProof);
@@ -411,6 +571,44 @@ async function handleRefreshNote(depositId, noteIndex) {
   }
 }
 
+/**
+ * Ensure the connected wallet is on `chainIdHex` (e.g. "0x28bf5").
+ * Tries wallet_switchEthereumChain; falls back to wallet_addEthereumChain
+ * if the chain isn't in the wallet yet (error 4902).
+ * Returns true if the wallet is now on the correct chain, false otherwise.
+ */
+async function ensureChain(chainIdHex) {
+  if (state.walletChainId === chainIdHex) return true;
+  try {
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: chainIdHex }],
+    });
+    state.walletChainId = chainIdHex;
+    return true;
+  } catch (switchErr) {
+    if (switchErr.code === 4902) {
+      const decimalId = parseInt(chainIdHex, 16).toString();
+      const params = chainParams(decimalId);
+      if (params) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [params],
+          });
+          state.walletChainId = chainIdHex;
+          return true;
+        } catch {
+          // User rejected adding the chain — fall through to error toast
+        }
+      }
+    }
+    const decimalId = parseInt(chainIdHex, 16);
+    showToast(`Switch MetaMask to ${networkName(decimalId.toString())} (chain ${decimalId})`, 'error');
+    return false;
+  }
+}
+
 async function handleConnectWallet() {
   if (!window.ethereum) {
     showToast('MetaMask not detected. Install it to claim on-chain.', 'error');
@@ -437,11 +635,8 @@ async function handleClaim(depositId, noteIndex) {
     showToast('Preparing claim transaction...', 'info');
     const txData = await api.getClaimTx(depositId, noteIndex);
 
-    // Verify wallet is on the correct chain
-    if (state.walletChainId && state.walletChainId !== txData.chainId) {
-      showToast(`Switch MetaMask to chain ${parseInt(txData.chainId, 16)}`, 'error');
-      return;
-    }
+    // Ensure wallet is on the correct chain (adds network to wallet if needed)
+    if (!await ensureChain(txData.chainId)) return;
 
     const txHash = await window.ethereum.request({
       method: 'eth_sendTransaction',
@@ -531,6 +726,9 @@ function render() {
   app.innerHTML = '';
   app.appendChild(renderHeader());
 
+  const mismatchWarning = renderCircuitMismatchWarning();
+  if (mismatchWarning) app.appendChild(mismatchWarning);
+
   // Global proof job banner
   const banner = renderProofJobBanner();
   if (banner) app.appendChild(banner);
@@ -567,18 +765,38 @@ function render() {
 
 }
 
+function hasCircuitMismatch() {
+  return state.config?.circuitMismatch === true;
+}
+
+function renderCircuitMismatchWarning() {
+  if (!hasCircuitMismatch()) return null;
+  return el('div', { className: 'circuit-warning' }, [
+    el('h2', {}, '⚠️ Circuit ID mismatch detected'),
+    el('p', {}, 'This prover circuit does not match the deployed on-chain verifier.'),
+    state.config?.circuitId
+      ? el('p', {}, `On-chain: ${state.config.circuitId}`)
+      : null,
+    state.config?.localCircuitId
+      ? el('p', {}, `Local: ${state.config.localCircuitId}`)
+      : null,
+  ].filter(Boolean));
+}
+
 
 function renderHeader() {
   const headerLeft = el('div', { className: 'header-left' }, [
     el('div', { className: 'header-title-group' }, [
       el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
-      el('span', { className: 'header-network' }, state.config?.chainId ? `on ${networkName(state.config.chainId)}` : ''),
     ]),
     el('span', { className: 'header-count' },
       `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`),
   ]);
 
   const headerActions = el('div', { className: 'header-actions' }, [
+    state.config?.chainId
+      ? el('span', { className: 'header-count' }, networkName(state.config.chainId))
+      : null,
     state.walletAddress
       ? el('span', { className: 'wallet-badge' }, [
           el('span', { className: 'wallet-dot' }),
@@ -674,7 +892,7 @@ function renderListView() {
 
 function renderDepositCard(deposit) {
   const totalEth = weiToEth(deposit.totalAmount);
-  const cs = getCardStatus(deposit, state.queueJob);
+  const cs = getCardStatus(deposit, state.queueJob, state.depositBalances[deposit.id]);
   const statusBadge = el('span', { className: `badge ${cs.cls}` }, cs.label);
 
   return el(
@@ -784,6 +1002,7 @@ function renderDetailView() {
 
   const totalEth = weiToEth(deposit.totalAmount);
   const status = getDepositStatus(deposit, state.queueJob, state.depositBalance);
+  const circuitMismatch = hasCircuitMismatch();
 
   // Proof action button / hint (shown inside Proofs section)
   const proofAction = (() => {
@@ -794,20 +1013,34 @@ function renderDetailView() {
       return el('button', {
         className: 'btn',
         onclick: () => handleProve(deposit.id, true),
-        disabled: isProving(),
+        disabled: isProving() || circuitMismatch,
+        title: circuitMismatch
+          ? 'Disabled: local circuit ID does not match on-chain verifier'
+          : undefined,
       }, 'Regenerate Proof');
     }
     return el('button', {
       className: 'btn btn-primary',
       onclick: () => handleProve(deposit.id),
-      disabled: isProving() || status === 'unfunded',
-      title: status === 'unfunded' ? 'Fund the deposit first' : undefined,
+      disabled: isProving() || status === 'new' || status === 'funding' || circuitMismatch,
+      title: circuitMismatch
+        ? 'Disabled: local circuit ID does not match on-chain verifier'
+        : (status === 'new' || status === 'funding')
+          ? 'Fund the deposit first'
+          : undefined,
     }, 'Generate Proof');
   })();
 
   // Fund button or submitted tx link
   const fundAction = (() => {
-    if (status !== 'unfunded') return null;
+    if (status !== 'new' && status !== 'funding') return null;
+    if (circuitMismatch) {
+      return el(
+        'p',
+        { className: 'form-hint form-hint-top warning-text' },
+        'Funding disabled: local circuit ID does not match on-chain verifier.',
+      );
+    }
     if (state.fundingTxHash) {
       return el('p', { className: 'tx-submitted' }, [
         'Funding tx submitted: ',
@@ -824,6 +1057,10 @@ function renderDetailView() {
         el('button', {
           className: 'btn btn-primary',
           onclick: () => handleFundDeposit(deposit),
+          disabled: circuitMismatch,
+          title: circuitMismatch
+            ? 'Disabled: local circuit ID does not match on-chain verifier'
+            : undefined,
         }, 'Fund Deposit'),
       ]);
     }
@@ -856,16 +1093,15 @@ function renderDetailView() {
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
     ].filter(Boolean)),
 
-    // Funding Status
+    // Funding
     state.depositBalance?.error
       ? el('div', { className: 'detail-section' }, [
-          el('h2', {}, 'Funding Status'),
+          el('h2', {}, 'Funding'),
           el('p', { className: 'form-hint' }, 'Could not load balance \u2014 RPC may be unavailable.'),
         ])
       : state.depositBalance
         ? el('div', { className: 'detail-section' }, [
-            el('h2', {}, 'Funding Status'),
-            addressRow('Target Address', deposit.targetAddress, deposit.chainId),
+            el('h2', {}, 'Funding'),
             detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
             detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
             !state.depositBalance.isFunded
@@ -875,12 +1111,12 @@ function renderDetailView() {
             fundAction,
           ].filter(Boolean))
         : el('div', { className: 'detail-section' }, [
-            el('h2', {}, 'Funding Status'),
+            el('h2', {}, 'Funding'),
             el('p', { className: 'form-hint' }, 'Loading balance...'),
           ]),
 
     // Proofs (hidden until funded)
-    status !== 'unfunded' ? el('div', { className: 'detail-section' }, [
+    status !== 'new' && status !== 'funding' ? el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Proofs'),
       proofFileRow(deposit, status),
       // Show failure details while the failed job is not yet dismissed
@@ -910,6 +1146,7 @@ function renderNotesTable(deposit) {
         el('th', {}, '#'),
         el('th', {}, 'Recipient'),
         el('th', {}, 'Amount'),
+        el('th', {}, 'Label'),
         el('th', {}, 'Status'),
         el('th', {}, ''),
       ]),
@@ -924,6 +1161,7 @@ function renderNotesTable(deposit) {
             explorerLink(deposit.chainId, 'address', note.recipient),
           ]),
           el('td', {}, `${weiToEth(note.amount)} ETH`),
+          el('td', { className: 'note-label-cell' }, note.label || '-'),
           el('td', {}, [
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),
           ]),
@@ -984,10 +1222,20 @@ function renderNotesTable(deposit) {
 function renderProofJobBanner() {
   const job = state.queueJob;
   if (!job || !['queued', 'running', 'failed'].includes(job.status)) return null;
+  const logEntries = state.proofLog.filter(
+    (entry) => entry.depositId == null || entry.depositId === job.depositId,
+  );
+  const fallbackEntry = job
+    ? {
+        time: new Date(),
+        message: job.message || 'Proving...',
+        currentNote: job.currentNote,
+      }
+    : null;
 
   const isFailed = job.status === 'failed';
   const elapsedStr = state.proofStartTime
-    ? formatElapsed((performance.now() - state.proofStartTime) / 1000)
+    ? formatElapsed((Date.now() - state.proofStartTime) / 1000)
     : '';
 
   const expanded = state.bannerExpanded;
@@ -1011,27 +1259,29 @@ function renderProofJobBanner() {
               }, job.depositId),
             ].filter(Boolean)),
         isFailed ? null : el('span', { className: 'proof-banner-subtext' },
-          'Your fan noise is the sound of privacy being forged. Hang tight \u2615'),
+          'Your fan noise is the sound of privacy being forged. Hang tight 🔥'),
       ].filter(Boolean)),
     ]),
     el('div', { className: 'proof-banner-right' }, [
       !isFailed
         ? el('button', {
             className: 'btn btn-small proof-banner-toggle',
-            onclick: () => { state.bannerExpanded = !state.bannerExpanded; render(); },
+            onclick: () => { state.bannerExpanded = !state.bannerExpanded; persistProofLogState(); render(); },
           }, expanded ? 'Hide log' : 'Show log')
         : null,
       el('button', {
         className: 'btn btn-danger btn-small',
-        onclick: isFailed ? () => { api.cancelProof().catch(() => {}); state.queueJob = null; render(); } : handleCancelProof,
+        onclick: isFailed
+          ? () => { api.cancelProof().catch(() => {}); state.queueJob = null; render(); }
+          : confirmCancelProof,
       }, isFailed ? 'Dismiss' : 'Kill Current Job'),
     ].filter(Boolean)),  // proof-banner-right
     ]),                  // proof-banner-top
     null,
     expanded
       ? el('div', { className: 'proof-banner-log' },
-          state.proofLog.length > 0
-            ? state.proofLog.map(entry =>
+          logEntries.length > 0
+            ? logEntries.map(entry =>
                 el('div', { className: 'proof-log-entry' }, [
                   el('span', { className: 'proof-log-time' }, formatLogTime(entry.time)),
                   el('span', {}, entry.message),
@@ -1044,9 +1294,12 @@ function renderProofJobBanner() {
                 ].filter(Boolean))
               )
             : [el('div', { className: 'proof-log-entry' }, [
-                el('span', { className: 'proof-log-time' }, '—'),
-                el('span', { className: 'text-muted-60' }, 'Waiting for events...'),
-              ])]
+                el('span', { className: 'proof-log-time' }, fallbackEntry ? formatLogTime(fallbackEntry.time) : '—'),
+                el('span', { className: 'text-muted-60' }, fallbackEntry ? fallbackEntry.message : 'Waiting for events...'),
+                fallbackEntry?.currentNote != null
+                  ? el('span', { className: 'proof-log-detail' }, `note #${fallbackEntry.currentNote + 1}`)
+                  : null,
+              ].filter(Boolean))]
         )
       : null,
   ].filter(Boolean));
@@ -1109,9 +1362,8 @@ function renderSettingsView() {
       state.config
         ? el('div', {}, [
             detailRow('Version', `v${state.config.version}`),
-            state.config.shadowAddress ? detailRow('Shadow Contract', state.config.shadowAddress) : null,
+            state.config.shadowAddress ? addressRow('Shadow Contract', state.config.shadowAddress, state.config.chainId) : null,
             state.config.circuitId ? detailRow('Circuit ID', state.config.circuitId) : null,
-            state.config.verifierAddress ? detailRow('Verifier', state.config.verifierAddress) : null,
             state.config.rpcUrl ? detailRow('RPC URL', state.config.rpcUrl) : null,
           ].filter(Boolean))
         : el('p', { className: 'form-hint' }, 'Server not connected'),

@@ -22,6 +22,4 @@ pub struct AppState {
     pub chain_client: Option<ChainClient>,
     /// Shadow contract address (optional, for on-chain queries).
     pub shadow_address: Option<String>,
-    /// Verifier contract address (optional, for reading circuit ID).
-    pub verifier_address: Option<String>,
 }
