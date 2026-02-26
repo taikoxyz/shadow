@@ -29,7 +29,7 @@
 set -e
 
 REGISTRY_IMAGE="ghcr.io/taikoxyz/shadow:latest"
-EXPECTED_CIRCUIT_ID="0x6ca03c648024c754d607fdb67ed03e60f426b1286e6f2f64141a4841fccd5d7a"
+EXPECTED_CIRCUIT_ID="0xac4b31fadeb0115a1e6019c8bccc0ddf900fe6e40a447409d9ce6b257913dcbc"
 CONTAINER="shadow"
 WORKSPACE="$PWD/workspace"
 RISC0_WORK_DIR="$WORKSPACE/.risc0-work"

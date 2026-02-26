@@ -26,21 +26,24 @@ forge create src/impl/Shadow.sol:Shadow \
   --private-key $DEPLOYER_KEY
 ```
 
-## Verify on Taikoscan (Etherscan-compatible)
-
-```bash
-forge verify-contract <CONTRACT_ADDRESS> src/impl/Shadow.sol:Shadow \
-  --chain-id 167013 \
-  --etherscan-api-key $ETHERSCAN_API_KEY \
-  --verifier-url https://api.hoodi.taikoscan.io/api
-```
-
-## Verify on Blockscout
+## Verify on Blockscout (recommended)
 
 ```bash
 forge verify-contract <CONTRACT_ADDRESS> src/impl/Shadow.sol:Shadow \
   --verifier blockscout \
   --verifier-url 'https://blockscoutapi.hoodi.taiko.xyz/api?'
+```
+
+## Verify on Taikoscan (Etherscan-compatible)
+
+Note: `api.hoodi.taikoscan.io` may not have a DNS record yet. Check before using.
+
+```bash
+forge verify-contract <CONTRACT_ADDRESS> src/impl/Shadow.sol:Shadow \
+  --chain-id 167013 \
+  --verifier custom \
+  --verifier-url https://api.hoodi.taikoscan.io/api \
+  --verifier-api-key $ETHERSCAN_API_KEY
 ```
 
 ## Deploy + Verify in One Step
@@ -50,8 +53,8 @@ forge create src/impl/Shadow.sol:Shadow \
   --rpc-url https://rpc.hoodi.taiko.xyz \
   --private-key $DEPLOYER_KEY \
   --verify \
-  --etherscan-api-key $ETHERSCAN_API_KEY \
-  --verifier-url https://api.hoodi.taikoscan.io/api
+  --verifier blockscout \
+  --verifier-url 'https://blockscoutapi.hoodi.taiko.xyz/api?'
 ```
 
 ## Notes
