@@ -23,15 +23,38 @@ Options:
 | `--pull` | Force pull the latest image from registry |
 | `--build` | Force build the image from source |
 | `--clean` | Delete all local shadow images and containers, then exit |
-| `--verbose` | Show detailed output (docker build/pull logs, config details) |
+| `--verbose [level]` | Set verbosity level: `info` (default), `debug`, or `trace` |
 | `[port]` | Pin to a specific port (default: auto-select from 3000-3099) |
 
 ```bash
-./start.sh --pull          # force latest from registry
-./start.sh --build         # build from source
-./start.sh --build 3001    # build from source, use port 3001
-./start.sh --clean         # remove all shadow images and containers
+./start.sh --pull              # force latest from registry
+./start.sh --build             # build from source
+./start.sh --build 3001        # build from source, use port 3001
+./start.sh --clean             # remove all shadow images and containers
+./start.sh --verbose           # info-level server logs + launcher details
+./start.sh --verbose debug     # debug-level server logs
+./start.sh --verbose trace     # trace-level server logs (full RPC payloads)
 ```
+
+### Verbose & debugging
+
+**`--verbose [level]`** enables detailed output at two layers:
+
+**Launcher** (always shown when `--verbose` is used):
+- Docker version, registry image, and expected circuit ID
+- Circuit ID comparison during image validation
+- Full `docker build` / `docker pull` output (normally suppressed)
+- Image name, port mapping, and workspace mount before container start
+
+**Server** (controlled by the level — sets `RUST_LOG` inside the container):
+
+| Level | What it shows |
+|-------|---------------|
+| `info` (default) | Pipeline start/complete, block fetched, account proof fetched, note proving, queue events |
+| `debug` | + RPC call timing, chain ID verification, ClaimInput details, proof sizes, queue progress |
+| `trace` | + Full RPC request params and response payloads |
+
+**Browser console** logging is separate and opt-in. Enable via `localStorage.setItem('shadow-debug', '1')` or add `?debug` to the URL. This logs API calls with timing and all WebSocket events.
 
 The server provides:
 - Web UI for managing deposits and proofs

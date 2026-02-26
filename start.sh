@@ -11,7 +11,8 @@
 #   --pull     Force pull the latest image from registry (skip local check)
 #   --build    Force build the image from source (skip local check and registry)
 #   --clean    Delete all local shadow images and containers, then exit
-#   --verbose  Show detailed output (docker build/pull logs, config details)
+#   --verbose [level]  Set verbosity: info (default), debug, or trace
+#                      Also shows docker build/pull output and launcher details
 #
 # What it does:
 #   1. Checks for Docker
@@ -29,6 +30,7 @@ WORKSPACE="$PWD/workspace"
 FORCE_PULL=false
 FORCE_BUILD=false
 VERBOSE=false
+VERBOSE_LEVEL=""
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -38,7 +40,14 @@ while [ $# -gt 0 ]; do
     --pull)  FORCE_PULL=true; shift ;;
     --build) FORCE_BUILD=true; shift ;;
     --clean)   FORCE_CLEAN=true; shift ;;
-    --verbose) VERBOSE=true; shift ;;
+    --verbose)
+      VERBOSE=true; shift
+      # Check if next arg is a level (info/debug/trace)
+      case "${1:-}" in
+        info|debug|trace) VERBOSE_LEVEL="$1"; shift ;;
+        *)                VERBOSE_LEVEL="info" ;;
+      esac
+      ;;
     -*)      printf 'Unknown option: %s\n' "$1" >&2; exit 1 ;;
     *)       PORT="$1"; shift ;;
   esac
@@ -255,6 +264,13 @@ info "Starting Shadow at $URL ..."
 debug "Image: $USE_IMAGE"
 debug "Port mapping: ${PORT}:3000"
 debug "Workspace: $WORKSPACE:/workspace"
+debug "RUST_LOG: shadow_server=${VERBOSE_LEVEL:-info}"
+
+RUST_LOG_ENV=""
+if [ -n "$VERBOSE_LEVEL" ]; then
+  RUST_LOG_ENV="shadow_server=$VERBOSE_LEVEL"
+fi
+
 docker run -d \
   --name "$CONTAINER" \
   --platform linux/amd64 \
@@ -264,6 +280,7 @@ docker run -d \
   -e SHADOW_ADDRESS=0x77cdA0575e66A5FC95404fdA856615AD507d8A07 \
   -e VERIFIER_ADDRESS=0x38b6e672eD9577258e1339bA9263cD034C147014 \
   -e RECEIPT_KIND=groth16 \
+  ${RUST_LOG_ENV:+-e RUST_LOG="$RUST_LOG_ENV"} \
   "$USE_IMAGE" > /dev/null
 
 ok "Container started (logs: docker logs -f $CONTAINER)"
