@@ -28,11 +28,13 @@ RUN npm install -g pnpm@9
 
 # Copy UI package files for dependency installation
 COPY packages/ui/package.json ./
-RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 
 # Copy UI source and build
 COPY packages/ui/ ./
-RUN pnpm build
+RUN --mount=type=cache,target=/build/node_modules/.vite \
+    pnpm build
 
 # -----------------------------------------------------------------------------
 # Stage 2: Rust Builder — compile the server binary with proof generation
