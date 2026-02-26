@@ -305,6 +305,16 @@ body {
   color: var(--accent-amber);
 }
 
+.badge-funding {
+  background: var(--accent-amber-bg);
+  color: var(--accent-amber);
+}
+
+.badge-funded {
+  background: var(--accent-blue-bg);
+  color: var(--accent-blue);
+}
+
 .badge-proving {
   background: var(--accent-blue-bg);
   color: var(--accent-blue);

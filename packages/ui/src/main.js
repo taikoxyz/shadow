@@ -55,6 +55,7 @@ let state = {
   miningErrors: {},     // { 'recipient-0': 'msg', 'amount-1': 'msg', 'total': 'msg' }
   // Deposit detail
   depositBalance: null,
+  depositBalances: {},  // { depositId: BalanceResponse } for list cards
   claimTxHashes: {},   // { 'depositId-noteIndex': txHash }
   // Proof log
   proofLog: [],         // {time, message} entries accumulated during proving
@@ -275,6 +276,9 @@ async function refresh() {
 
   render();
 
+  // Fetch on-chain balances for unproved deposits (drives list card status badges)
+  loadDepositBalancesForList();
+
   // Auto-refresh note statuses if viewing a deposit detail
   if (state.view === 'detail' && state.selectedId) {
     loadAllNoteStatuses(state.selectedId);
@@ -441,6 +445,20 @@ async function loadDepositBalance(depositId) {
     state.depositBalance = { error: true };
   }
   render();
+}
+
+function loadDepositBalancesForList() {
+  for (const deposit of state.deposits) {
+    if (deposit.hasProof) continue;
+    api.getDepositBalance(deposit.id)
+      .then((bal) => {
+        state.depositBalances[deposit.id] = bal;
+        render();
+      })
+      .catch(() => {
+        state.depositBalances[deposit.id] = { error: true };
+      });
+  }
 }
 
 async function loadAllNoteStatuses(depositId) {
@@ -874,7 +892,7 @@ function renderListView() {
 
 function renderDepositCard(deposit) {
   const totalEth = weiToEth(deposit.totalAmount);
-  const cs = getCardStatus(deposit, state.queueJob);
+  const cs = getCardStatus(deposit, state.queueJob, state.depositBalances[deposit.id]);
   const statusBadge = el('span', { className: `badge ${cs.cls}` }, cs.label);
 
   return el(
@@ -1004,10 +1022,10 @@ function renderDetailView() {
     return el('button', {
       className: 'btn btn-primary',
       onclick: () => handleProve(deposit.id),
-      disabled: isProving() || status === 'unfunded' || circuitMismatch,
+      disabled: isProving() || status === 'new' || status === 'funding' || circuitMismatch,
       title: circuitMismatch
         ? 'Disabled: local circuit ID does not match on-chain verifier'
-        : status === 'unfunded'
+        : (status === 'new' || status === 'funding')
           ? 'Fund the deposit first'
           : undefined,
     }, 'Generate Proof');
@@ -1015,7 +1033,7 @@ function renderDetailView() {
 
   // Fund button or submitted tx link
   const fundAction = (() => {
-    if (status !== 'unfunded') return null;
+    if (status !== 'new' && status !== 'funding') return null;
     if (circuitMismatch) {
       return el(
         'p',
@@ -1099,7 +1117,7 @@ function renderDetailView() {
           ]),
 
     // Proofs (hidden until funded)
-    status !== 'unfunded' ? el('div', { className: 'detail-section' }, [
+    status !== 'new' && status !== 'funding' ? el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Proofs'),
       proofFileRow(deposit, status),
       // Show failure details while the failed job is not yet dismissed
