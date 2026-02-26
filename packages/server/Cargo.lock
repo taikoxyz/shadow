@@ -3783,7 +3783,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "sha2",
  "shadow-proof-core",
  "shadow-prover-lib",
  "tempfile",
