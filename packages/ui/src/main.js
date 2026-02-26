@@ -1127,7 +1127,7 @@ function renderProofJobBanner() {
               }, job.depositId),
             ].filter(Boolean)),
         isFailed ? null : el('span', { className: 'proof-banner-subtext' },
-          'Your fan noise is the sound of privacy being forged. Hang tight \u2615'),
+          'Your fan noise is the sound of privacy being forged. Hang tight 🔥'),
       ].filter(Boolean)),
     ]),
     el('div', { className: 'proof-banner-right' }, [
