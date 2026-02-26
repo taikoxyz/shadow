@@ -24,7 +24,7 @@ Shadow provides privacy properties but does not guarantee anonymity. See `PRIVAC
   - `recipient` (address)
   - `amount` (wei, > 0)
   - `label` (optional; excluded from derivation and proving)
-- Total note sum: **<= 32 ETH**.
+- Total note sum: **<= 8 ETH**.
 
 ### Deposit File (User Secret Material)
 
@@ -78,8 +78,6 @@ Given private inputs `(secret, noteIndex, full note set, accountProofNodes...)` 
    - The extracted account balance satisfies `balance(targetAddress) >= sum(noteAmounts)`.
 4. Nullifier correctness
    - `nullifier` is derived correctly for `(secret, chainId, noteIndex)`.
-5. Anti-spam PoW (enforced privately in the guest)
-   - `powDigest = SHA256(notesHash || secret)` has **24 trailing zero bits** (bound to the note set).
 
 Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-chain verification (trusted setup is provided by RISC0 tooling; no new ceremony required).
 

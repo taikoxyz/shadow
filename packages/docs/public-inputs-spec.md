@@ -30,12 +30,11 @@ and uses the derived `stateRoot` when building `publicInputs`.
 
 ### Private Witness Values (Not Public Inputs / Not In Journal)
 
-The zkVM guest enforces these values privately:
+The zkVM guest enforces this value privately:
 
 - `noteIndex`: claimed note index (0-based)
-- `powDigest = sha256(notesHash || secret)` with 24 trailing zero bits
 
-Neither value is committed in the RISC0 journal and neither is provided to contracts as calldata.
+This value is not committed in the RISC0 journal and is not provided to contracts as calldata.
 
 ## Flattened Public Inputs (`uint256[87]`)
 

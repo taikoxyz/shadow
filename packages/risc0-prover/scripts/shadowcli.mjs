@@ -24,7 +24,7 @@ const MAGIC = {
 const MAX_NOTES = 5;
 const MAX_PROOF_DEPTH = 64;
 const MAX_NODE_BYTES = 4096;
-const MAX_TOTAL_WEI = 32000000000000000000n;
+const MAX_TOTAL_WEI = 8000000000000000000n;
 
 const IDX = {
   BLOCK_NUMBER: 0,
@@ -139,9 +139,6 @@ async function cmdValidate(opts) {
   console.log("Total amount:", derived.totalAmount.toString(), "wei");
   console.log("Target address:", bytesToHex(derived.targetAddress));
   console.log("Nullifier:", bytesToHex(derived.nullifier));
-  console.log("PoW digest:", bytesToHex(derived.powDigest));
-  console.log("PoW digest valid:", powDigestIsValid(derived.powDigest));
-
   if (deposit.targetAddress) {
     const expected = getAddress(deposit.targetAddress);
     const actual = getAddress(bytesToHex(derived.targetAddress));
@@ -178,12 +175,6 @@ async function cmdProve(opts) {
   const targetAddressHex = bytesToHex(derived.targetAddress);
   console.log("Target address:", targetAddressHex);
   console.log("Total required:", derived.totalAmount.toString(), "wei");
-  if (!powDigestIsValid(derived.powDigest)) {
-    throw new Error(
-      "PoW digest is not valid for this note set + secret (needs last 24 bits == 0). Use a valid secret before proving."
-    );
-  }
-
   let blockNumber;
   let blockHashBytes;
   let blockHeaderRlpBytes;
@@ -656,7 +647,6 @@ function deriveFromDeposit(deposit, chainId, noteIndex) {
   const notesHash = computeNotesHash(noteAmounts, recipientHashes);
   const targetAddress = deriveTargetAddress(secretBytes, chainId, notesHash);
   const nullifier = deriveNullifier(secretBytes, chainId, noteIndex);
-  const powDigest = computePowDigest(notesHash, secretBytes);
 
   return {
     secretBytes,
@@ -667,8 +657,7 @@ function deriveFromDeposit(deposit, chainId, noteIndex) {
     claimAmount: noteAmounts[noteIndex],
     claimRecipientBytes: recipients[noteIndex],
     targetAddress,
-    nullifier,
-    powDigest
+    nullifier
   };
 }
 
@@ -824,17 +813,6 @@ function deriveNullifier(secretBytes, chainId, noteIndex) {
   input.set(secretBytes, 64);
   input.set(bigintToBytes32(BigInt(noteIndex)), 96);
   return sha256(input);
-}
-
-function computePowDigest(notesHash, secretBytes) {
-  const input = new Uint8Array(64);
-  input.set(notesHash, 0);
-  input.set(secretBytes, 32);
-  return sha256(input);
-}
-
-function powDigestIsValid(digest) {
-  return digest[29] === 0 && digest[30] === 0 && digest[31] === 0;
 }
 
 async function rpcCall(rpcUrl, method, params) {

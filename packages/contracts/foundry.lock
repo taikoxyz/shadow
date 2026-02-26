@@ -16,5 +16,8 @@
       "name": "v5.5.0",
       "rev": "aa677e9d28ed78fc427ec47ba2baef2030c58e7c"
     }
+  },
+  "lib/risc0-ethereum": {
+    "rev": "32aa0b6f23ddd02dd93fc71717667606e5c7db86"
   }
 }

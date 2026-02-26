@@ -158,10 +158,9 @@ struct CreateDepositResponse {
     filename: String,
     target_address: String,
     total_amount: String,
-    iterations: u64,
 }
 
-/// `POST /api/deposits` — mine a new deposit (PoW) and save to workspace.
+/// `POST /api/deposits` — create a new deposit and save to workspace.
 async fn create_deposit(
     State(state): State<Arc<AppState>>,
     Json(body): Json<CreateDepositRequest>,
@@ -233,7 +232,7 @@ async fn create_deposit(
     let workspace = state.workspace.clone();
     let comment = body.comment.clone();
 
-    // Run the PoW mining in a blocking thread (CPU-intensive)
+    // Run deposit creation in a blocking thread
     let result = tokio::task::spawn_blocking(move || {
         let req = mining::MineRequest {
             chain_id,
@@ -271,9 +270,8 @@ async fn create_deposit(
 
     tracing::info!(
         filename = %filename,
-        iterations = mine_result.iterations,
         target = %format!("0x{}", hex::encode(mine_result.target_address)),
-        "deposit mined successfully"
+        "deposit created successfully"
     );
 
     // Broadcast workspace change via WebSocket
@@ -285,7 +283,6 @@ async fn create_deposit(
         filename,
         target_address: format!("0x{}", hex::encode(mine_result.target_address)),
         total_amount: total_amount.to_string(),
-        iterations: mine_result.iterations,
     }))
 }
 

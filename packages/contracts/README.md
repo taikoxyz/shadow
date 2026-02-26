@@ -45,7 +45,7 @@ The on-chain verification flow:
 3. `Risc0CircuitVerifier.verify` decodes the seal and journalDigest from `_proof`, then calls `IRiscZeroVerifier.verify(seal, imageId, journalDigest)`
 
 Private inputs enforced inside the zkVM guest (not in the journal):
-- `noteIndex`, `powDigest`, secret, and Merkle proof data
+- `noteIndex`, secret, and Merkle proof data
 
 ## Taiko deployment script
 

@@ -37,7 +37,7 @@ You start by creating a deposit file. This is a JSON file that contains:
 - A **secret** (like a password, but randomly generated)
 - A list of **notes** — essentially payment instructions (who gets what amount)
 
-You can create 1 to 5 notes per deposit, with a maximum total of 32 ETH.
+You can create 1 to 5 notes per deposit, with a maximum total of 8 ETH.
 
 ![Deposit File Structure](images/deposit-file.svg)
 

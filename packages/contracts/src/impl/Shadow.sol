@@ -68,31 +68,11 @@ contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable, ReentrancyG
     /// @dev Protected by `whenNotPaused`: the owner can halt all new claims in an emergency
     ///      (e.g., if a critical vulnerability is discovered in the verifier or minter).
     ///
-    /// @dev **Proof-of-Work (PoW) anti-spam rationale:**
-    ///      Each deposit secret is required to satisfy a 24-bit PoW constraint: the last
-    ///      3 bytes of SHA-256(notesHash || secret) must all be zero.  This corresponds
-    ///      to ~16 million SHA-256 iterations on average (2^24 ≈ 16.7 M hashes, typically
-    ///      found in < 1 second on modern hardware).
-    ///
-    ///      The primary cost barrier for spam is *ZK proof generation*: producing a valid
-    ///      RISC Zero Groth16 receipt takes several minutes on consumer hardware and
-    ///      significant cloud compute (~USD 0.10–1.00 per proof at current rates).
-    ///      The PoW serves as a lightweight *secondary* deterrent that:
-    ///        1. Forces the depositor to commit CPU work before publishing a target address,
-    ///           making Sybil attacks marginally more expensive at zero on-chain gas cost.
-    ///        2. Binds the secret to the note set (notesHash), preventing trivial reuse of
-    ///           pre-mined secrets across different note configurations.
-    ///        3. Is verified entirely inside the ZK circuit (not on-chain), so it adds no
-    ///           marginal gas cost to the claim transaction.
-    ///
-    ///      24 bits is deliberately kept low because the ZK proof cost already dominates.
-    ///      Raising the PoW to 32+ bits would only slow down legitimate users while
-    ///      providing negligible additional protection against well-resourced adversaries
-    ///      who can afford ZK proof generation anyway.
-    ///
-    ///      There is no on-chain EIP/ERC standard for PoW anti-spam deposits; this design
-    ///      draws inspiration from the general Hashcash concept (Adam Back, 1997) applied
-    ///      to commitment schemes.
+    /// @dev **Deposit cap rationale:**
+    ///      The ZK circuit enforces a maximum total of 8 ETH per deposit.  This bounds the
+    ///      extractable value from any hypothetical birthday collision attack on the 160-bit
+    ///      target address space (~2^80 hash operations), ensuring such an attack remains
+    ///      economically infeasible.
     function claim(bytes calldata _proof, PublicInput calldata _input) external whenNotPaused nonReentrant {
         require(_input.chainId == block.chainid, ChainIdMismatch(_input.chainId, block.chainid));
         require(_input.amount > 0, InvalidAmount(_input.amount));
