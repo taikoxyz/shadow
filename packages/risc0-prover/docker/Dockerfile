@@ -12,8 +12,8 @@ FROM node:20-bookworm AS builder
 
 ENV PNPM_HOME=/root/.pnpm
 ENV PATH="/root/.cargo/bin:/root/.risc0/bin:${PNPM_HOME}:${PATH}"
-ENV CARGO_BUILD_JOBS=2
-ENV CMAKE_BUILD_PARALLEL_LEVEL=2
+# Use all available CPU cores for builds (cargo defaults to all CPUs when unset)
+ENV CMAKE_BUILD_PARALLEL_LEVEL=0
 
 # Install build dependencies
 RUN apt-get update && \
@@ -51,6 +51,9 @@ RUN pnpm install --filter shadow-risc0-prover... --frozen-lockfile --ignore-scri
 
 # Build Rust binary
 RUN cargo build --manifest-path packages/risc0-prover/Cargo.toml --release -p shadow-risc0-host
+
+# Extract circuit ID from the compiled binary
+RUN packages/risc0-prover/target/release/shadow-risc0-host circuit-id > /tmp/circuit-id.txt
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime - Minimal image for running the prover
@@ -98,6 +101,9 @@ COPY --from=builder /workspace/node_modules ./node_modules
 # Copy entrypoint script
 COPY packages/risc0-prover/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Copy circuit ID from builder stage (used by CI to tag the image)
+COPY --from=builder /tmp/circuit-id.txt /tmp/circuit-id.txt
 
 # Labels for container registry
 LABEL org.opencontainers.image.title="Taiko Shadow Prover"

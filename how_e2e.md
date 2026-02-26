@@ -36,7 +36,7 @@ docker run --rm -it \
   -v $(pwd)/workspace:/workspace \
   -e RPC_URL=https://rpc.hoodi.taiko.xyz \
   -e SHADOW_ADDRESS=0x77cdA0575e66A5FC95404fdA856615AD507d8A07 \
-  -e VERIFIER_ADDRESS=0x38b6e672eD9577258e1339bA9263cD034C147014 \
+  -e VERIFIER_ADDRESS=0xF28B5F2850eb776058566A2945589A6A1Fa98e28 \
   -e RECEIPT_KIND=groth16 \
   -e RUST_LOG=shadow_server=info \
   shadow-local

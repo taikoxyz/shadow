@@ -20,6 +20,26 @@ function lucideIcon(iconNode, extraClass) {
 }
 
 // ---------------------------------------------------------------------------
+// Network registry — chain ID → display name, explorer, default RPC
+// ---------------------------------------------------------------------------
+const NETWORKS = {
+  '167000': { name: 'Taiko Mainnet', explorer: 'https://taikoscan.io', rpc: 'https://rpc.taiko.xyz' },
+  '167013': { name: 'Taiko Hoodi',   explorer: 'https://hoodi.taikoscan.io', rpc: 'https://rpc.hoodi.taiko.xyz' },
+};
+
+function networkName(chainId) {
+  return NETWORKS[chainId]?.name || `Chain ${chainId}`;
+}
+
+function explorerUrl(chainId) {
+  return NETWORKS[chainId]?.explorer || '';
+}
+
+function defaultRpc(chainId) {
+  return NETWORKS[chainId]?.rpc || '';
+}
+
+// ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
@@ -39,8 +59,10 @@ let state = {
   mining: false,
   miningNotes: null,    // persists across render() calls while form is open
   miningComment: '',
+  miningErrors: {},     // { 'recipient-0': 'msg', 'amount-1': 'msg', 'total': 'msg' }
   // Deposit detail
   depositBalance: null,
+  claimTxHashes: {},   // { 'depositId-noteIndex': txHash }
   wsConnected: false,
   // Proof log
   proofLog: [],         // {time, message} entries accumulated during proving
@@ -179,12 +201,22 @@ async function pollQueue() {
 function handleServerEvent(event) {
   switch (event.type) {
     case 'workspace:changed':
-      refresh();
+      // During active proving, skip full refresh to avoid page flicker —
+      // the proof:completed/failed events will trigger refresh when done.
+      if (isProving()) {
+        render();
+      } else {
+        refresh();
+      }
       break;
     case 'proof:started':
-      state.proofLog = [];
-      state.proofStartTime = performance.now();
-      state.proofLog.push({ time: new Date(), message: `Started proving ${event.depositId}`, stage: 'started' });
+      // Only reset log if this is genuinely a new proof job (not a replayed
+      // event after WS reconnect while the same job is still running).
+      if (state.proofLog.length === 0 || state.proofLog[0]?.depositId !== event.depositId) {
+        state.proofLog = [];
+        state.proofStartTime = performance.now();
+      }
+      state.proofLog.push({ time: new Date(), message: `Started proving ${event.depositId}`, stage: 'started', depositId: event.depositId });
       pollQueue();
       break;
     case 'proof:note_progress': {
@@ -239,6 +271,7 @@ function handleServerEvent(event) {
 }
 
 function navigateTo(view, id = null) {
+  state.fundingTxHash = null;
   if (view === 'detail' && id) {
     state.depositBalance = null; // reset while loading
     location.hash = `#/deposit/${encodeURIComponent(id)}`;
@@ -299,6 +332,21 @@ async function handleFundDeposit(deposit) {
     await handleConnectWallet();
     if (!state.walletAddress) return;
   }
+
+  // Ensure wallet is on the deposit's chain
+  const requiredChainHex = '0x' + parseInt(deposit.chainId, 10).toString(16);
+  if (state.walletChainId !== requiredChainHex) {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: requiredChainHex }],
+      });
+    } catch (switchErr) {
+      showToast(`Please switch your wallet to ${networkName(deposit.chainId)} (chain ${deposit.chainId})`, 'error');
+      return;
+    }
+  }
+
   const bal = state.depositBalance;
   if (!bal) { showToast('Balance not loaded yet', 'error'); return; }
 
@@ -315,7 +363,9 @@ async function handleFundDeposit(deposit) {
         value: '0x' + dueWei.toString(16),
       }],
     });
+    state.fundingTxHash = txHash;
     showToast(`Funding tx submitted: ${txHash.slice(0, 18)}...`, 'success');
+    render();
     // Re-check balance after 6s
     setTimeout(() => loadDepositBalance(deposit.id), 6000);
   } catch (err) {
@@ -416,7 +466,9 @@ async function handleClaim(depositId, noteIndex) {
       }],
     });
 
+    state.claimTxHashes[`${depositId}-${noteIndex}`] = txHash;
     showToast(`Claim submitted! TX: ${txHash.slice(0, 18)}...`, 'success');
+    render();
 
     // Refresh note status after a delay (wait for indexing)
     setTimeout(() => handleRefreshNote(depositId, noteIndex), 5000);
@@ -454,17 +506,19 @@ async function handleMineDeposit(formData) {
   render();
 
   try {
-    const chainId = formData.chainId || state.config?.chainId || '167013';
+    const chainId = formData.chainId || state.config?.chainId;
+    if (!chainId) { showToast('Chain ID not available — check server RPC config', 'error'); state.mining = false; render(); return; }
     const result = await api.createDeposit(chainId, formData.notes, formData.comment);
     state.showMiningForm = false;
     state.mining = false;
     state.miningNotes = null;
     state.miningComment = '';
-    showToast(`Deposit mined! ${result.iterations.toLocaleString()} iterations`, 'success');
+    state.miningErrors = {};
+    showToast('Deposit created!', 'success');
     await refresh();
   } catch (err) {
     state.mining = false;
-    showToast(`Mining failed: ${err.message}`, 'error');
+    showToast(`Create failed: ${err.message}`, 'error');
     render();
   }
 }
@@ -529,7 +583,10 @@ function render() {
 
 function renderHeader() {
   const headerLeft = el('div', { className: 'header-left' }, [
-    el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
+    el('div', { className: 'header-title-group' }, [
+      el('h1', { onclick: () => navigateTo('list') }, 'Shadow'),
+      el('span', { className: 'header-network' }, state.config?.chainId ? `on ${networkName(state.config.chainId)}` : ''),
+    ]),
     el('span', { className: 'header-count' },
       `${state.deposits.length} deposit${state.deposits.length !== 1 ? 's' : ''}`),
   ]);
@@ -596,21 +653,6 @@ function renderListView() {
   // Mining form
   if (state.showMiningForm) {
     items.push(renderMiningForm());
-  }
-
-  if (state.deposits.length === 0 && !state.showMiningForm) {
-    items.push(el('div', { className: 'empty-state' }, [
-      el('h2', {}, 'No deposits found'),
-      el('p', {}, 'Create a new deposit or place deposit JSON files in the workspace directory.'),
-      el('button', {
-        className: 'btn btn-primary',
-        style: 'margin-top: 1rem',
-        disabled: isProving(),
-        title: isProving() ? 'Proof generation in progress' : undefined,
-        onclick: () => { state.showMiningForm = true; render(); },
-      }, '+ New Deposit'),
-    ]));
-    return el('div', {}, items);
   }
 
   if (!state.showMiningForm) {
@@ -700,6 +742,99 @@ function renderMiningForm() {
     renderFormContent();
   }
 
+  const MAX_TOTAL_WEI = BigInt('8000000000000000000'); // 8 ETH
+
+  // Helper: set an error in state and update DOM if element exists.
+  // key is e.g. 'recipient-0', 'amount-1', 'total'.
+  // Error span IDs: mine-recipient-error-0, mine-amount-error-1, mine-total-error.
+  // Input IDs: mine-recipient-0, mine-amount-1.
+  function setFieldError(key, msg) {
+    if (msg) {
+      state.miningErrors[key] = msg;
+    } else {
+      delete state.miningErrors[key];
+    }
+    // Build DOM IDs: split key like 'recipient-0' into field + index
+    const dash = key.lastIndexOf('-');
+    const hasIndex = dash > 0 && !isNaN(key.slice(dash + 1));
+    const errId = hasIndex
+      ? `mine-${key.slice(0, dash)}-error-${key.slice(dash + 1)}`
+      : `mine-${key}-error`;
+    const inputId = hasIndex
+      ? `mine-${key.slice(0, dash)}-${key.slice(dash + 1)}`
+      : null;
+
+    const errEl = document.getElementById(errId);
+    if (errEl) errEl.textContent = msg || '';
+    if (inputId) {
+      const inputEl = document.getElementById(inputId);
+      if (inputEl) {
+        if (msg) inputEl.classList.add('form-input-invalid');
+        else inputEl.classList.remove('form-input-invalid');
+      }
+    }
+  }
+
+  function validateAmountField(i, requireNonEmpty) {
+    const val = state.miningNotes[i].amount.trim();
+    const key = `amount-${i}`;
+
+    if (!val && requireNonEmpty) {
+      setFieldError(key, 'Amount is required.');
+      return;
+    }
+    const weiStr = ethToWei(val);
+    if (val && (!weiStr || weiStr === '0')) {
+      setFieldError(key, 'Must be a positive number.');
+      return;
+    }
+    if (val && weiStr) {
+      const wei = BigInt(weiStr);
+      if (wei < BigInt('1000000000000')) {
+        setFieldError(key, 'Amount too small (min ~0.000001 ETH).');
+        return;
+      }
+    }
+    setFieldError(key, '');
+    validateTotalCap();
+  }
+
+  function validateTotalCap() {
+    saveNoteData();
+    let total = BigInt(0);
+    let allValid = true;
+    for (const note of state.miningNotes) {
+      const weiStr = ethToWei(note.amount.trim());
+      if (!weiStr || weiStr === '0') { allValid = false; continue; }
+      total += BigInt(weiStr);
+    }
+    const msg = (allValid && total > MAX_TOTAL_WEI)
+      ? `Total ${weiToEth(total.toString())} ETH exceeds 8 ETH cap.`
+      : '';
+    setFieldError('total', msg);
+  }
+
+  function validateRecipientField(i, requireNonEmpty) {
+    const val = state.miningNotes[i].recipient.trim();
+    const key = `recipient-${i}`;
+
+    if (val && !val.match(/^0x[0-9a-fA-F]{40}$/)) {
+      setFieldError(key, 'Invalid address — must be 0x followed by 40 hex characters.');
+    } else if (!val && requireNonEmpty) {
+      setFieldError(key, 'Recipient address is required.');
+    } else {
+      setFieldError(key, '');
+    }
+    // Wallet warning
+    const wallet = state.walletAddress?.toLowerCase();
+    const warnEl = document.getElementById(`mine-recipient-warn-${i}`);
+    if (warnEl) {
+      warnEl.textContent = (wallet && val.toLowerCase() === wallet)
+        ? 'Warning: using your connected wallet as recipient may reveal your identity on-chain.'
+        : '';
+    }
+  }
+
   function renderFormContent() {
     container.innerHTML = '';
 
@@ -707,14 +842,14 @@ function renderMiningForm() {
       el('h3', {}, 'New Deposit'),
       el('button', {
         className: 'btn-icon',
-        onclick: () => { state.showMiningForm = false; state.miningNotes = null; state.miningComment = ''; render(); },
+        onclick: () => { state.showMiningForm = false; state.miningNotes = null; state.miningComment = ''; state.miningErrors = {}; render(); },
         title: 'Close',
       }, '\u2715'),
     ]);
     container.appendChild(header);
 
-    // Chain ID (fixed — not configurable by user)
-    const chainId = state.config?.chainId || '167013';
+    // Chain ID (from server config)
+    const chainId = state.config?.chainId;
 
     // Comment field
     container.appendChild(el('div', { className: 'form-group' }, [
@@ -737,7 +872,7 @@ function renderMiningForm() {
     container.appendChild(el('div', {
       style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem',
     }, [
-      el('span', { className: 'form-label', style: 'margin-bottom:0' }, 'Notes'),
+      el('span', { className: 'form-label', style: 'margin-bottom:0' }, 'Notes (max 8 ETH total)'),
       state.miningNotes.length < 5
         ? el('button', {
             className: 'btn btn-small',
@@ -764,45 +899,36 @@ function renderMiningForm() {
           el('div', { className: 'form-group', style: 'flex:2' }, [
             el('label', { className: 'form-label' }, 'Recipient'),
             el('input', {
-              className: 'form-input',
+              className: state.miningErrors[`recipient-${i}`] ? 'form-input form-input-invalid' : 'form-input',
               id: `mine-recipient-${i}`,
               placeholder: '0x...',
               value: note.recipient,
               oninput: (e) => { state.miningNotes[i].recipient = e.target.value; },
               onblur: (e) => {
                 state.miningNotes[i].recipient = e.target.value;
-                const val = e.target.value.trim();
-                const errEl = document.getElementById(`mine-recipient-error-${i}`);
-                const inputEl = e.target;
-                if (val && !val.match(/^0x[0-9a-fA-F]{40}$/)) {
-                  inputEl.classList.add('form-input-invalid');
-                  if (errEl) errEl.textContent = 'Invalid address — must be 0x followed by 40 hex characters.';
-                } else {
-                  inputEl.classList.remove('form-input-invalid');
-                  if (errEl) errEl.textContent = '';
-                  const wallet = state.walletAddress?.toLowerCase();
-                  const warnEl = document.getElementById(`mine-recipient-warn-${i}`);
-                  if (warnEl) {
-                    warnEl.textContent = (wallet && val.toLowerCase() === wallet)
-                      ? 'Warning: using your connected wallet address as recipient may reveal your identity on-chain.'
-                      : '';
-                  }
-                }
+                validateRecipientField(i, false);
               },
             }),
-            el('span', { className: 'form-field-error', id: `mine-recipient-error-${i}` }, ''),
+            el('span', { className: 'form-field-error', id: `mine-recipient-error-${i}` },
+              state.miningErrors[`recipient-${i}`] || ''),
             el('span', { className: 'form-field-warn', id: `mine-recipient-warn-${i}` }, ''),
           ]),
           el('div', { className: 'form-group', style: 'flex:1' }, [
             el('label', { className: 'form-label' }, 'Amount (ETH)'),
             el('input', {
-              className: 'form-input',
+              className: state.miningErrors[`amount-${i}`] ? 'form-input form-input-invalid' : 'form-input',
               id: `mine-amount-${i}`,
               placeholder: '0.001',
               type: 'text',
               value: note.amount,
               oninput: (e) => { state.miningNotes[i].amount = e.target.value; },
+              onblur: (e) => {
+                state.miningNotes[i].amount = e.target.value;
+                validateAmountField(i, false);
+              },
             }),
+            el('span', { className: 'form-field-error', id: `mine-amount-error-${i}` },
+              state.miningErrors[`amount-${i}`] || ''),
           ]),
         ]),
         el('div', { className: 'form-group' }, [
@@ -820,6 +946,10 @@ function renderMiningForm() {
       container.appendChild(noteEl);
     });
 
+    // Total cap error (shown between notes and submit)
+    container.appendChild(el('span', { className: 'form-field-error', id: 'mine-total-error' },
+      state.miningErrors['total'] || ''));
+
     // Submit row
     const actions = el('div', { style: 'margin-top: 1rem; display:flex; gap:0.5rem; align-items:center' }, [
       el('button', {
@@ -828,54 +958,20 @@ function renderMiningForm() {
         onclick: () => {
           saveNoteData();
 
-          // Validate
-          const errors = [];
-          const parsedNotes = state.miningNotes.map((note, i) => {
-            const recipient = note.recipient.trim();
-            const amountEth = note.amount.trim();
-            const label = note.label.trim();
-
-            if (!recipient.match(/^0x[0-9a-fA-F]{40}$/)) {
-              errors.push(`Note #${i}: invalid recipient address (must be 0x + 40 hex chars)`);
-            }
-
-            const weiStr = ethToWei(amountEth);
-            if (!weiStr || weiStr === '0') {
-              errors.push(`Note #${i}: amount must be a positive number in ETH`);
-            } else {
-              const wei = BigInt(weiStr);
-              if (wei < BigInt('1000000000000')) { // minimum ~0.000001 ETH
-                errors.push(`Note #${i}: amount too small (minimum ~0.000001 ETH)`);
-              }
-            }
-
-            return {
-              recipient,
-              amount: weiStr || '0',
-              label: label || undefined,
-            };
+          // Run all field validations (shows errors below each input)
+          state.miningNotes.forEach((_, idx) => {
+            validateRecipientField(idx, true);
+            validateAmountField(idx, true);
           });
+          validateTotalCap();
 
-          if (errors.length > 0) {
-            // Highlight invalid recipient fields directly
-            state.miningNotes.forEach((note, idx) => {
-              const inp = document.getElementById(`mine-recipient-${idx}`);
-              const err = document.getElementById(`mine-recipient-error-${idx}`);
-              if (inp && err) {
-                const isInvalidAddr = note.recipient.trim() &&
-                  !note.recipient.trim().match(/^0x[0-9a-fA-F]{40}$/);
-                const isEmpty = !note.recipient.trim();
-                if (isInvalidAddr || isEmpty) {
-                  inp.classList.add('form-input-invalid');
-                  err.textContent = isEmpty
-                    ? 'Recipient address is required.'
-                    : 'Invalid address — must be 0x followed by 40 hex characters.';
-                }
-              }
-            });
-            showToast(errors[0], 'error');
-            return;
-          }
+          if (Object.keys(state.miningErrors).length > 0) return;
+
+          const parsedNotes = state.miningNotes.map((note) => ({
+            recipient: note.recipient.trim(),
+            amount: ethToWei(note.amount.trim()) || '0',
+            label: note.label.trim() || undefined,
+          }));
 
           const commentEl = document.getElementById('mine-comment');
           const commentVal = commentEl?.value?.trim() || undefined;
@@ -999,18 +1095,29 @@ function renderDetailView() {
     }, 'Generate Proof');
   })();
 
-  // Fund button (shown inside Funding Status section when applicable)
-  const fundAction = status === 'unfunded' && window.ethereum
-    ? el('div', { className: 'actions', style: 'margin-top: 0.75rem; justify-content: flex-end' }, [
+  // Fund button or submitted tx link
+  const fundAction = (() => {
+    if (status !== 'unfunded') return null;
+    if (state.fundingTxHash) {
+      const explorer = explorerUrl(deposit.chainId);
+      const txExplorerUrl = explorer ? `${explorer}/tx/${state.fundingTxHash}` : '';
+      return el('p', { style: 'margin-top: 0.5rem; font-size: 0.82rem' }, [
+        'Funding tx submitted: ',
+        el('a', { href: txExplorerUrl, target: '_blank', rel: 'noopener', style: 'color: var(--accent-blue)' },
+          `${state.fundingTxHash.slice(0, 18)}...`),
+      ]);
+    }
+    if (window.ethereum) {
+      return el('div', { className: 'actions', style: 'margin-top: 0.75rem; justify-content: flex-end' }, [
         el('button', {
           className: 'btn btn-primary',
           onclick: () => handleFundDeposit(deposit),
         }, 'Fund Deposit'),
-      ])
-    : status === 'unfunded'
-      ? el('p', { className: 'form-hint', style: 'margin-top: 0.5rem' },
-          `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`)
-      : null;
+      ]);
+    }
+    return el('p', { className: 'form-hint', style: 'margin-top: 0.5rem' },
+      `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`);
+  })();
 
   return el('div', {}, [
     // Breadcrumb
@@ -1030,8 +1137,8 @@ function renderDetailView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
       depositFileRow(deposit),
-      detailRow('Network', deposit.chainId === '167013' ? 'Taiko Hoodi (167013)' : deposit.chainId),
-      addressRow('Target Address', deposit.targetAddress),
+      detailRow('Network', `${networkName(deposit.chainId)} (${deposit.chainId})`),
+      addressRow('Target Address', deposit.targetAddress, deposit.chainId),
       detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
@@ -1046,7 +1153,7 @@ function renderDetailView() {
       : state.depositBalance
         ? el('div', { className: 'detail-section' }, [
             el('h2', {}, 'Funding Status'),
-            addressRow('Target Address', deposit.targetAddress),
+            addressRow('Target Address', deposit.targetAddress, deposit.chainId),
             detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
             detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
             !state.depositBalance.isFunded
@@ -1106,7 +1213,8 @@ function renderNotesTable(deposit) {
           }, [
             (() => {
               const a = document.createElement('a');
-              a.href = `https://hoodi.taikoscan.io/address/${note.recipient}`;
+              const explorer = explorerUrl(deposit.chainId);
+              a.href = explorer ? `${explorer}/address/${note.recipient}` : '#';
               a.target = '_blank';
               a.rel = 'noopener';
               a.textContent = note.recipient;
@@ -1119,35 +1227,45 @@ function renderNotesTable(deposit) {
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),
           ]),
           el('td', {}, [
-            el('div', { className: 'note-actions' }, [
-              // Claim button (only if deposit has proof and note is unclaimed)
-              deposit.hasProof && note.claimStatus !== 'claimed'
-                ? el(
-                    'button',
-                    {
-                      className: 'btn btn-accent btn-small',
-                      onclick: (e) => {
-                        e.stopPropagation();
-                        handleClaim(deposit.id, note.index);
+            (() => {
+              const claimTx = state.claimTxHashes[`${deposit.id}-${note.index}`];
+              if (claimTx) {
+                const url = `${explorerUrl(deposit.chainId)}/tx/${claimTx}`;
+                return el('div', { style: 'font-size: 0.78rem' }, [
+                  el('a', { href: url, target: '_blank', rel: 'noopener', style: 'color: var(--accent-blue)' },
+                    `TX: ${claimTx.slice(0, 18)}...`),
+                ]);
+              }
+              return el('div', { className: 'note-actions' }, [
+                // Claim button (only if deposit has proof and note is unclaimed)
+                deposit.hasProof && note.claimStatus !== 'claimed'
+                  ? el(
+                      'button',
+                      {
+                        className: 'btn btn-accent btn-small',
+                        onclick: (e) => {
+                          e.stopPropagation();
+                          handleClaim(deposit.id, note.index);
+                        },
+                        title: 'Claim on-chain via MetaMask',
                       },
-                      title: 'Claim on-chain via MetaMask',
+                      'Claim',
+                    )
+                  : null,
+                el(
+                  'button',
+                  {
+                    className: 'btn-icon',
+                    onclick: (e) => {
+                      e.stopPropagation();
+                      handleRefreshNote(deposit.id, note.index);
                     },
-                    'Claim',
-                  )
-                : null,
-              el(
-                'button',
-                {
-                  className: 'btn-icon',
-                  onclick: (e) => {
-                    e.stopPropagation();
-                    handleRefreshNote(deposit.id, note.index);
+                    title: 'Refresh on-chain status',
                   },
-                  title: 'Refresh on-chain status',
-                },
-                [lucideIcon(RefreshCcw)],
-              ),
-            ].filter(Boolean)),
+                  [lucideIcon(RefreshCcw)],
+                ),
+              ].filter(Boolean));
+            })(),
           ]),
         ]),
       ),
@@ -1207,14 +1325,7 @@ function renderProofJobBanner() {
       }, isFailed ? 'Dismiss' : 'Kill Current Job'),
     ].filter(Boolean)),  // proof-banner-right
     ]),                  // proof-banner-top
-    !isFailed && job.totalNotes > 0
-      ? el('div', { className: 'proof-banner-progress' }, [
-          el('div', {
-            className: 'proof-banner-progress-bar',
-            style: `width: ${pct}%`,
-          }),
-        ])
-      : null,
+    null,
     expanded
       ? el('div', { className: 'proof-banner-log' },
           state.proofLog.length > 0
@@ -1253,13 +1364,13 @@ function renderSettingsView() {
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'RPC Endpoint'),
       el('p', { className: 'form-hint', style: 'margin-bottom: 0.75rem' },
-        `Used by the UI for balance checks. Proof generation uses the server\u2019s RPC. Clear to use default: ${state.config?.rpcUrl || 'https://rpc.hoodi.taiko.xyz'}`),
+        `Used by the UI for balance checks. Proof generation uses the server\u2019s RPC. Clear to use default: ${state.config?.rpcUrl || defaultRpc(state.config?.chainId) || ''}`),
       el('div', { className: 'form-group' }, [
         el('label', { className: 'form-label' }, 'JSON-RPC URL'),
         el('input', {
           className: 'form-input',
           id: 'settings-rpc',
-          placeholder: state.config?.rpcUrl || 'https://rpc.hoodi.taiko.xyz',
+          placeholder: state.config?.rpcUrl || defaultRpc(state.config?.chainId) || '',
         }),
       ]),
       el('button', {
@@ -1477,9 +1588,10 @@ function detailRow(label, value) {
   ]);
 }
 
-function addressRow(label, address) {
+function addressRow(label, address, chainId) {
   const link = document.createElement('a');
-  link.href = `https://hoodi.taikoscan.io/address/${address}`;
+  const explorer = explorerUrl(chainId);
+  link.href = explorer ? `${explorer}/address/${address}` : '#';
   link.target = '_blank';
   link.rel = 'noopener';
   link.textContent = address;
@@ -1599,6 +1711,10 @@ function el(tag, props = {}, children = []) {
       elem.href = val;
     } else if (key === 'download') {
       elem.setAttribute('download', val === true ? '' : val);
+    } else if (key === 'target') {
+      elem.target = val;
+    } else if (key === 'rel') {
+      elem.rel = val;
     }
   }
 
