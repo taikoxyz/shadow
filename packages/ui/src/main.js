@@ -469,6 +469,15 @@ async function handleCancelProof() {
   }
 }
 
+function confirmCancelProof() {
+  const depositId = state.queueJob?.depositId || 'this deposit';
+  confirmAction(
+    'Kill current proof job?',
+    `This will stop proving for ${depositId}. You can start it again later.`,
+    () => { handleCancelProof(); },
+  );
+}
+
 async function handleDeleteDeposit(id, includeProof) {
   try {
     await api.deleteDeposit(id, includeProof);
@@ -1130,7 +1139,9 @@ function renderProofJobBanner() {
         : null,
       el('button', {
         className: 'btn btn-danger btn-small',
-        onclick: isFailed ? () => { api.cancelProof().catch(() => {}); state.queueJob = null; render(); } : handleCancelProof,
+        onclick: isFailed
+          ? () => { api.cancelProof().catch(() => {}); state.queueJob = null; render(); }
+          : confirmCancelProof,
       }, isFailed ? 'Dismiss' : 'Kill Current Job'),
     ].filter(Boolean)),  // proof-banner-right
     ]),                  // proof-banner-top
