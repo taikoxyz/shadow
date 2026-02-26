@@ -123,6 +123,35 @@ function restoreProofLogState() {
   }
 }
 
+function isActiveProofJob(job = state.queueJob) {
+  return Boolean(job && ['queued', 'running'].includes(job.status));
+}
+
+function syncProofStartTimeWithJob(job = state.queueJob) {
+  if (!job) {
+    if (state.proofStartTime != null) {
+      state.proofStartTime = null;
+      persistProofLogState();
+    }
+    return;
+  }
+
+  if (isActiveProofJob(job)) {
+    if (state.proofStartTime != null) return;
+    const startedEntry = [...state.proofLog]
+      .reverse()
+      .find((entry) => entry.depositId === job.depositId && entry.stage === 'started');
+    state.proofStartTime = startedEntry ? new Date(startedEntry.time).getTime() : Date.now();
+    persistProofLogState();
+    return;
+  }
+
+  if (state.proofStartTime != null) {
+    state.proofStartTime = null;
+    persistProofLogState();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
@@ -190,6 +219,11 @@ async function init() {
 
   // Poll queue status periodically (fallback for missed WS events)
   setInterval(pollQueue, 5000);
+  setInterval(() => {
+    if (isActiveProofJob() && state.proofStartTime != null) {
+      render();
+    }
+  }, 1000);
 
   // Check if wallet is already connected
   if (window.ethereum) {
@@ -228,6 +262,7 @@ async function refresh() {
     state.deposits = deposits;
     state.config = config;
     state.queueJob = queueJob;
+    syncProofStartTimeWithJob(state.queueJob);
     state.loading = false;
   } catch (err) {
     state.error = err.message;
@@ -246,6 +281,7 @@ async function pollQueue() {
   try {
     state.queueJob = await api.getQueueStatus();
     const job = state.queueJob;
+    syncProofStartTimeWithJob(job);
     if (job && ['queued', 'running', 'failed'].includes(job.status)) {
       const sig = `${job.depositId}|${job.status}|${job.currentNote}|${job.message}`;
       if (state.lastQueueLogSignature !== sig) {
