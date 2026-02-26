@@ -1,18 +1,14 @@
-//! Deposit mining: PoW loop to find a valid secret for a set of notes.
-//!
-//! The PoW requirement is that `sha256(notesHash || secret)` must have its
-//! last 3 bytes equal to zero (24-bit trailing-zero difficulty).
+//! Deposit creation: generate a random secret and derive the target address.
 
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use rand::RngCore;
 use shadow_proof_core::{
-    compute_notes_hash, compute_pow_digest, compute_recipient_hash, derive_target_address,
-    pow_digest_is_valid, MAX_NOTES,
+    compute_notes_hash, compute_recipient_hash, derive_target_address, MAX_NOTES,
 };
 
-/// Input for mining a new deposit.
+/// Input for creating a new deposit.
 pub struct MineRequest {
     pub chain_id: u64,
     pub notes: Vec<MineNote>,
@@ -24,17 +20,13 @@ pub struct MineNote {
     pub label: Option<String>,
 }
 
-/// Result of a successful mine operation.
+/// Result of deposit creation.
 pub struct MineResult {
     pub secret: [u8; 32],
     pub target_address: [u8; 20],
-    pub iterations: u64,
 }
 
-/// Mine a valid secret for the given notes. This is CPU-intensive (PoW loop).
-///
-/// Returns the secret that satisfies the 24-bit trailing-zero difficulty
-/// requirement on `sha256(notesHash || secret)`.
+/// Create a deposit by generating a random secret and deriving the target address.
 pub fn mine_deposit(req: &MineRequest) -> Result<MineResult> {
     if req.notes.is_empty() || req.notes.len() > MAX_NOTES {
         bail!(
@@ -44,7 +36,6 @@ pub fn mine_deposit(req: &MineRequest) -> Result<MineResult> {
         );
     }
 
-    // Compute the notes hash (this is constant across all mining iterations)
     let amounts: Vec<u128> = req.notes.iter().map(|n| n.amount).collect();
     let recipient_hashes: Vec<[u8; 32]> = req
         .notes
@@ -55,25 +46,15 @@ pub fn mine_deposit(req: &MineRequest) -> Result<MineResult> {
     let notes_hash = compute_notes_hash(req.notes.len(), &amounts, &recipient_hashes)
         .map_err(|e| anyhow::anyhow!("notes hash computation failed: {}", e.as_str()))?;
 
-    // PoW loop: generate random secrets until we find one that satisfies difficulty
     let mut rng = rand::thread_rng();
     let mut secret = [0u8; 32];
-    let mut iterations: u64 = 0;
+    rng.fill_bytes(&mut secret);
 
-    loop {
-        rng.fill_bytes(&mut secret);
-        iterations += 1;
-
-        let pow_digest = compute_pow_digest(&notes_hash, &secret);
-        if pow_digest_is_valid(&pow_digest) {
-            let target_address = derive_target_address(&secret, req.chain_id, &notes_hash);
-            return Ok(MineResult {
-                secret,
-                target_address,
-                iterations,
-            });
-        }
-    }
+    let target_address = derive_target_address(&secret, req.chain_id, &notes_hash);
+    Ok(MineResult {
+        secret,
+        target_address,
+    })
 }
 
 /// Write a v2 deposit JSON file to the workspace directory.

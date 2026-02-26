@@ -54,7 +54,7 @@ Shadow does not publish `targetAddress` as part of a claim. This reduces passive
 
 ### Linking Multiple Claims From the Same Note Set
 
-Shadow does not publish a per-deposit constant (for example `powDigest`) as a circuit output, so multiple claims from the same note set are not trivially linkable via the proof journal alone. Claims can still be correlated via public `recipient`/`amount` reuse and timing.
+Shadow does not publish a per-deposit constant as a circuit output, so multiple claims from the same note set are not trivially linkable via the proof journal alone. Claims can still be correlated via public `recipient`/`amount` reuse and timing.
 
 ### Recipient/Amount Are Not Private
 

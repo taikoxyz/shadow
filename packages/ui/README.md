@@ -17,7 +17,7 @@ pnpm ui:build
 
 - `Deposit`: create a `v2` DEPOSIT file (current schema) with multiple recipient notes and download it as:
   - `deposit-[first4]-[last4]-timestamp.json`
-  - secret is auto-generated on click and mined until PoW-valid for that note set; it is never shown in the UI
+  - secret is auto-generated on click; it is never shown in the UI
   - deposit file `chainId` is fixed to Hoodi L2 (`167013`) in the Deposit flow
   - note set size is limited to 1..5 notes (protocol maximum)
   - after `Generate Deposit File`, the form is locked and a summary is shown (`target address`, `total amount`, `file path`), followed by a `Deposit Ether (L1)` action that sends the exact total amount on Hoodi L1 (`560048`)

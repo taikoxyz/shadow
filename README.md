@@ -60,7 +60,7 @@ curl -X POST http://localhost:3000/api/deposits \
   -d '{"chainId":"167013","notes":[{"recipient":"0xYourAddress","amount":"1000000000000000","label":"my note"}]}'
 ```
 
-Mining takes 1-10 seconds (PoW to derive a valid target address).
+Deposit creation is instant (generates a random secret and derives a target address).
 
 ### 3. Fund the target address
 
@@ -90,7 +90,7 @@ From the UI, click **Claim** next to each note (requires MetaMask connected to T
 | GET | `/api/config` | Server configuration |
 | GET | `/api/deposits` | List all deposits |
 | GET | `/api/deposits/:id` | Get deposit details |
-| POST | `/api/deposits` | Mine a new deposit (PoW) |
+| POST | `/api/deposits` | Create a new deposit |
 | DELETE | `/api/deposits/:id` | Delete deposit file |
 | POST | `/api/deposits/:id/prove` | Start proof generation |
 | DELETE | `/api/deposits/:id/proof` | Delete proof file |
@@ -125,7 +125,7 @@ Chain ID: `167013` (Taiko Hoodi testnet)
                            |
                      +-----v-----+
                      |  Server   |  shadow-server (Axum)
-                     |  (Rust)   |  - deposit mining (PoW)
+                     |  (Rust)   |  - deposit creation
                      +-----+-----+  - proof generation (RISC Zero)
                            |        - workspace file management
                      +-----v-----+  - on-chain queries (RPC)

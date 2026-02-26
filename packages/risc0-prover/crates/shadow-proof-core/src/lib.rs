@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
 
 pub const MAX_NOTES: usize = 5;
-pub const MAX_TOTAL_WEI: u128 = 32_000_000_000_000_000_000;
+pub const MAX_TOTAL_WEI: u128 = 8_000_000_000_000_000_000;
 pub const MAX_PROOF_DEPTH: usize = 64;
 pub const MAX_NODE_BYTES: usize = 4096;
 
@@ -55,7 +55,7 @@ pub struct ClaimJournal {
 // - recipient: address (20)
 // - nullifier: bytes32 (32)
 //
-// NOTE: `note_index` and `pow_digest` are intentionally NOT part of the public journal.
+// NOTE: `note_index` is intentionally NOT part of the public journal.
 pub const PACKED_JOURNAL_LEN: usize = 116;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,7 +143,6 @@ pub enum ClaimValidationError {
     MissingAccountValue,
     InvalidAccountValue,
     InsufficientAccountBalance,
-    InvalidPowDigest,
     InvalidBlockHeaderHash,
     InvalidBlockHeaderShape,
 }
@@ -169,7 +168,6 @@ impl ClaimValidationError {
             Self::MissingAccountValue => "account value missing from trie proof",
             Self::InvalidAccountValue => "invalid account value encoding",
             Self::InsufficientAccountBalance => "account balance is insufficient for note total",
-            Self::InvalidPowDigest => "pow digest does not satisfy target",
             Self::InvalidBlockHeaderHash => "block header hash mismatch",
             Self::InvalidBlockHeaderShape => "invalid block header shape",
         }
@@ -242,10 +240,6 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
     }
 
     let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index);
-    let pow_digest = compute_pow_digest(&notes_hash, &input.secret);
-    if !pow_digest_is_valid(&pow_digest) {
-        return Err(ClaimValidationError::InvalidPowDigest);
-    }
 
     // Note: stateRoot is derived in-circuit from block_header_rlp and verified against
     // input.block_hash. We commit to block_hash because that's what TaikoAnchor provides.
@@ -310,17 +304,6 @@ pub fn derive_nullifier(secret: &[u8; 32], chain_id: u64, note_index: u32) -> [u
     input[96..128].copy_from_slice(&u64_to_bytes32(note_index as u64));
 
     sha256(&input)
-}
-
-pub fn compute_pow_digest(notes_hash: &[u8; 32], secret: &[u8; 32]) -> [u8; 32] {
-    let mut input = [0u8; 64];
-    input[..32].copy_from_slice(notes_hash);
-    input[32..64].copy_from_slice(secret);
-    sha256(&input)
-}
-
-pub fn pow_digest_is_valid(digest: &[u8; 32]) -> bool {
-    digest[29] == 0 && digest[30] == 0 && digest[31] == 0
 }
 
 pub fn compute_proof_commitment(nodes: &[Vec<u8>]) -> [u8; 32] {

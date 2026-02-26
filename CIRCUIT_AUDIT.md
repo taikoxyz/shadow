@@ -48,7 +48,6 @@ The Shadow circuit implements a privacy-preserving ETH claim system where users 
 
 **Private-Only Values (NOT in journal):**
 - `note_index` - Hidden to prevent note set linkability
-- `pow_digest` - Anti-spam PoW enforced privately
 
 ---
 
@@ -62,19 +61,18 @@ The Shadow circuit implements a privacy-preserving ETH claim system where users 
 | Selected note matches public amount | `amounts[note_index] != amount` returns `SelectedAmountMismatch` | ✅ SOUND |
 | Recipient bound via hash | `recipient_hashes[note_index] != compute_recipient_hash(recipient)` | ✅ SOUND |
 | All note amounts non-zero | Loop checks `amt == 0` for active notes | ✅ SOUND |
-| Total amount <= 32 ETH | `total_amount > MAX_TOTAL_WEI` returns `TotalAmountExceeded` | ✅ SOUND |
+| Total amount <= 8 ETH | `total_amount > MAX_TOTAL_WEI` returns `TotalAmountExceeded` | ✅ SOUND |
 | Target address derived correctly | `derive_target_address(secret, chain_id, notes_hash)` | ✅ SOUND |
 | Block header hash verified | `keccak256(block_header_rlp) != block_hash` | ✅ SOUND |
 | State root extracted from header | `parse_state_root_from_block_header()` at index 3 | ✅ SOUND |
 | MPT proof valid under state root | Full trie traversal with hash verification | ✅ SOUND |
 | Account balance >= total notes | `balance_gte_total(account_balance, total_amount)` | ✅ SOUND |
 | Nullifier derived correctly | `derive_nullifier(secret, chain_id, note_index)` | ✅ SOUND |
-| PoW enforced (24 trailing zeros) | `pow_digest_is_valid()` checks bytes 29-31 are zero | ✅ SOUND |
 
 ### 2.2 Cryptographic Soundness
 
 **Hash Functions:**
-- SHA256 (sha2 crate): Used for `notes_hash`, `target_address`, `nullifier`, `pow_digest`, `recipient_hash`
+- SHA256 (sha2 crate): Used for `notes_hash`, `target_address`, `nullifier`, `recipient_hash`
 - Keccak256 (tiny-keccak crate): Used for block header hash and MPT node hashing
 
 **Domain Separation:**
@@ -186,16 +184,6 @@ The `verify_account_proof_and_get_balance()` function implements full MPT traver
 
 ✅ **SOUND**: Full MPT verification implemented correctly.
 
-#### 2.3.6 Proof-of-Work Anti-Spam
-
-```rust
-pub fn pow_digest_is_valid(digest: &[u8; 32]) -> bool {
-    digest[29] == 0 && digest[30] == 0 && digest[31] == 0
-}
-```
-
-✅ **SOUND**: Enforces 24 trailing zero bits. PoW is computed as `sha256(notesHash || secret)`, binding it to the note set.
-
 ---
 
 ## 3. Completeness Analysis
@@ -204,7 +192,7 @@ pub fn pow_digest_is_valid(digest: &[u8; 32]) -> bool {
 
 | Private Input | Wired To | Verification |
 |---------------|----------|--------------|
-| `secret` | Target address derivation, nullifier derivation, PoW digest | ✅ |
+| `secret` | Target address derivation, nullifier derivation | ✅ |
 | `note_index` | Note selection, nullifier derivation | ✅ |
 | `amounts[]` | Total sum, selected amount check | ✅ |
 | `recipient_hashes[]` | Notes hash, selected recipient check | ✅ |
@@ -226,7 +214,6 @@ pub fn pow_digest_is_valid(digest: &[u8; 32]) -> bool {
 
 **Intentionally Excluded from Journal:**
 - `note_index`: Hidden for privacy (prevents note set linkability)
-- `pow_digest`: Enforced privately (no need to publish)
 - `target_address`: Hidden for privacy (reduces deposit-claim linkability)
 - `state_root`: Derived from block header (not separate input)
 
@@ -385,7 +372,6 @@ The Shadow circuit is well-implemented with proper constraint enforcement for al
 2. **Derives the target address** deterministically from the secret and note set
 3. **Verifies the account balance** via full Merkle-Patricia trie proof validation
 4. **Produces a unique nullifier** per note to prevent double-spending
-5. **Enforces anti-spam PoW** without revealing it publicly
 
 The circuit outputs align correctly with contract expectations, and the journal binding in `Risc0CircuitVerifier` faithfully reconstructs all committed values.
 

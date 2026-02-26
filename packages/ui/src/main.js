@@ -853,11 +853,11 @@ function renderMiningForm() {
 
           handleMineDeposit({ notes: parsedNotes, comment: commentVal, chainId });
         },
-      }, state.mining ? 'Mining...' : 'Mine Deposit'),
+      }, state.mining ? 'Creating...' : 'Create Deposit'),
       state.mining ? el('span', { className: 'spinner' }) : null,
       state.mining
-        ? el('span', { className: 'mining-status' }, 'Finding valid PoW secret...')
-        : el('span', { className: 'form-hint' }, 'Mining typically takes 3\u201310 seconds'),
+        ? el('span', { className: 'mining-status' }, 'Creating deposit...')
+        : null,
     ].filter(Boolean));
     container.appendChild(actions);
   }

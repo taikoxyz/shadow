@@ -16,8 +16,8 @@ use std::{fs, path::Path};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use shadow_proof_core::{
-    compute_notes_hash, compute_pow_digest, compute_recipient_hash, derive_nullifier,
-    derive_target_address, pow_digest_is_valid, MAX_NOTES,
+    compute_notes_hash, compute_recipient_hash, derive_nullifier,
+    derive_target_address, MAX_NOTES,
 };
 
 /// A parsed deposit file (v2 schema).
@@ -52,10 +52,6 @@ pub struct DerivedDepositInfo {
     pub target_address: [u8; 20],
     /// The SHA-256 notes hash.
     pub notes_hash: [u8; 32],
-    /// The PoW digest.
-    pub pow_digest: [u8; 32],
-    /// Whether the PoW digest satisfies the 24-bit trailing-zero requirement.
-    pub pow_valid: bool,
     /// Per-note derived info.
     pub notes: Vec<DerivedNoteInfo>,
     /// Total amount across all notes (in wei).
@@ -146,7 +142,7 @@ pub fn validate_deposit(deposit: &DepositFile) -> Result<()> {
 /// This computes:
 /// - Target address from (secret, chainId, notesHash)
 /// - Nullifiers for each note from (secret, chainId, noteIndex)
-/// - Notes hash, PoW digest, total amount
+/// - Notes hash, total amount
 pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> {
     let chain_id: u64 = deposit
         .chain_id
@@ -188,8 +184,6 @@ pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> 
     let notes_hash = compute_notes_hash(note_count, &amounts, &recipient_hashes)
         .map_err(|e| anyhow::anyhow!("notes hash computation failed: {}", e.as_str()))?;
     let target_address = derive_target_address(&secret, chain_id, &notes_hash);
-    let pow_digest = compute_pow_digest(&notes_hash, &secret);
-    let pow_valid = pow_digest_is_valid(&pow_digest);
 
     // If targetAddress is present in the deposit file, verify it matches
     if let Some(ref expected_addr) = deposit.target_address {
@@ -208,8 +202,6 @@ pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> 
         secret,
         target_address,
         notes_hash,
-        pow_digest,
-        pow_valid,
         notes: derived_notes,
         total_amount,
     })

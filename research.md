@@ -29,7 +29,7 @@ shadow/
 
 #### RISC Zero Prover (`packages/risc0-prover/`)
 - **Rust crates:**
-  - `shadow-proof-core` (`#[no_std]`) — Core claim validation logic shared between host and guest. Includes MPT proof verification, cryptographic derivations (target address, nullifier, PoW), RLP decoding, and balance extraction.
+  - `shadow-proof-core` (`#[no_std]`) — Core claim validation logic shared between host and guest. Includes MPT proof verification, cryptographic derivations (target address, nullifier), RLP decoding, and balance extraction.
   - `shadow-risc0-host` — CLI binary for proving, verifying, inspecting, exporting, and compressing receipts.
   - `methods/guest` — RISC Zero guest program (the zkVM circuit). Reads `ClaimInput`, calls `evaluate_claim()`, commits packed journal.
   - `methods/` — Build-time ELF generation for the guest, exposes `SHADOW_CLAIM_GUEST_ID` (the image ID).
@@ -40,7 +40,7 @@ shadow/
   - Proof files are saved as `note-<index>.proof.json` alongside the deposit file.
 
 - **Deposit Mining (`scripts/mine-deposit.mjs`):**
-  - Generates a v2 deposit file with PoW-valid secret (24-bit trailing zeros).
+  - Generates a v2 deposit file with a random secret.
   - Outputs JSON with `version`, `chainId`, `secret`, `notes[]`, `targetAddress`.
 
 - **Docker (`docker/`):**
@@ -52,7 +52,7 @@ shadow/
 - **Vanilla JS SPA** built with Vite, uses `viem` for blockchain interactions and `@noble/hashes` for SHA-256.
 - **Three tabs:** Deposit (create deposit files), Prove (load deposit + generate Docker commands), Claim (submit proofs on-chain via MetaMask).
 - **Key features:**
-  - Deposit file creation with PoW mining (in-browser, ~16M SHA-256 iterations)
+  - Deposit file creation (random secret generation + target address derivation)
   - Target address derivation and display
   - Wallet integration (MetaMask) for funding deposits and claiming
   - Docker command generation for proof generation
@@ -130,9 +130,8 @@ shadow/
 | Shadow contract (proxy) | `0x77cdA0575e66A5FC95404fdA856615AD507d8A07` |
 | Image ID | `0xd598228081d1cbc4817e7be03aad1a2fdf6f1bb26b75dae0cddf5e597bfec091` |
 | Max notes per deposit | 5 |
-| Max total amount | 32 ETH |
+| Max total amount | 8 ETH |
 | Claim fee | 0.1% |
-| PoW difficulty | 24 trailing zero bits (3 bytes) |
 | Docker image | `ghcr.io/taikoxyz/taiko-shadow` |
 
 ---
@@ -497,11 +496,11 @@ The following functions can be extracted into shared backend modules:
 - `rpcCall()` — generic JSON-RPC client
 - `runHost()` — Rust binary invocation
 - `extractVerificationPayload()` — proof file parsing
-- All crypto functions: `computeRecipientHash`, `computeNotesHash`, `deriveTargetAddress`, `deriveNullifier`, `computePowDigest`
+- All crypto functions: `computeRecipientHash`, `computeNotesHash`, `deriveTargetAddress`, `deriveNullifier`
 
 ### 5.2 From `mine-deposit.mjs`
 
-- PoW mining logic (already duplicated in UI)
+- Secret generation and target address derivation
 - Deposit file construction
 
 ### 5.3 From UI `main.js`

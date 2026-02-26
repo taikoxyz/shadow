@@ -7,8 +7,6 @@ use shadow_prover_lib::{
     inspect_claim, load_claim_input, prove_claim, read_receipt, verify_receipt, write_json,
     write_receipt,
 };
-use shadow_proof_core::compute_notes_hash;
-
 #[derive(Debug, Parser)]
 #[command(name = "shadow-risc0-host")]
 #[command(about = "Local RISC Zero prover for Shadow claims")]
@@ -98,22 +96,12 @@ fn main() -> Result<()> {
             let claim_input = load_claim_input(&input)?;
             let journal = inspect_claim(&claim_input)?;
 
-            let notes_hash = compute_notes_hash(
-                claim_input.note_count as usize,
-                &claim_input.amounts,
-                &claim_input.recipient_hashes,
-            )
-            .map_err(|e| anyhow::anyhow!("notes hash evaluation failed: {}", e.as_str()))?;
-            let pow_digest =
-                shadow_proof_core::compute_pow_digest(&notes_hash, &claim_input.secret);
-
             println!("Input validated: {}", input.display());
             println!("blockNumber: {}", journal.block_number);
             println!("chainId: {}", journal.chain_id);
             println!("noteIndex: {}", claim_input.note_index);
             println!("amount: {}", journal.amount);
             println!("nullifier: 0x{}", hex::encode(journal.nullifier));
-            println!("powDigest: 0x{}", hex::encode(pow_digest));
             Ok(())
         }
         Command::ExportProof { receipt, out } => {
