@@ -1102,7 +1102,6 @@ function renderDetailView() {
       : state.depositBalance
         ? el('div', { className: 'detail-section' }, [
             el('h2', {}, 'Funding Status'),
-            addressRow('Target Address', deposit.targetAddress, deposit.chainId),
             detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
             detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
             !state.depositBalance.isFunded
