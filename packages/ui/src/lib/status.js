@@ -17,26 +17,39 @@ export function isProvingJob(queueJob) {
   return Boolean(queueStatusForDeposit(queueJob, queueJob?.depositId) === 'proving');
 }
 
+// Resolve the pre-proof status from on-chain balance data.
+// Returns 'new' (no ETH), 'funding' (partial), or 'funded' (ready to prove).
+function resolveNoProofStatus(depositBalance) {
+  if (!depositBalance || depositBalance.error) return 'new';
+  if (BigInt(depositBalance.balance || '0') === 0n) return 'new';
+  if (!depositBalance.isFunded) return 'funding';
+  return 'funded';
+}
+
 export function getDepositStatus(deposit, queueJob, depositBalance) {
   const queueStatus = queueStatusForDeposit(queueJob, deposit.id);
   if (queueStatus) return queueStatus;
-  if (depositBalance && !depositBalance.isFunded) return 'unfunded';
-  if (!deposit.hasProof) return 'unproved';
-
-  const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
-  if (allClaimed) return 'claimed';
-  if (anyClaimed) return 'partial';
-  return 'proved';
+  if (deposit.hasProof) {
+    const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
+    if (allClaimed) return 'claimed';
+    if (anyClaimed) return 'partial';
+    return 'proved';
+  }
+  return resolveNoProofStatus(depositBalance);
 }
 
-export function getCardStatus(deposit, queueJob) {
+export function getCardStatus(deposit, queueJob, depositBalance) {
   const queueStatus = queueStatusForDeposit(queueJob, deposit.id);
   if (queueStatus === 'proving') return { label: 'Proving…', cls: 'badge-proving' };
   if (queueStatus === 'failed') return { label: 'Proof Failed', cls: 'badge-failed' };
-  if (!deposit.hasProof) return { label: 'Unproved', cls: 'badge-no-proof' };
-
-  const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
-  if (allClaimed) return { label: 'Claimed', cls: 'badge-claimed' };
-  if (anyClaimed) return { label: 'Partial', cls: 'badge-claimed' };
-  return { label: 'Proved', cls: 'badge-proof' };
+  if (deposit.hasProof) {
+    const { allClaimed, anyClaimed } = claimSummary(deposit.notes || []);
+    if (allClaimed) return { label: 'Claimed', cls: 'badge-claimed' };
+    if (anyClaimed) return { label: 'Partial', cls: 'badge-claimed' };
+    return { label: 'Proved', cls: 'badge-proof' };
+  }
+  const noProofStatus = resolveNoProofStatus(depositBalance);
+  if (noProofStatus === 'funding') return { label: 'Funding', cls: 'badge-funding' };
+  if (noProofStatus === 'funded') return { label: 'Funded', cls: 'badge-funded' };
+  return { label: 'New', cls: 'badge-no-proof' };
 }

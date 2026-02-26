@@ -27,3 +27,16 @@ export function explorerEntityUrl(chainId, entity, value) {
   const base = explorerUrl(chainId);
   return base ? `${base}/${entity}/${value}` : '#';
 }
+
+/** Returns params for wallet_addEthereumChain, or null if chain is unknown. */
+export function chainParams(chainId) {
+  const net = NETWORKS[chainId];
+  if (!net) return null;
+  return {
+    chainId: '0x' + parseInt(chainId, 10).toString(16),
+    chainName: net.name,
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: [net.rpc],
+    blockExplorerUrls: [net.explorer],
+  };
+}

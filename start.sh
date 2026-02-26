@@ -29,9 +29,10 @@
 set -e
 
 REGISTRY_IMAGE="ghcr.io/taikoxyz/shadow:latest"
-EXPECTED_CIRCUIT_ID="0x90c445f6632e0b603305712aacf0ac4910a801b2c1aa73749d12c08319d96844"
+EXPECTED_CIRCUIT_ID="0x6ca03c648024c754d607fdb67ed03e60f426b1286e6f2f64141a4841fccd5d7a"
 CONTAINER="shadow"
 WORKSPACE="$PWD/workspace"
+RISC0_WORK_DIR="$WORKSPACE/.risc0-work"
 FORCE_PULL=false
 FORCE_BUILD=false
 VERBOSE=false
@@ -400,7 +401,9 @@ fi
 # 7. Create workspace
 # ---------------------------------------------------------------------------
 mkdir -p "$WORKSPACE"
+mkdir -p "$RISC0_WORK_DIR"
 ok "Workspace: $WORKSPACE"
+debug "RISC0_WORK_DIR: $RISC0_WORK_DIR"
 
 # ---------------------------------------------------------------------------
 # 8. Start container
@@ -422,10 +425,13 @@ docker run -d \
   --memory "$CONTAINER_MEMORY" \
   --cpus "$CONTAINER_CPUS" \
   -p "${PORT}:3000" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$WORKSPACE:/workspace" \
+  -v "$WORKSPACE:$WORKSPACE" \
   -e RPC_URL=https://rpc.hoodi.taiko.xyz \
   -e SHADOW_ADDRESS=0x77cdA0575e66A5FC95404fdA856615AD507d8A07 \
-  -e VERIFIER_ADDRESS=0xF28B5F2850eb776058566A2945589A6A1Fa98e28 \
+  -e DOCKER_DEFAULT_PLATFORM=linux/amd64 \
+  -e RISC0_WORK_DIR="$RISC0_WORK_DIR" \
   -e RECEIPT_KIND=groth16 \
   ${RUST_LOG_ENV:+-e RUST_LOG="$RUST_LOG_ENV"} \
   "$USE_IMAGE" > /dev/null

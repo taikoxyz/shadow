@@ -15,25 +15,35 @@ use crate::{
 
 /// `GET /api/config` — returns server configuration and chain info.
 async fn get_config(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> {
+    let local_circuit_id = local_circuit_id();
     let mut config = ConfigResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         workspace: state.workspace.display().to_string(),
         rpc_url: state.rpc_url.clone(),
         chain_id: state.chain_id.map(|id| id.to_string()),
         circuit_id: None,
+        local_circuit_id,
+        circuit_mismatch: None,
         shadow_address: state.shadow_address.clone(),
-        verifier_address: state.verifier_address.clone(),
     };
 
-    // Try to read circuit ID from on-chain verifier
-    if let (Some(ref chain_client), Some(ref verifier)) =
-        (&state.chain_client, &state.verifier_address)
+    // Resolve Risc0CircuitVerifier from Shadow, then read its imageId
+    if let (Some(ref chain_client), Some(ref shadow_addr)) =
+        (&state.chain_client, &state.shadow_address)
     {
-        match chain_client.read_circuit_id(verifier).await {
-            Ok(cid) => config.circuit_id = Some(cid),
-            Err(e) => tracing::warn!(error = %e, "failed to read circuit ID from verifier"),
+        match chain_client.read_circuit_verifier_address(shadow_addr).await {
+            Ok(verifier) => match chain_client.read_circuit_id(&verifier).await {
+                Ok(cid) => config.circuit_id = Some(cid),
+                Err(e) => tracing::warn!(error = %e, "failed to read circuit ID from verifier"),
+            },
+            Err(e) => tracing::warn!(error = %e, "failed to resolve circuit verifier from Shadow"),
         }
     }
+
+    config.circuit_mismatch = match (config.circuit_id.as_ref(), config.local_circuit_id.as_ref()) {
+        (Some(onchain), Some(local)) => Some(!onchain.eq_ignore_ascii_case(local)),
+        _ => None,
+    };
 
     Json(config)
 }
@@ -50,9 +60,21 @@ struct ConfigResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     circuit_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    shadow_address: Option<String>,
+    local_circuit_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    verifier_address: Option<String>,
+    circuit_mismatch: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shadow_address: Option<String>,
+}
+
+#[cfg(feature = "prove")]
+fn local_circuit_id() -> Option<String> {
+    Some(shadow_prover_lib::circuit_id_hex())
+}
+
+#[cfg(not(feature = "prove"))]
+fn local_circuit_id() -> Option<String> {
+    None
 }
 
 /// `GET /api/deposits/:id/notes/:noteIndex/status` — get cached claim status for a note.
