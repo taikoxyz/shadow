@@ -722,7 +722,43 @@ function showToast(message, type = 'info') {
 // Rendering
 // ---------------------------------------------------------------------------
 
+function captureFocusState() {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !app.contains(active) || !active.id) return null;
+
+  const focusState = { id: active.id };
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+    focusState.selectionStart = active.selectionStart;
+    focusState.selectionEnd = active.selectionEnd;
+    focusState.selectionDirection = active.selectionDirection;
+  }
+  return focusState;
+}
+
+function restoreFocusState(focusState) {
+  if (!focusState?.id) return;
+
+  requestAnimationFrame(() => {
+    const target = document.getElementById(focusState.id);
+    if (!(target instanceof HTMLElement)) return;
+
+    target.focus();
+    if (
+      (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+      && Number.isInteger(focusState.selectionStart)
+      && Number.isInteger(focusState.selectionEnd)
+    ) {
+      target.setSelectionRange(
+        focusState.selectionStart,
+        focusState.selectionEnd,
+        focusState.selectionDirection || undefined,
+      );
+    }
+  });
+}
+
 function render() {
+  const focusState = captureFocusState();
   app.innerHTML = '';
   app.appendChild(renderHeader());
 
@@ -738,6 +774,7 @@ function render() {
       el('div', { className: 'spinner' }),
       el('p', { className: 'loading-copy' }, 'Loading workspace...'),
     ]));
+    restoreFocusState(focusState);
     return;
   }
 
@@ -748,6 +785,7 @@ function render() {
         el('button', { className: 'btn', onclick: refresh }, 'Retry'),
       ]),
     );
+    restoreFocusState(focusState);
     return;
   }
 
@@ -763,6 +801,7 @@ function render() {
     app.appendChild(renderListView());
   }
 
+  restoreFocusState(focusState);
 }
 
 function hasCircuitMismatch() {
