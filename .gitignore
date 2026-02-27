@@ -16,6 +16,11 @@ deposit-*.json
 .claude/
 **/.claude/
 
+# Agent planning/research files
+research.md
+plan.md
+todo.md
+
 # Rust / Cargo
 target/
 **/target/

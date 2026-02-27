@@ -3,24 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shadow</title>
+    <title>Shadow — ETH Privacy on Taiko Network</title>
     <style>
       :root {
-        --bg-base: #111113;
-        --bg-raised: #18181c;
-        --bg-surface: #1e1e24;
-        --bg-hover: #26262e;
-        --border: #2c2c38;
-        --border-hover: #3c3c4c;
-        --text-primary: #eaeaf0;
-        --text-secondary: #9090a0;
-        --accent-green: #34d399;
-        --btn-primary-bg: #15803d;
-        --btn-primary-border: #16a34a;
-        --btn-primary-hover-bg: #166534;
-        --btn-primary-hover-border: #15803d;
-        --radius-sm: 4px;
-        --radius-md: 8px;
+        --bg-base: #ffffff;
+        --bg-raised: #f5f5f5;
+        --bg-surface: #ebebeb;
+        --bg-hover: #e2e2e2;
+        --border: #d0d0d0;
+        --border-hover: #888888;
+        --text-primary: #080808;
+        --text-secondary: #606060;
+        --accent: #080808;
+        --taiko-pink: #E81899;
+        --taiko-pink-dark: #a8106f;
+        --btn-primary-bg: #E81899;
+        --btn-primary-border: #E81899;
+        --btn-primary-hover-bg: #a8106f;
+        --btn-primary-hover-border: #a8106f;
+        --radius-sm: 2px;
+        --radius-md: 4px;
         --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
           "Liberation Mono", monospace;
       }
@@ -33,51 +35,225 @@
 
       body {
         margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 1.25rem;
         background: var(--bg-base);
         color: var(--text-primary);
         font-family: var(--font-mono);
       }
 
-      .home {
+      /* ── Animations ──────────────────────────────────────── */
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(14px);
+        transition: opacity 0.55s ease, transform 0.55s ease;
+      }
+      .reveal.revealed {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* ── Layout ──────────────────────────────────────────── */
+      .container {
         width: min(760px, 100%);
-        background: var(--bg-raised);
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+
+      .section-label {
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--taiko-pink);
+        margin: 0 0 2rem;
+      }
+
+      /* ── Nav ─────────────────────────────────────────────── */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1.25rem;
+        width: min(760px, 100%);
+        margin: 0 auto;
+      }
+
+      .nav-brand {
+        font-family: var(--font-mono);
+        color: var(--taiko-pink);
+        text-decoration: none;
+        font-size: 0.88rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        transition: color 0.15s;
+      }
+      .nav-brand:hover {
+        color: var(--taiko-pink-dark);
+      }
+
+      .nav-github {
+        font-family: var(--font-mono);
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 0.78rem;
+        transition: color 0.15s;
+      }
+      .nav-github:hover {
+        color: var(--text-primary);
+      }
+
+      /* ── Hero ────────────────────────────────────────────── */
+      .hero {
+        background: var(--bg-base);
+        border-bottom: 1px solid var(--border);
+        padding: 5.5rem 1.25rem 4.5rem;
+        text-align: center;
+      }
+
+      .hero-eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--taiko-pink);
+        margin: 0 0 1.5rem;
+        animation: fadeUp 0.6s ease both;
+        animation-delay: 0.1s;
+      }
+
+      .hero-title {
+        font-family: var(--font-mono);
+        font-size: clamp(1.55rem, 4.5vw, 2.7rem);
+        color: var(--text-primary);
+        line-height: 1.18;
+        margin: 0 0 1.5rem;
+        font-weight: 700;
+        animation: fadeUp 0.6s ease both;
+        animation-delay: 0.25s;
+      }
+
+      .hero-sub {
+        font-family: var(--font-mono);
+        font-size: 0.92rem;
+        color: var(--text-secondary);
+        line-height: 1.78;
+        max-width: 500px;
+        margin: 0 auto 2.5rem;
+        animation: fadeUp 0.6s ease both;
+        animation-delay: 0.4s;
+      }
+
+      .hero .command-wrap {
+        max-width: 420px;
+        margin: 0 auto;
+        text-align: left;
+        animation: fadeUp 0.6s ease both;
+        animation-delay: 0.55s;
+      }
+
+      /* ── Steps ───────────────────────────────────────────── */
+      .steps-section {
+        padding: 4rem 0;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2.5rem;
+        align-items: center;
+        padding: 3rem 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .step:last-child {
+        border-bottom: none;
+      }
+
+      .step-num {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--taiko-pink);
+        opacity: 0.5;
+        line-height: 1;
+        margin-bottom: 0.75rem;
+      }
+
+      .step-body h3 {
+        font-family: var(--font-mono);
+        color: var(--text-primary);
+        font-size: 1rem;
+        margin: 0 0 0.75rem;
+        line-height: 1.3;
+        font-weight: 700;
+      }
+
+      .step-body p {
+        font-family: var(--font-mono);
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        line-height: 1.72;
+        margin: 0;
+      }
+
+      .step-visual {
+        background: var(--bg-surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-md);
-        padding: 1.25rem;
+        padding: 1rem;
+        overflow-x: auto;
+      }
+      .step-visual svg {
+        width: 100%;
+        height: auto;
+        display: block;
       }
 
-      h1 {
-        margin: 0 0 0.5rem;
-        font-size: 1rem;
-      }
-
-      p {
-        margin: 0 0 0.9rem;
-        color: var(--text-secondary);
-        font-size: 0.84rem;
-      }
-
+      /* ── Command ─────────────────────────────────────────── */
       .command-wrap {
         display: flex;
         gap: 0.5rem;
         align-items: stretch;
+        background: #E81899;
+        border: 1px solid #E81899;
+        border-radius: var(--radius-md);
+        padding: 0.75rem;
+        box-shadow: 4px 4px 0 #a8106f;
       }
 
       code {
         flex: 1;
         min-width: 0;
         display: block;
-        padding: 0.65rem 0.75rem;
+        padding: 0.5rem 0.25rem;
         border-radius: var(--radius-sm);
-        border: 1px solid var(--border);
-        background: var(--bg-surface);
-        font-size: 0.8rem;
+        border: none;
+        background: transparent;
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
         white-space: normal;
         overflow-wrap: anywhere;
+        color: #e8e8e8;
       }
 
       button {
@@ -86,39 +262,395 @@
         background: var(--btn-primary-bg);
         color: #fff;
         padding: 0.5rem 0.85rem;
-        font-family: inherit;
+        font-family: var(--font-mono);
         font-size: 0.8rem;
         cursor: pointer;
         white-space: nowrap;
       }
-
       button:hover {
         background: var(--btn-primary-hover-bg);
         border-color: var(--btn-primary-hover-border);
       }
-
       button:focus-visible {
-        outline: 2px solid var(--accent-green);
+        outline: 2px solid var(--accent);
         outline-offset: 2px;
       }
 
+      /* ── Footer ──────────────────────────────────────────── */
+      .footer {
+        padding: 2rem 0 2.5rem;
+        border-top: 1px solid var(--border);
+        margin-top: 1rem;
+      }
+
+      .footer-inner {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+      }
+
+      .footer-inner a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        transition: color 0.15s;
+      }
+      .footer-inner a:hover {
+        color: var(--text-primary);
+      }
+
+      .footer-spacer {
+        flex: 1;
+      }
+
+      .footer-note {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--text-secondary);
+        margin: 0;
+        opacity: 0.5;
+      }
+
+      /* ── Responsive ──────────────────────────────────────── */
       @media (max-width: 680px) {
+        .hero {
+          padding: 3.5rem 1.25rem 3rem;
+        }
+
+        .step {
+          grid-template-columns: 1fr;
+          gap: 1.5rem;
+          padding: 2rem 0;
+        }
+        .step-visual {
+          order: -1;
+        }
+
+        .why-grid {
+          grid-template-columns: 1fr;
+        }
+
         .command-wrap {
           flex-direction: column;
+        }
+
+        .footer-spacer {
+          display: none;
+        }
+        .footer-inner {
+          gap: 1rem;
         }
       }
     </style>
   </head>
   <body>
-    <main class="home">
-      <h1>Shadow</h1>
-      <p>Copy this command to start the local Docker server:</p>
-      <div class="command-wrap">
-        <code id="command"></code>
-        <button id="copy-button" type="button">Copy</button>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a href="#" class="nav-brand">Shadow</a>
+        <a
+          href="https://github.com/taikoxyz/shadow"
+          target="_blank"
+          rel="noopener"
+          class="nav-github"
+          >GitHub ↗</a
+        >
       </div>
+    </nav>
+
+    <main>
+      <!-- ── Hero ─────────────────────────────────────────── -->
+      <section class="hero">
+        <p class="hero-eyebrow">Zero-knowledge · Taiko Network · Open source</p>
+        <h1 class="hero-title">
+          Prove you have ETH.<br />Without revealing who you are.
+        </h1>
+        <p class="hero-sub">
+          Shadow uses ZK proofs on Taiko Network to let you claim ETH without
+          linking your funding address to your recipient. No pool. No mixer.
+          Just math.
+        </p>
+        <div class="command-wrap">
+          <code id="command"></code>
+          <button id="copy-button" type="button">Copy</button>
+        </div>
+      </section>
+
+      <!-- ── How it works ──────────────────────────────────── -->
+      <section class="steps-section" id="how-it-works">
+        <div class="container">
+          <p class="section-label">How it works</p>
+
+          <!-- Step 1 -->
+          <div class="step reveal">
+            <div class="step-body">
+              <span class="step-num">01</span>
+              <h3>Create your deposit file</h3>
+              <p>
+                Generate a secret and specify up to 5 payment notes — who
+                receives what amount. The file lives on your machine and is
+                never uploaded. Max 8 ETH total across all notes.
+              </p>
+            </div>
+            <div class="step-visual">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 200">
+                <defs>
+                  <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                  </linearGradient>
+                </defs>
+                <rect x="20" y="10" width="460" height="180" rx="8" fill="#1e1e2e" stroke="#6366f1" stroke-width="2"/>
+                <rect x="20" y="10" width="460" height="35" rx="8" fill="url(#headerGrad)"/>
+                <rect x="20" y="35" width="460" height="10" fill="url(#headerGrad)"/>
+                <text x="250" y="33" fill="white" font-family="monospace" font-size="14" font-weight="bold" text-anchor="middle">DEPOSIT FILE</text>
+                <text x="40" y="75" fill="#a5b4fc" font-family="monospace" font-size="12">secret:</text>
+                <text x="100" y="75" fill="#fbbf24" font-family="monospace" font-size="12">0x7a2f...e9c1</text>
+                <text x="220" y="75" fill="#6b7280" font-family="monospace" font-size="11" font-style="italic">(keep this private!)</text>
+                <text x="40" y="105" fill="#a5b4fc" font-family="monospace" font-size="12">notes:</text>
+                <circle cx="55" cy="125" r="3" fill="#34d399"/>
+                <text x="70" y="130" fill="#e2e8f0" font-family="monospace" font-size="11">Note 0: Send</text>
+                <text x="170" y="130" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">1.0 ETH</text>
+                <text x="235" y="130" fill="#e2e8f0" font-family="monospace" font-size="11">to</text>
+                <text x="255" y="130" fill="#60a5fa" font-family="monospace" font-size="11">0xABCD...</text>
+                <circle cx="55" cy="150" r="3" fill="#34d399"/>
+                <text x="70" y="155" fill="#e2e8f0" font-family="monospace" font-size="11">Note 1: Send</text>
+                <text x="170" y="155" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">0.5 ETH</text>
+                <text x="235" y="155" fill="#e2e8f0" font-family="monospace" font-size="11">to</text>
+                <text x="255" y="155" fill="#60a5fa" font-family="monospace" font-size="11">0xEFGH...</text>
+                <circle cx="55" cy="175" r="3" fill="#34d399"/>
+                <text x="70" y="180" fill="#e2e8f0" font-family="monospace" font-size="11">Note 2: Send</text>
+                <text x="170" y="180" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">2.0 ETH</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step reveal">
+            <div class="step-body">
+              <span class="step-num">02</span>
+              <h3>Derive a target address</h3>
+              <p>
+                Shadow deterministically derives a unique Ethereum address from
+                your secret and notes via SHA256. No private key exists for
+                this address — it is a mathematical commitment, not a wallet.
+              </p>
+            </div>
+            <div class="step-visual">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160">
+                <defs>
+                  <linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#1e1e2e;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#2d2d3f;stop-opacity:1" />
+                  </linearGradient>
+                  <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#8b5cf6"/>
+                  </marker>
+                </defs>
+                <text x="300" y="25" fill="#a5b4fc" font-family="monospace" font-size="14" font-weight="bold" text-anchor="middle">TARGET ADDRESS DERIVATION</text>
+                <rect x="20" y="50" width="120" height="50" rx="6" fill="url(#boxGrad)" stroke="#fbbf24" stroke-width="2"/>
+                <text x="80" y="70" fill="#fbbf24" font-family="monospace" font-size="10" text-anchor="middle">secret</text>
+                <text x="80" y="88" fill="#e2e8f0" font-family="monospace" font-size="9" text-anchor="middle">0x7a2f...e9c1</text>
+                <text x="155" y="82" fill="#8b5cf6" font-family="monospace" font-size="24" font-weight="bold">+</text>
+                <rect x="175" y="50" width="100" height="50" rx="6" fill="url(#boxGrad)" stroke="#34d399" stroke-width="2"/>
+                <text x="225" y="70" fill="#34d399" font-family="monospace" font-size="10" text-anchor="middle">notes</text>
+                <text x="225" y="88" fill="#e2e8f0" font-family="monospace" font-size="9" text-anchor="middle">[note0, ...]</text>
+                <line x1="285" y1="75" x2="320" y2="75" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <rect x="330" y="50" width="100" height="50" rx="6" fill="#8b5cf6" stroke="#a78bfa" stroke-width="2"/>
+                <text x="380" y="80" fill="white" font-family="monospace" font-size="11" font-weight="bold" text-anchor="middle">SHA256</text>
+                <line x1="440" y1="75" x2="475" y2="75" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <rect x="485" y="45" width="100" height="60" rx="6" fill="url(#boxGrad)" stroke="#60a5fa" stroke-width="2"/>
+                <text x="535" y="65" fill="#60a5fa" font-family="monospace" font-size="9" text-anchor="middle">Target Address</text>
+                <text x="535" y="85" fill="#e2e8f0" font-family="monospace" font-size="9" text-anchor="middle">0x1234...abcd</text>
+                <rect x="150" y="120" width="300" height="30" rx="4" fill="#7f1d1d" stroke="#ef4444" stroke-width="1"/>
+                <text x="300" y="140" fill="#fca5a5" font-family="monospace" font-size="10" text-anchor="middle">No private key exists for this address!</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step reveal">
+            <div class="step-body">
+              <span class="step-num">03</span>
+              <h3>Fund the address with ETH</h3>
+              <p>
+                Send ETH to the target address from any wallet. It is a plain
+                ETH transfer, indistinguishable from any other on-chain
+                transaction. Nothing marks it as privacy-related.
+              </p>
+            </div>
+            <div class="step-visual">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 220">
+                <defs>
+                  <linearGradient id="walletGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#1e1e2e;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#2d2d3f;stop-opacity:1" />
+                  </linearGradient>
+                  <marker id="fundArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/>
+                  </marker>
+                </defs>
+                <rect x="150" y="10" width="200" height="30" rx="6" fill="#f59e0b"/>
+                <text x="250" y="32" fill="white" font-family="monospace" font-size="14" font-weight="bold" text-anchor="middle">STEP 3: FUND</text>
+                <rect x="170" y="55" width="160" height="45" rx="8" fill="url(#walletGrad)" stroke="#a78bfa" stroke-width="2"/>
+                <text x="250" y="75" fill="#a78bfa" font-family="monospace" font-size="11" text-anchor="middle">Your Wallet</text>
+                <text x="250" y="92" fill="#e2e8f0" font-family="monospace" font-size="10" text-anchor="middle">0xYour...addr</text>
+                <line x1="250" y1="105" x2="250" y2="130" stroke="#34d399" stroke-width="3" marker-end="url(#fundArrow)"/>
+                <text x="320" y="120" fill="#6b7280" font-family="monospace" font-size="10">Normal ETH transfer</text>
+                <rect x="130" y="140" width="240" height="55" rx="6" fill="url(#walletGrad)" stroke="#34d399" stroke-width="2"/>
+                <text x="160" y="162" fill="#6b7280" font-family="monospace" font-size="10">To:</text>
+                <text x="185" y="162" fill="#60a5fa" font-family="monospace" font-size="10">0x1234...abcd</text>
+                <text x="160" y="182" fill="#6b7280" font-family="monospace" font-size="10">Amount:</text>
+                <text x="220" y="182" fill="#34d399" font-family="monospace" font-size="10" font-weight="bold">3.5 ETH</text>
+                <text x="250" y="215" fill="#6b7280" font-family="monospace" font-size="9" text-anchor="middle" font-style="italic">Looks like any normal transaction</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="step reveal">
+            <div class="step-body">
+              <span class="step-num">04</span>
+              <h3>Generate a ZK proof</h3>
+              <p>
+                Click Generate Proof in the web UI. RISC Zero runs inside your
+                Docker container and proves the address was funded — without
+                revealing your secret or linking to your identity. Real-time
+                progress shown via WebSocket. Takes a few minutes.
+              </p>
+            </div>
+            <div class="step-visual">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 550 340">
+                <defs>
+                  <linearGradient id="proveBoxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#1e1e2e;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#2d2d3f;stop-opacity:1" />
+                  </linearGradient>
+                  <linearGradient id="zkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#059669;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#34d399;stop-opacity:1" />
+                  </linearGradient>
+                  <marker id="proveArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/>
+                  </marker>
+                </defs>
+                <rect x="175" y="10" width="200" height="30" rx="6" fill="#34d399"/>
+                <text x="275" y="32" fill="white" font-family="monospace" font-size="14" font-weight="bold" text-anchor="middle">STEP 4: PROVE</text>
+                <rect x="20" y="55" width="200" height="120" rx="8" fill="url(#proveBoxGrad)" stroke="#fbbf24" stroke-width="2"/>
+                <text x="120" y="75" fill="#fbbf24" font-family="monospace" font-size="11" font-weight="bold" text-anchor="middle">Private Inputs</text>
+                <text x="120" y="92" fill="#6b7280" font-family="monospace" font-size="9" text-anchor="middle">(you keep these)</text>
+                <circle cx="40" cy="115" r="3" fill="#fbbf24"/>
+                <text x="55" y="119" fill="#e2e8f0" font-family="monospace" font-size="10">Your secret</text>
+                <circle cx="40" cy="135" r="3" fill="#fbbf24"/>
+                <text x="55" y="139" fill="#e2e8f0" font-family="monospace" font-size="10">Full note set</text>
+                <circle cx="40" cy="155" r="3" fill="#fbbf24"/>
+                <text x="55" y="159" fill="#e2e8f0" font-family="monospace" font-size="10">Account proof</text>
+                <line x1="230" y1="115" x2="260" y2="115" stroke="#34d399" stroke-width="2" marker-end="url(#proveArrow)"/>
+                <rect x="270" y="70" width="160" height="90" rx="10" fill="url(#zkGrad)" stroke="#10b981" stroke-width="2"/>
+                <text x="350" y="95" fill="white" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">ZK PROVER</text>
+                <text x="350" y="115" fill="#d1fae5" font-family="monospace" font-size="10" text-anchor="middle">RISC Zero</text>
+                <line x1="290" y1="125" x2="410" y2="125" stroke="#d1fae5" stroke-width="1"/>
+                <text x="350" y="143" fill="#d1fae5" font-family="monospace" font-size="9" text-anchor="middle">Generates proof</text>
+                <text x="350" y="155" fill="#d1fae5" font-family="monospace" font-size="9" text-anchor="middle">Hides all secrets</text>
+                <line x1="350" y1="170" x2="350" y2="200" stroke="#34d399" stroke-width="2" marker-end="url(#proveArrow)"/>
+                <rect x="170" y="210" width="260" height="120" rx="8" fill="url(#proveBoxGrad)" stroke="#60a5fa" stroke-width="2"/>
+                <text x="300" y="235" fill="#60a5fa" font-family="monospace" font-size="11" font-weight="bold" text-anchor="middle">Public Output</text>
+                <circle cx="190" cy="260" r="3" fill="#34d399"/>
+                <text x="205" y="264" fill="#e2e8f0" font-family="monospace" font-size="10">"This proof is valid"</text>
+                <text x="355" y="264" fill="#34d399" font-family="monospace" font-size="10">✓</text>
+                <circle cx="190" cy="282" r="3" fill="#60a5fa"/>
+                <text x="205" y="286" fill="#e2e8f0" font-family="monospace" font-size="10">Recipient:</text>
+                <text x="280" y="286" fill="#60a5fa" font-family="monospace" font-size="10">0xEFGH...</text>
+                <circle cx="190" cy="304" r="3" fill="#34d399"/>
+                <text x="205" y="308" fill="#e2e8f0" font-family="monospace" font-size="10">Amount:</text>
+                <text x="270" y="308" fill="#34d399" font-family="monospace" font-size="10">0.5 ETH</text>
+                <circle cx="190" cy="326" r="3" fill="#a78bfa"/>
+                <text x="205" y="330" fill="#e2e8f0" font-family="monospace" font-size="10">Nullifier:</text>
+                <text x="275" y="330" fill="#a78bfa" font-family="monospace" font-size="10">0x9876...</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Step 5 -->
+          <div class="step reveal">
+            <div class="step-body">
+              <span class="step-num">05</span>
+              <h3>Claim your ETH on Taiko Network</h3>
+              <p>
+                The Shadow contract on Taiko Network verifies the proof, checks the
+                nullifier to prevent double-claims, and mints ETH directly to
+                your specified recipient addresses. A 0.1% fee applies.
+              </p>
+            </div>
+            <div class="step-visual">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 550 320">
+                <defs>
+                  <linearGradient id="claimBoxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#1e1e2e;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#2d2d3f;stop-opacity:1" />
+                  </linearGradient>
+                  <linearGradient id="contractGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#7c3aed;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+                  </linearGradient>
+                  <marker id="claimArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa"/>
+                  </marker>
+                  <marker id="successArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/>
+                  </marker>
+                </defs>
+                <rect x="175" y="10" width="200" height="30" rx="6" fill="#a78bfa"/>
+                <text x="275" y="32" fill="white" font-family="monospace" font-size="14" font-weight="bold" text-anchor="middle">STEP 5: CLAIM</text>
+                <rect x="20" y="55" width="200" height="110" rx="8" fill="url(#claimBoxGrad)" stroke="#60a5fa" stroke-width="2"/>
+                <text x="120" y="78" fill="#60a5fa" font-family="monospace" font-size="11" font-weight="bold" text-anchor="middle">Submit to Contract</text>
+                <circle cx="40" cy="100" r="3" fill="#34d399"/>
+                <text x="55" y="104" fill="#e2e8f0" font-family="monospace" font-size="10">ZK Proof</text>
+                <circle cx="40" cy="120" r="3" fill="#60a5fa"/>
+                <text x="55" y="124" fill="#e2e8f0" font-family="monospace" font-size="10">Recipient:</text>
+                <text x="130" y="124" fill="#60a5fa" font-family="monospace" font-size="10">0xEFGH...</text>
+                <circle cx="40" cy="140" r="3" fill="#34d399"/>
+                <text x="55" y="144" fill="#e2e8f0" font-family="monospace" font-size="10">Amount:</text>
+                <text x="115" y="144" fill="#34d399" font-family="monospace" font-size="10">0.5 ETH</text>
+                <circle cx="40" cy="160" r="3" fill="#a78bfa"/>
+                <text x="55" y="164" fill="#e2e8f0" font-family="monospace" font-size="10">Nullifier:</text>
+                <text x="120" y="164" fill="#a78bfa" font-family="monospace" font-size="10">0x9876...</text>
+                <line x1="230" y1="110" x2="270" y2="110" stroke="#a78bfa" stroke-width="2" marker-end="url(#claimArrow)"/>
+                <rect x="280" y="60" width="180" height="100" rx="10" fill="url(#contractGrad)" stroke="#c4b5fd" stroke-width="2"/>
+                <text x="370" y="85" fill="white" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">SHADOW CONTRACT</text>
+                <line x1="300" y1="95" x2="440" y2="95" stroke="#e0e7ff" stroke-width="1"/>
+                <text x="310" y="115" fill="#e0e7ff" font-family="monospace" font-size="10">1. Verifies proof</text>
+                <text x="310" y="132" fill="#e0e7ff" font-family="monospace" font-size="10">2. Checks nullifier</text>
+                <text x="310" y="149" fill="#e0e7ff" font-family="monospace" font-size="10">3. Mints ETH</text>
+                <line x1="370" y1="170" x2="370" y2="200" stroke="#34d399" stroke-width="2" marker-end="url(#successArrow)"/>
+                <rect x="120" y="210" width="310" height="100" rx="8" fill="url(#claimBoxGrad)" stroke="#34d399" stroke-width="2"/>
+                <text x="275" y="235" fill="#34d399" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">Result</text>
+                <rect x="140" y="250" width="270" height="25" rx="4" fill="#064e3b" stroke="#34d399" stroke-width="1"/>
+                <text x="155" y="267" fill="#e2e8f0" font-family="monospace" font-size="10">Recipient gets:</text>
+                <text x="270" y="267" fill="#34d399" font-family="monospace" font-size="10" font-weight="bold">0.4995 ETH</text>
+                <text x="355" y="267" fill="#6b7280" font-family="monospace" font-size="9">(0.5 - 0.1%)</text>
+                <rect x="140" y="280" width="270" height="25" rx="4" fill="#1e1e2e" stroke="#6b7280" stroke-width="1"/>
+                <text x="155" y="297" fill="#e2e8f0" font-family="monospace" font-size="10">Fee recipient gets:</text>
+                <text x="290" y="297" fill="#fbbf24" font-family="monospace" font-size="10">0.0005 ETH</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
+
+    <footer class="footer">
+      <div class="container footer-inner">
+        <a href="https://github.com/taikoxyz/shadow" target="_blank" rel="noopener">GitHub</a>
+<a href="https://taiko.xyz" target="_blank" rel="noopener">Taiko</a>
+
+      </div>
+    </footer>
+
     <script>
+      // ── Curl command (preserved from original page) ──────────
       const copyButton = document.getElementById("copy-button");
       const cacheBuster = Date.now();
       const commandHost =
@@ -141,12 +673,24 @@
           document.execCommand("copy");
           fallback.remove();
         }
-
         copyButton.textContent = "Copied";
         setTimeout(() => {
           copyButton.textContent = originalLabel;
         }, 1400);
       });
+
+      // ── Scroll reveal ─────────────────────────────────────────
+      const observer = new IntersectionObserver(
+        (entries) =>
+          entries.forEach((e) => {
+            if (e.isIntersecting) {
+              e.target.classList.add("revealed");
+              observer.unobserve(e.target);
+            }
+          }),
+        { threshold: 0.08 }
+      );
+      document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
     </script>
   </body>
 </html>
