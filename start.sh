@@ -685,6 +685,15 @@ if [ -n "$PROVE_FILE" ]; then
 
   cp "$src" "$dst"
   ok "Proof saved: $dst"
-  info "Shadow server still running at $URL — use it to claim via the UI."
+
+  # Stop the container if we started it; leave it if we reused an existing one
+  if [ "$PROVE_REUSE" = false ]; then
+    info "Stopping Shadow container..."
+    docker stop "$CONTAINER" > /dev/null 2>&1 || true
+    docker rm "$CONTAINER" > /dev/null 2>&1 || true
+    ok "Done"
+  else
+    info "Shadow server still running at $URL"
+  fi
 
 fi
