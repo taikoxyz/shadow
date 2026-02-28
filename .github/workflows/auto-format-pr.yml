@@ -1,0 +1,58 @@
+name: Auto Format PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+concurrency:
+  group: auto-format-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-format:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Set up Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Format Solidity
+        run: forge fmt
+        working-directory: packages/contracts
+
+      - name: Format Rust server
+        run: cargo fmt --manifest-path packages/server/Cargo.toml
+
+      - name: Format Rust prover
+        run: cargo fmt --manifest-path packages/risc0-prover/Cargo.toml --all
+
+      - name: Commit formatting changes
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No formatting changes to commit"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: auto-format code"
+          git push
