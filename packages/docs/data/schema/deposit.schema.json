@@ -10,6 +10,10 @@
       "type": "string",
       "const": "v2"
     },
+    "created": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}$"
+    },
     "chainId": {
       "type": "string",
       "pattern": "^[0-9]+$"

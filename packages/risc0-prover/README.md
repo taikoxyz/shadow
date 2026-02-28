@@ -39,6 +39,7 @@ Default RPC and contract addresses are configured for Taiko Hoodi (chainId 16701
 ```json
 {
   "version": "v2",
+  "created": "20260228T000000",
   "chainId": "167013",
   "secret": "0x...",
   "notes": [

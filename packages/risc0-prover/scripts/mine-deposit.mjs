@@ -102,6 +102,14 @@ function parseArg(argv, name) {
   return argv[idx + 1] || null;
 }
 
+function timestampNowCompact() {
+  const iso = new Date().toISOString(); // YYYY-MM-DDTHH:mm:ss.sssZ
+  return (
+    `${iso.slice(0, 4)}${iso.slice(5, 7)}${iso.slice(8, 10)}` +
+    `T${iso.slice(11, 13)}${iso.slice(14, 16)}${iso.slice(17, 19)}`
+  );
+}
+
 function usage() {
   console.error(`Usage:
   node scripts/mine-deposit.mjs --out <path.json> --chain-id <167013> --recipient <0x...> --amount-wei <n> [--note-count 2] [--same-recipient]
@@ -165,6 +173,7 @@ async function main() {
 
   const depositJson = {
     version: "v2",
+    created: timestampNowCompact(),
     chainId: chainId.toString(),
     secret: bytesToHex(secret).toLowerCase(),
     notes,

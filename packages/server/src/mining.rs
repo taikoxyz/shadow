@@ -90,6 +90,7 @@ pub fn write_deposit_file(
 
     let mut deposit_json = serde_json::json!({
         "version": "v2",
+        "created": timestamp,
         "chainId": chain_id.to_string(),
         "secret": format!("0x{}", hex::encode(secret)),
         "notes": notes_json,
