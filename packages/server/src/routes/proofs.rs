@@ -106,6 +106,8 @@ async fn start_proof(
                 let proof_ts = timestamp_now();
                 let proof_filename = format!("{}.proof-{}.json", deposit_stem, proof_ts);
                 let proof_path = workspace.join(&proof_filename);
+                let mut bundled = bundled;
+                bundled.created = Some(proof_ts.clone());
 
                 match serde_json::to_vec_pretty(&bundled) {
                     Ok(json_bytes) => {

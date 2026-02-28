@@ -116,6 +116,14 @@ function parseArgs(argv) {
   return { command, opts };
 }
 
+function timestampNowCompact() {
+  const iso = new Date().toISOString(); // YYYY-MM-DDTHH:mm:ss.sssZ
+  return (
+    `${iso.slice(0, 4)}${iso.slice(5, 7)}${iso.slice(8, 10)}` +
+    `T${iso.slice(11, 13)}${iso.slice(14, 16)}${iso.slice(17, 19)}`
+  );
+}
+
 async function cmdValidate(opts) {
   const depositPath = requireOpt(opts, "deposit");
   const depositAbsPath = resolvePath(depositPath);
@@ -270,6 +278,7 @@ async function cmdProve(opts) {
 
   const noteProof = {
     version: "v2",
+    created: timestampNowCompact(),
     depositFile: depositProofPath,
     blockNumber: blockNumber.toString(),
     blockHash: bytesToHex(blockHashBytes),
