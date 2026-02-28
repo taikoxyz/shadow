@@ -705,6 +705,54 @@ async function handleMineDeposit(formData) {
   }
 }
 
+function triggerBrowserDownload(downloadUrl, filename) {
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.setAttribute('download', filename || '');
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function fetchDownloadBlob(downloadUrl) {
+  const resp = await fetch(downloadUrl);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => resp.statusText);
+    throw new Error(text || `download failed (${resp.status})`);
+  }
+  return resp.blob();
+}
+
+async function handleDownloadFile(downloadUrl, filename) {
+  const fallbackDownload = () => triggerBrowserDownload(downloadUrl, filename);
+  if (typeof window.showSaveFilePicker !== 'function') {
+    fallbackDownload();
+    return;
+  }
+
+  try {
+    const fileHandle = await window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [{
+        description: 'JSON file',
+        accept: { 'application/json': ['.json'] },
+      }],
+    });
+
+    const blob = await fetchDownloadBlob(downloadUrl);
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    showToast(`Saved ${filename}`, 'success');
+  } catch (err) {
+    if (err?.name === 'AbortError') return;
+    console.warn('Save picker failed, falling back to normal download', err);
+    showToast('Save picker unavailable, using browser download', 'info');
+    fallbackDownload();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Toast notifications
 // ---------------------------------------------------------------------------
@@ -985,11 +1033,10 @@ function depositFileRow(deposit) {
         title: 'View file',
         onclick: () => viewFileModal(deposit.filename, downloadUrl),
       }, [eyeIcon()]),
-      el('a', {
-        href: downloadUrl,
+      el('button', {
         className: 'btn btn-small',
-        download: true,
         title: 'Download deposit file',
+        onclick: () => handleDownloadFile(downloadUrl, deposit.filename),
       }, [downloadIcon()]),
       el('button', {
         className: 'btn btn-danger btn-small',
@@ -1020,11 +1067,10 @@ function proofFileRow(deposit, status) {
         title: 'View file',
         onclick: () => viewFileModal(deposit.proofFile || 'proof.json', downloadUrl),
       }, [eyeIcon()]),
-      el('a', {
-        href: downloadUrl,
+      el('button', {
         className: 'btn btn-small',
-        download: true,
         title: 'Download proof file',
+        onclick: () => handleDownloadFile(downloadUrl, deposit.proofFile || 'proof.json'),
       }, [downloadIcon()]),
       status !== 'proving'
         ? el('button', {
