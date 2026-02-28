@@ -218,7 +218,11 @@ contract Risc0CircuitVerifierTest is Test {
         return keccak256("state-root");
     }
 
-    function _buildJournal(IShadow.PublicInput memory _input, bytes32 _stateRoot) private pure returns (bytes memory journal_) {
+    function _buildJournal(IShadow.PublicInput memory _input, bytes32 _stateRoot)
+        private
+        pure
+        returns (bytes memory journal_)
+    {
         journal_ = new bytes(_JOURNAL_LEN);
 
         _writeLe(journal_, 0, _input.blockNumber, 8);

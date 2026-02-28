@@ -16,8 +16,7 @@ use std::{fs, path::Path};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use shadow_proof_core::{
-    compute_notes_hash, compute_recipient_hash, derive_nullifier,
-    derive_target_address, MAX_NOTES,
+    compute_notes_hash, compute_recipient_hash, derive_nullifier, derive_target_address, MAX_NOTES,
 };
 
 /// A parsed deposit file (v2 schema).
@@ -87,7 +86,10 @@ pub fn load_deposit(path: &Path) -> Result<DepositFile> {
 /// Validate a deposit file against the v2 schema constraints.
 pub fn validate_deposit(deposit: &DepositFile) -> Result<()> {
     if deposit.version != "v2" {
-        bail!("unsupported deposit version: {} (expected v2)", deposit.version);
+        bail!(
+            "unsupported deposit version: {} (expected v2)",
+            deposit.version
+        );
     }
 
     // chainId must be a decimal number string
@@ -158,9 +160,10 @@ pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> 
 
     for (i, note) in deposit.notes.iter().enumerate() {
         let recipient = parse_hex_address(&note.recipient)?;
-        let amount: u128 = note.amount.parse().with_context(|| {
-            format!("invalid amount in note {}", i)
-        })?;
+        let amount: u128 = note
+            .amount
+            .parse()
+            .with_context(|| format!("invalid amount in note {}", i))?;
 
         let recipient_hash = compute_recipient_hash(&recipient);
         let nullifier = derive_nullifier(&secret, chain_id, i as u32);
@@ -255,7 +258,9 @@ pub fn is_proof_filename(name: &str) -> bool {
 /// e.g. `deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json`
 ///   → `deposit-ffe8-fde9-20260224T214613`
 pub fn proof_deposit_stem(proof_filename: &str) -> Option<&str> {
-    let name = proof_filename.strip_suffix(".json").unwrap_or(proof_filename);
+    let name = proof_filename
+        .strip_suffix(".json")
+        .unwrap_or(proof_filename);
     // Find ".proof-" and return everything before it
     name.find(".proof-").map(|idx| &name[..idx])
 }
@@ -373,7 +378,9 @@ mod tests {
 
     #[test]
     fn is_deposit_filename_works() {
-        assert!(is_deposit_filename("deposit-ffe8-fde9-20260224T214613.json"));
+        assert!(is_deposit_filename(
+            "deposit-ffe8-fde9-20260224T214613.json"
+        ));
         assert!(!is_deposit_filename(
             "deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json"
         ));
@@ -393,9 +400,7 @@ mod tests {
     #[test]
     fn proof_deposit_stem_extraction() {
         assert_eq!(
-            proof_deposit_stem(
-                "deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json"
-            ),
+            proof_deposit_stem("deposit-ffe8-fde9-20260224T214613.proof-20260225T103000.json"),
             Some("deposit-ffe8-fde9-20260224T214613")
         );
         assert_eq!(
@@ -409,8 +414,7 @@ mod tests {
         let deposit = DepositFile {
             version: "v2".into(),
             chain_id: "167013".into(),
-            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa"
-                .into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
             notes: vec![DepositNote {
                 recipient: "0x1111111111111111111111111111111111111111".into(),
                 amount: "1230000000000".into(),
@@ -426,8 +430,7 @@ mod tests {
         let deposit = DepositFile {
             version: "v1".into(),
             chain_id: "167013".into(),
-            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa"
-                .into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
             notes: vec![DepositNote {
                 recipient: "0x1111111111111111111111111111111111111111".into(),
                 amount: "100".into(),
@@ -443,8 +446,7 @@ mod tests {
         let deposit = DepositFile {
             version: "v2".into(),
             chain_id: "167013".into(),
-            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa"
-                .into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
             notes: vec![],
             target_address: None,
         };
@@ -456,8 +458,7 @@ mod tests {
         let deposit = DepositFile {
             version: "v2".into(),
             chain_id: "167013".into(),
-            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa"
-                .into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
             notes: vec![DepositNote {
                 recipient: "0x1111111111111111111111111111111111111111".into(),
                 amount: "0".into(),
@@ -473,8 +474,7 @@ mod tests {
         let deposit = DepositFile {
             version: "v2".into(),
             chain_id: "167013".into(),
-            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa"
-                .into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
             notes: vec![
                 DepositNote {
                     recipient: "0x1111111111111111111111111111111111111111".into(),
@@ -509,8 +509,7 @@ mod tests {
         let deposit = DepositFile {
             version: "v2".into(),
             chain_id: "167013".into(),
-            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa"
-                .into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
             notes: vec![DepositNote {
                 recipient: "0x1111111111111111111111111111111111111111".into(),
                 amount: "1230000000000".into(),

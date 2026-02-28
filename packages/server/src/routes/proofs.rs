@@ -82,8 +82,14 @@ async fn start_proof(
 
     tokio::spawn(async move {
         let prove_start = std::time::Instant::now();
-        match pipeline::run_pipeline(&workspace, &deposit_filename, &rpc_url, queue.clone(), cancel_rx)
-            .await
+        match pipeline::run_pipeline(
+            &workspace,
+            &deposit_filename,
+            &rpc_url,
+            queue.clone(),
+            cancel_rx,
+        )
+        .await
         {
             Ok(bundled) => {
                 // Rename any existing proof file to .bkup before writing the new one
@@ -113,19 +119,24 @@ async fn start_proof(
                     Ok(json_bytes) => {
                         if let Err(e) = std::fs::write(&proof_path, json_bytes) {
                             tracing::error!(error = %e, "failed to write proof file");
-                            queue.fail(0, &format!("failed to write proof file: {:#}", e)).await;
+                            queue
+                                .fail(0, &format!("failed to write proof file: {:#}", e))
+                                .await;
                             return;
                         }
                         tracing::info!(file = %proof_filename, "proof file written");
-                        queue.complete(&proof_filename, Some(prove_start.elapsed().as_secs_f64())).await;
+                        queue
+                            .complete(&proof_filename, Some(prove_start.elapsed().as_secs_f64()))
+                            .await;
 
-                        let _ = event_tx.send(
-                            serde_json::json!({"type": "workspace:changed"}).to_string(),
-                        );
+                        let _ = event_tx
+                            .send(serde_json::json!({"type": "workspace:changed"}).to_string());
                     }
                     Err(e) => {
                         tracing::error!(error = %e, "failed to serialize proof");
-                        queue.fail(0, &format!("serialization error: {:#}", e)).await;
+                        queue
+                            .fail(0, &format!("serialization error: {:#}", e))
+                            .await;
                     }
                 }
             }
@@ -143,16 +154,12 @@ async fn start_proof(
 }
 
 /// `GET /api/queue` — get queue status.
-async fn queue_status(
-    State(state): State<Arc<AppState>>,
-) -> Json<Option<ProofJob>> {
+async fn queue_status(State(state): State<Arc<AppState>>) -> Json<Option<ProofJob>> {
     Json(state.proof_queue.status().await)
 }
 
 /// `DELETE /api/queue/current` — cancel or clear the current proof job.
-async fn cancel_job(
-    State(state): State<Arc<AppState>>,
-) -> Json<CancelResponse> {
+async fn cancel_job(State(state): State<Arc<AppState>>) -> Json<CancelResponse> {
     if state.proof_queue.cancel().await {
         Json(CancelResponse {
             cancelled: true,

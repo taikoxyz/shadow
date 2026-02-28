@@ -6,8 +6,7 @@
 pub mod deposit;
 
 use std::{
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -68,7 +67,9 @@ pub fn configure_risc0_env() {
         env::set_var("RISC0_PROVER", "local");
     }
 
-    if env::var("RISC0_PROVER").ok().as_deref() != Some("ipc") || env::var("RISC0_SERVER_PATH").is_ok() {
+    if env::var("RISC0_PROVER").ok().as_deref() != Some("ipc")
+        || env::var("RISC0_SERVER_PATH").is_ok()
+    {
         return;
     }
 
@@ -223,13 +224,15 @@ pub fn deserialize_receipt(bytes: &[u8]) -> Result<Receipt> {
 pub fn write_receipt(path: &Path, receipt: &Receipt) -> Result<()> {
     ensure_parent(path)?;
     let bytes = serialize_receipt(receipt)?;
-    fs::write(path, bytes).with_context(|| format!("failed writing receipt to {}", path.display()))?;
+    fs::write(path, bytes)
+        .with_context(|| format!("failed writing receipt to {}", path.display()))?;
     Ok(())
 }
 
 /// Read a receipt from a file (bincode format).
 pub fn read_receipt(path: &Path) -> Result<Receipt> {
-    let bytes = fs::read(path).with_context(|| format!("failed reading receipt {}", path.display()))?;
+    let bytes =
+        fs::read(path).with_context(|| format!("failed reading receipt {}", path.display()))?;
     deserialize_receipt(&bytes)
 }
 
@@ -366,14 +369,9 @@ pub fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
 fn decode_journal(receipt: &Receipt) -> Result<ClaimJournal> {
     match unpack_journal(&receipt.journal.bytes) {
         Ok(journal) => Ok(journal),
-        Err(packed_err) => receipt
-            .journal
-            .decode::<ClaimJournal>()
-            .with_context(|| {
-                format!(
-                    "failed decoding claim journal; packed decode error: {packed_err}"
-                )
-            }),
+        Err(packed_err) => receipt.journal.decode::<ClaimJournal>().with_context(|| {
+            format!("failed decoding claim journal; packed decode error: {packed_err}")
+        }),
     }
 }
 
@@ -382,7 +380,9 @@ fn parse_prover_opts(receipt_kind: &str) -> Result<ProverOpts> {
         "composite" => Ok(ProverOpts::composite()),
         "succinct" => Ok(ProverOpts::succinct()),
         "groth16" => Ok(ProverOpts::groth16()),
-        _ => bail!("unsupported receipt kind: {receipt_kind} (expected composite|succinct|groth16)"),
+        _ => {
+            bail!("unsupported receipt kind: {receipt_kind} (expected composite|succinct|groth16)")
+        }
     }
 }
 

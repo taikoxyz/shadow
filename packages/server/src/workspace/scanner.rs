@@ -9,8 +9,7 @@ use std::{
 
 use serde::Serialize;
 use shadow_proof_core::{
-    compute_notes_hash, compute_recipient_hash, derive_nullifier, derive_target_address,
-    MAX_NOTES,
+    compute_notes_hash, compute_recipient_hash, derive_nullifier, derive_target_address, MAX_NOTES,
 };
 
 /// Index of all deposits and their proof status in a workspace.
@@ -111,7 +110,10 @@ pub fn scan_workspace(workspace: &Path) -> WorkspaceIndex {
     let mut proof_map: HashMap<String, Vec<String>> = HashMap::new();
     for pf in &proof_files {
         if let Some(stem) = proof_deposit_stem(pf) {
-            proof_map.entry(stem.to_string()).or_default().push(pf.clone());
+            proof_map
+                .entry(stem.to_string())
+                .or_default()
+                .push(pf.clone());
         }
     }
     let proof_map: HashMap<String, String> = proof_map

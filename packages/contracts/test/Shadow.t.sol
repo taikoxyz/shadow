@@ -297,8 +297,7 @@ contract ShadowTest is Test {
     }
 
     function test_upgradeToAndCall_RevertWhen_NotOwner() external {
-        Shadow newImpl =
-            new Shadow(address(shadowVerifier), address(etherMinter), address(0xCAFE));
+        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(0xCAFE));
 
         vm.prank(address(0xBEEF));
         vm.expectRevert();

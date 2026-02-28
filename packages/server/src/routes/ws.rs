@@ -14,10 +14,7 @@ use tokio::sync::broadcast;
 use crate::state::AppState;
 
 /// `GET /ws` — WebSocket upgrade for real-time events.
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let rx = state.event_tx.subscribe();
     ws.on_upgrade(move |socket| handle_socket(socket, rx))
 }

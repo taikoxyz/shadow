@@ -124,7 +124,12 @@ impl ProofQueue {
     }
 
     /// Update job progress (called by the pipeline during proving).
-    pub async fn update_progress(&self, current_note: u32, message: &str, extra: Option<&ProgressExtra>) {
+    pub async fn update_progress(
+        &self,
+        current_note: u32,
+        message: &str,
+        extra: Option<&ProgressExtra>,
+    ) {
         let mut current = self.current.lock().await;
         if let Some(ref mut job) = *current {
             job.status = JobStatus::Running;

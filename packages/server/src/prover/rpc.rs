@@ -27,7 +27,12 @@ struct RpcError {
 }
 
 /// Perform a raw JSON-RPC call.
-async fn rpc_call(client: &reqwest::Client, url: &str, method: &str, params: Value) -> Result<Value> {
+async fn rpc_call(
+    client: &reqwest::Client,
+    url: &str,
+    method: &str,
+    params: Value,
+) -> Result<Value> {
     let start = std::time::Instant::now();
     tracing::debug!(rpc_method = %method, "RPC call starting");
     tracing::trace!(rpc_method = %method, params = %params, "RPC request payload");
@@ -80,7 +85,11 @@ pub struct BlockData {
 }
 
 /// Fetch a block by number (or "latest") and encode its header as RLP.
-pub async fn eth_get_block(client: &reqwest::Client, url: &str, block_tag: &str) -> Result<BlockData> {
+pub async fn eth_get_block(
+    client: &reqwest::Client,
+    url: &str,
+    block_tag: &str,
+) -> Result<BlockData> {
     let result = rpc_call(
         client,
         url,
@@ -215,29 +224,30 @@ fn encode_block_header_rlp(block: &serde_json::Map<String, Value>) -> Result<Vec
 
     // 17 header fields in order
     let fields: Vec<Vec<u8>> = vec![
-        get_hex("parentHash"),         // 0
-        get_hex("sha3Uncles"),         // 1
-        get_hex("miner"),              // 2
-        get_hex("stateRoot"),          // 3
-        get_hex("transactionsRoot"),   // 4
-        get_hex("receiptsRoot"),       // 5
-        get_hex("logsBloom"),          // 6
-        get_quantity("difficulty"),     // 7
-        get_quantity("number"),        // 8
-        get_quantity("gasLimit"),      // 9
-        get_quantity("gasUsed"),       // 10
-        get_quantity("timestamp"),     // 11
-        get_hex("extraData"),          // 12
-        get_hex("mixHash"),            // 13
-        get_hex("nonce"),              // 14
-        get_quantity(                   // 15
+        get_hex("parentHash"),       // 0
+        get_hex("sha3Uncles"),       // 1
+        get_hex("miner"),            // 2
+        get_hex("stateRoot"),        // 3
+        get_hex("transactionsRoot"), // 4
+        get_hex("receiptsRoot"),     // 5
+        get_hex("logsBloom"),        // 6
+        get_quantity("difficulty"),  // 7
+        get_quantity("number"),      // 8
+        get_quantity("gasLimit"),    // 9
+        get_quantity("gasUsed"),     // 10
+        get_quantity("timestamp"),   // 11
+        get_hex("extraData"),        // 12
+        get_hex("mixHash"),          // 13
+        get_hex("nonce"),            // 14
+        get_quantity(
+            // 15
             if block.contains_key("baseFeePerGas") {
                 "baseFeePerGas"
             } else {
                 "baseFee"
             },
         ),
-        get_hex("withdrawalsRoot"),    // 16
+        get_hex("withdrawalsRoot"), // 16
     ];
 
     // RLP-encode each field as a byte string, then wrap in a list

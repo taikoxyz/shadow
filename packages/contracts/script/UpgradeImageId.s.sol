@@ -37,19 +37,13 @@ contract UpgradeImageId is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // 1. Deploy new Risc0CircuitVerifier with updated imageId
-        address newCircuitVerifier = address(
-            new Risc0CircuitVerifier(RISC0_GROTH16_VERIFIER, imageId)
-        );
+        address newCircuitVerifier = address(new Risc0CircuitVerifier(RISC0_GROTH16_VERIFIER, imageId));
 
         // 2. Deploy new ShadowVerifier pointing to new circuit verifier
-        address newShadowVerifier = address(
-            new ShadowVerifier(TAIKO_ANCHOR, newCircuitVerifier)
-        );
+        address newShadowVerifier = address(new ShadowVerifier(TAIKO_ANCHOR, newCircuitVerifier));
 
         // 3. Deploy new Shadow implementation with new verifier
-        address newShadowImpl = address(
-            new Shadow(newShadowVerifier, DUMMY_ETHER_MINTER, owner)
-        );
+        address newShadowImpl = address(new Shadow(newShadowVerifier, DUMMY_ETHER_MINTER, owner));
 
         // 4. Upgrade the UUPS proxy to the new implementation (no reinit needed)
         UUPSUpgradeable(SHADOW_PROXY).upgradeTo(newShadowImpl);
