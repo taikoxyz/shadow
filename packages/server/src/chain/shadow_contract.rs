@@ -41,11 +41,7 @@ impl ChainClient {
     ///
     /// `shadow_address` is the Shadow contract address (0x-prefixed hex).
     /// `nullifier` is the 32-byte nullifier (0x-prefixed hex).
-    pub async fn is_consumed(
-        &self,
-        shadow_address: &str,
-        nullifier: &str,
-    ) -> Result<bool> {
+    pub async fn is_consumed(&self, shadow_address: &str, nullifier: &str) -> Result<bool> {
         // Check cache first
         {
             let cache = self.nullifier_cache.lock().unwrap();
@@ -59,9 +55,7 @@ impl ChainClient {
         // Call isConsumed(bytes32 nullifier) on the Shadow contract
         // Function selector: keccak256("isConsumed(bytes32)") = first 4 bytes
         let selector = "0x6346e832"; // keccak256("isConsumed(bytes32)")[..4]
-        let nullifier_padded = nullifier
-            .strip_prefix("0x")
-            .unwrap_or(nullifier);
+        let nullifier_padded = nullifier.strip_prefix("0x").unwrap_or(nullifier);
 
         if nullifier_padded.len() != 64 {
             bail!("nullifier must be 32 bytes (64 hex chars)");
@@ -75,9 +69,7 @@ impl ChainClient {
             .context("isConsumed call failed")?;
 
         // Result is a bool encoded as uint256 (32 bytes, last byte is 0 or 1)
-        let result_hex = result
-            .strip_prefix("0x")
-            .unwrap_or(&result);
+        let result_hex = result.strip_prefix("0x").unwrap_or(&result);
         let is_consumed = result_hex.ends_with('1');
 
         // Update cache
@@ -158,7 +150,10 @@ impl ChainClient {
         if let Some(error) = resp.get("error") {
             bail!(
                 "eth_getBalance error: {}",
-                error.get("message").and_then(|v| v.as_str()).unwrap_or("unknown")
+                error
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
             );
         }
 
@@ -169,8 +164,7 @@ impl ChainClient {
 
         // Convert hex balance to decimal string
         let stripped = hex_balance.strip_prefix("0x").unwrap_or(hex_balance);
-        let value = u128::from_str_radix(stripped, 16)
-            .context("invalid balance hex")?;
+        let value = u128::from_str_radix(stripped, 16).context("invalid balance hex")?;
         Ok(value.to_string())
     }
 

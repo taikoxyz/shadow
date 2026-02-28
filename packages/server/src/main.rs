@@ -136,15 +136,15 @@ async fn main() -> Result<()> {
                                 tracing::info!(circuit_id = %local_id, "circuit ID matches on-chain verifier ✓");
                             }
                         }
-                        Err(e) => tracing::warn!("could not read circuit ID from verifier: {:#}", e),
+                        Err(e) => {
+                            tracing::warn!("could not read circuit ID from verifier: {:#}", e)
+                        }
                     }
                 }
                 Err(e) => tracing::warn!("could not resolve circuit verifier from Shadow: {:#}", e),
             }
         } else if state.shadow_address.is_none() {
-            tracing::warn!(
-                "SHADOW_ADDRESS not configured — circuit ID check skipped."
-            );
+            tracing::warn!("SHADOW_ADDRESS not configured — circuit ID check skipped.");
         }
     }
 
@@ -157,9 +157,7 @@ async fn main() -> Result<()> {
         .await
         .with_context(|| format!("failed to bind to {}", addr))?;
 
-    axum::serve(listener, app)
-        .await
-        .context("server error")?;
+    axum::serve(listener, app).await.context("server error")?;
 
     Ok(())
 }
@@ -173,10 +171,9 @@ fn build_router(state: Arc<AppState>) -> Router {
 
     // Serve static UI files if directory exists
     if state.ui_dir.is_dir() {
-        let serve_dir = tower_http::services::ServeDir::new(&state.ui_dir)
-            .fallback(tower_http::services::ServeFile::new(
-                state.ui_dir.join("index.html"),
-            ));
+        let serve_dir = tower_http::services::ServeDir::new(&state.ui_dir).fallback(
+            tower_http::services::ServeFile::new(state.ui_dir.join("index.html")),
+        );
         app = app.fallback_service(serve_dir);
     }
 

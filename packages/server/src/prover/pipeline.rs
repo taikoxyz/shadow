@@ -13,7 +13,7 @@ use shadow_proof_core::{
 };
 
 use super::{
-    queue::{ProofQueue, ProgressExtra},
+    queue::{ProgressExtra, ProofQueue},
     rpc::{self, BlockData},
 };
 
@@ -147,11 +147,15 @@ pub async fn run_pipeline(
 
     // 2. Fetch block data and account proof via RPC
     queue
-        .update_progress(0, "Fetching block data from chain...", Some(&ProgressExtra {
-            chain_id: Some(chain_id),
-            stage: Some("rpc_block".into()),
-            ..Default::default()
-        }))
+        .update_progress(
+            0,
+            "Fetching block data from chain...",
+            Some(&ProgressExtra {
+                chain_id: Some(chain_id),
+                stage: Some("rpc_block".into()),
+                ..Default::default()
+            }),
+        )
         .await;
 
     let http_client = reqwest::Client::new();
@@ -173,18 +177,25 @@ pub async fn run_pipeline(
     tracing::info!(block_number = block.number, "block fetched for proving");
 
     queue
-        .update_progress(0, "Fetching account proof from Merkle tree...", Some(&ProgressExtra {
-            chain_id: Some(chain_id),
-            block_number: Some(block.number),
-            stage: Some("rpc_proof".into()),
-            ..Default::default()
-        }))
+        .update_progress(
+            0,
+            "Fetching account proof from Merkle tree...",
+            Some(&ProgressExtra {
+                chain_id: Some(chain_id),
+                block_number: Some(block.number),
+                stage: Some("rpc_proof".into()),
+                ..Default::default()
+            }),
+        )
         .await;
 
     let account_proof =
         rpc::eth_get_proof(&http_client, rpc_url, &target_address, block.number).await?;
 
-    tracing::info!(proof_depth = account_proof.proof_nodes.len(), "account proof fetched");
+    tracing::info!(
+        proof_depth = account_proof.proof_nodes.len(),
+        "account proof fetched"
+    );
 
     if account_proof.proof_nodes.is_empty() {
         bail!("account proof is empty; target address may not exist on-chain");
@@ -201,7 +212,12 @@ pub async fn run_pipeline(
             bail!("proof generation cancelled by user");
         }
 
-        tracing::info!(note = i, total = note_count, amount = amounts[i], "proving note");
+        tracing::info!(
+            note = i,
+            total = note_count,
+            amount = amounts[i],
+            "proving note"
+        );
 
         queue
             .update_progress(
@@ -261,7 +277,12 @@ pub async fn run_pipeline(
         queue
             .update_progress(
                 i as u32,
-                &format!("Note {}/{} proved in {:.1}s", i + 1, note_count, note_elapsed.as_secs_f64()),
+                &format!(
+                    "Note {}/{} proved in {:.1}s",
+                    i + 1,
+                    note_count,
+                    note_elapsed.as_secs_f64()
+                ),
                 Some(&ProgressExtra {
                     block_number: Some(block.number),
                     chain_id: Some(chain_id),
@@ -397,7 +418,8 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
                 let outcome = (|| {
                     tracing::info!(note_index = note_index, "prover thread started");
                     configure_risc0_env();
-                    let receipt_kind = std::env::var("RECEIPT_KIND").unwrap_or_else(|_| "groth16".into());
+                    let receipt_kind =
+                        std::env::var("RECEIPT_KIND").unwrap_or_else(|_| "groth16".into());
                     tracing::info!(
                         note_index = note_index,
                         receipt_kind = %receipt_kind,
@@ -411,7 +433,8 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
                     );
                     let exported = export_proof(&prove_result.receipt)?;
 
-                    let receipt_bytes = shadow_prover_lib::serialize_receipt(&prove_result.receipt)?;
+                    let receipt_bytes =
+                        shadow_prover_lib::serialize_receipt(&prove_result.receipt)?;
                     let receipt_b64 = base64_encode(&receipt_bytes);
 
                     tracing::debug!(
@@ -421,9 +444,13 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
                     );
 
                     let journal_bytes = hex::decode(
-                        exported.journal_hex.strip_prefix("0x").unwrap_or(&exported.journal_hex),
+                        exported
+                            .journal_hex
+                            .strip_prefix("0x")
+                            .unwrap_or(&exported.journal_hex),
                     )?;
-                    let proof_calldata = encode_proof_for_chain(&exported.seal_hex, &journal_bytes)?;
+                    let proof_calldata =
+                        encode_proof_for_chain(&exported.seal_hex, &journal_bytes)?;
 
                     Ok::<_, anyhow::Error>(SingleNoteProof {
                         seal_hex: exported.seal_hex,
@@ -475,7 +502,9 @@ async fn prove_single_note(input: ClaimInput) -> Result<SingleNoteProof> {
 // ---------------------------------------------------------------------------
 
 fn parse_hex_bytes32(hex_str: &str) -> Result<[u8; 32]> {
-    let stripped = hex_str.strip_prefix("0x").or_else(|| hex_str.strip_prefix("0X"))
+    let stripped = hex_str
+        .strip_prefix("0x")
+        .or_else(|| hex_str.strip_prefix("0X"))
         .context("expected 0x prefix")?;
     let bytes = hex::decode(stripped)?;
     if bytes.len() != 32 {
@@ -487,7 +516,9 @@ fn parse_hex_bytes32(hex_str: &str) -> Result<[u8; 32]> {
 }
 
 fn parse_hex_address(hex_str: &str) -> Result<[u8; 20]> {
-    let stripped = hex_str.strip_prefix("0x").or_else(|| hex_str.strip_prefix("0X"))
+    let stripped = hex_str
+        .strip_prefix("0x")
+        .or_else(|| hex_str.strip_prefix("0X"))
         .context("expected 0x prefix")?;
     let bytes = hex::decode(stripped)?;
     if bytes.len() != 20 {

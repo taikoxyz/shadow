@@ -125,10 +125,7 @@ fn main() -> Result<()> {
 
             println!("Compressed to Groth16 in {:.2?}", elapsed);
             println!("Output: {}", out.display());
-            println!(
-                "Receipt kind: {}",
-                describe_receipt_kind(&compressed.inner)
-            );
+            println!("Receipt kind: {}", describe_receipt_kind(&compressed.inner));
             Ok(())
         }
         Command::CircuitId => {

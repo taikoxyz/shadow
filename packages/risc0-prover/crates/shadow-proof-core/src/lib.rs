@@ -148,7 +148,6 @@ pub enum ClaimValidationError {
     BlockNumberMismatch,
 }
 
-
 impl ClaimValidationError {
     pub const fn as_str(&self) -> &'static str {
         match self {
@@ -223,7 +222,11 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::ProofShapeMismatch);
     }
 
-    for (node, declared_len) in input.proof_nodes.iter().zip(input.proof_node_lengths.iter()) {
+    for (node, declared_len) in input
+        .proof_nodes
+        .iter()
+        .zip(input.proof_node_lengths.iter())
+    {
         if node.len() != *declared_len as usize {
             return Err(ClaimValidationError::ProofShapeMismatch);
         }
@@ -397,23 +400,23 @@ mod tests {
 
     fn make_block_header_rlp(block_number: u64, state_root: [u8; 32]) -> Vec<u8> {
         let fields = vec![
-            rlp_encode_bytes(&[0x11u8; 32]), // parentHash
-            rlp_encode_bytes(&[0x22u8; 32]), // sha3Uncles
-            rlp_encode_bytes(&[0x33u8; 20]), // miner
-            rlp_encode_bytes(&state_root),   // stateRoot
-            rlp_encode_bytes(&[0x44u8; 32]), // transactionsRoot
-            rlp_encode_bytes(&[0x55u8; 32]), // receiptsRoot
-            rlp_encode_bytes(&[0u8; 256]),   // logsBloom
-            rlp_encode_bytes(&[]),           // difficulty
+            rlp_encode_bytes(&[0x11u8; 32]),                      // parentHash
+            rlp_encode_bytes(&[0x22u8; 32]),                      // sha3Uncles
+            rlp_encode_bytes(&[0x33u8; 20]),                      // miner
+            rlp_encode_bytes(&state_root),                        // stateRoot
+            rlp_encode_bytes(&[0x44u8; 32]),                      // transactionsRoot
+            rlp_encode_bytes(&[0x55u8; 32]),                      // receiptsRoot
+            rlp_encode_bytes(&[0u8; 256]),                        // logsBloom
+            rlp_encode_bytes(&[]),                                // difficulty
             rlp_encode_bytes(&u64_to_min_be_bytes(block_number)), // number
-            rlp_encode_bytes(&[0x01]),       // gasLimit
-            rlp_encode_bytes(&[]),           // gasUsed
-            rlp_encode_bytes(&[0x02]),       // timestamp
-            rlp_encode_bytes(&[]),           // extraData
-            rlp_encode_bytes(&[0x66u8; 32]), // mixHash
-            rlp_encode_bytes(&[0x77u8; 8]),  // nonce
-            rlp_encode_bytes(&[0x01]),       // baseFeePerGas
-            rlp_encode_bytes(&[0x88u8; 32]), // withdrawalsRoot
+            rlp_encode_bytes(&[0x01]),                            // gasLimit
+            rlp_encode_bytes(&[]),                                // gasUsed
+            rlp_encode_bytes(&[0x02]),                            // timestamp
+            rlp_encode_bytes(&[]),                                // extraData
+            rlp_encode_bytes(&[0x66u8; 32]),                      // mixHash
+            rlp_encode_bytes(&[0x77u8; 8]),                       // nonce
+            rlp_encode_bytes(&[0x01]),                            // baseFeePerGas
+            rlp_encode_bytes(&[0x88u8; 32]),                      // withdrawalsRoot
         ];
         rlp_encode_list(&fields)
     }
@@ -495,7 +498,8 @@ mod tests {
         let header = make_block_header_rlp(block_number, state_root);
         let block_hash = keccak256(&header);
 
-        let parsed = parse_state_root_from_block_header(&block_hash, block_number, &header).unwrap();
+        let parsed =
+            parse_state_root_from_block_header(&block_hash, block_number, &header).unwrap();
         assert_eq!(parsed, state_root);
     }
 
@@ -506,7 +510,8 @@ mod tests {
         let header = make_block_header_rlp(block_number, state_root);
         let block_hash = keccak256(&header);
 
-        let err = parse_state_root_from_block_header(&block_hash, block_number + 1, &header).unwrap_err();
+        let err =
+            parse_state_root_from_block_header(&block_hash, block_number + 1, &header).unwrap_err();
         assert!(matches!(err, ClaimValidationError::BlockNumberMismatch));
     }
 
@@ -547,7 +552,9 @@ mod tests {
         let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
         let state_root = keccak256(&leaf_node);
 
-        let balance_32 = verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node]).unwrap();
+        let balance_32 =
+            verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node])
+                .unwrap();
 
         let mut expected = [0u8; 32];
         expected[32 - balance_raw.len()..].copy_from_slice(&balance_raw);
@@ -592,7 +599,8 @@ mod tests {
         let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
         let state_root = keccak256(&leaf_node);
 
-        let err = verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node]).unwrap_err();
+        let err = verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node])
+            .unwrap_err();
         assert!(matches!(err, ClaimValidationError::InvalidTriePath));
     }
 
@@ -611,7 +619,8 @@ mod tests {
 
         // Build leaf for the remaining nibbles after the branch consumed the first nibble.
         let leaf_path = nibbles_to_compact_path(&key_nibbles[1..], true);
-        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&leaf_path), rlp_encode_bytes(&account_rlp)]);
+        let leaf_node =
+            rlp_encode_list(&[rlp_encode_bytes(&leaf_path), rlp_encode_bytes(&account_rlp)]);
         let leaf_hash = keccak256(&leaf_node);
 
         // Root branch chooses next child based on the first nibble.
@@ -628,8 +637,12 @@ mod tests {
         let branch_node = rlp_encode_list(&branch_items);
         let state_root = keccak256(&branch_node);
 
-        let balance_32 =
-            verify_account_proof_and_get_balance(&state_root, &target_address, &[branch_node, leaf_node]).unwrap();
+        let balance_32 = verify_account_proof_and_get_balance(
+            &state_root,
+            &target_address,
+            &[branch_node, leaf_node],
+        )
+        .unwrap();
 
         let mut expected = [0u8; 32];
         expected[32 - balance_raw.len()..].copy_from_slice(&balance_raw);
@@ -650,7 +663,8 @@ mod tests {
         ]);
 
         let leaf_path = nibbles_to_compact_path(&key_nibbles[1..], true);
-        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&leaf_path), rlp_encode_bytes(&account_rlp)]);
+        let leaf_node =
+            rlp_encode_list(&[rlp_encode_bytes(&leaf_path), rlp_encode_bytes(&account_rlp)]);
         let mut leaf_hash = keccak256(&leaf_node);
         leaf_hash[0] ^= 1;
 
@@ -666,8 +680,12 @@ mod tests {
         let branch_node = rlp_encode_list(&branch_items);
         let state_root = keccak256(&branch_node);
 
-        let err =
-            verify_account_proof_and_get_balance(&state_root, &target_address, &[branch_node, leaf_node]).unwrap_err();
+        let err = verify_account_proof_and_get_balance(
+            &state_root,
+            &target_address,
+            &[branch_node, leaf_node],
+        )
+        .unwrap_err();
         assert!(matches!(err, ClaimValidationError::InvalidNodeReference));
     }
 }
@@ -708,7 +726,6 @@ fn keccak256(data: &[u8]) -> [u8; 32] {
     out
 }
 
-
 fn parse_state_root_from_block_header(
     expected_block_hash: &[u8; 32],
     expected_block_number: u64,
@@ -722,8 +739,8 @@ fn parse_state_root_from_block_header(
     if fields.len() < 9 || fields[3].len() != 32 {
         return Err(ClaimValidationError::InvalidBlockHeaderShape);
     }
-    let block_number =
-        parse_u64_from_rlp_quantity(fields[8]).ok_or(ClaimValidationError::InvalidBlockHeaderShape)?;
+    let block_number = parse_u64_from_rlp_quantity(fields[8])
+        .ok_or(ClaimValidationError::InvalidBlockHeaderShape)?;
     if block_number != expected_block_number {
         return Err(ClaimValidationError::BlockNumberMismatch);
     }

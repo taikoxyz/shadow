@@ -101,8 +101,8 @@ pub fn write_deposit_file(
     }
 
     let path = workspace.join(&filename);
-    let contents = serde_json::to_string_pretty(&deposit_json)
-        .context("failed to serialize deposit JSON")?;
+    let contents =
+        serde_json::to_string_pretty(&deposit_json).context("failed to serialize deposit JSON")?;
     std::fs::write(&path, contents)
         .with_context(|| format!("failed to write {}", path.display()))?;
 

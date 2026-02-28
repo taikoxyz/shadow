@@ -8,10 +8,7 @@ use axum::{
 };
 use serde::Serialize;
 
-use crate::{
-    state::AppState,
-    workspace::scanner::scan_workspace,
-};
+use crate::{state::AppState, workspace::scanner::scan_workspace};
 
 /// `GET /api/config` — returns server configuration and chain info.
 async fn get_config(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> {
@@ -31,7 +28,10 @@ async fn get_config(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> 
     if let (Some(ref chain_client), Some(ref shadow_addr)) =
         (&state.chain_client, &state.shadow_address)
     {
-        match chain_client.read_circuit_verifier_address(shadow_addr).await {
+        match chain_client
+            .read_circuit_verifier_address(shadow_addr)
+            .await
+        {
             Ok(verifier) => match chain_client.read_circuit_id(&verifier).await {
                 Ok(cid) => config.circuit_id = Some(cid),
                 Err(e) => tracing::warn!(error = %e, "failed to read circuit ID from verifier"),
@@ -143,11 +143,10 @@ struct NoteStatusResponse {
 }
 
 async fn check_claim_status(state: &AppState, nullifier: &str) -> String {
-    let (chain_client, shadow_address) =
-        match (&state.chain_client, &state.shadow_address) {
-            (Some(c), Some(a)) => (c, a),
-            _ => return "unknown".to_string(),
-        };
+    let (chain_client, shadow_address) = match (&state.chain_client, &state.shadow_address) {
+        (Some(c), Some(a)) => (c, a),
+        _ => return "unknown".to_string(),
+    };
 
     match chain_client.is_consumed(shadow_address, nullifier).await {
         Ok(true) => "claimed".to_string(),
@@ -160,11 +159,10 @@ async fn check_claim_status(state: &AppState, nullifier: &str) -> String {
 }
 
 async fn refresh_claim_status(state: &AppState, nullifier: &str) -> String {
-    let (chain_client, shadow_address) =
-        match (&state.chain_client, &state.shadow_address) {
-            (Some(c), Some(a)) => (c, a),
-            _ => return "unknown".to_string(),
-        };
+    let (chain_client, shadow_address) = match (&state.chain_client, &state.shadow_address) {
+        (Some(c), Some(a)) => (c, a),
+        _ => return "unknown".to_string(),
+    };
 
     match chain_client
         .refresh_nullifier_status(shadow_address, nullifier)
@@ -182,10 +180,7 @@ async fn refresh_claim_status(state: &AppState, nullifier: &str) -> String {
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/config", get(get_config))
-        .route(
-            "/deposits/{id}/notes/{noteIndex}/status",
-            get(note_status),
-        )
+        .route("/deposits/{id}/notes/{noteIndex}/status", get(note_status))
         .route(
             "/deposits/{id}/notes/{noteIndex}/refresh",
             post(refresh_note_status),

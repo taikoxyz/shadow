@@ -87,9 +87,9 @@ async fn delete_deposit(
     }
 
     // Broadcast workspace change
-    let _ = state.event_tx.send(
-        serde_json::json!({"type": "workspace:changed"}).to_string(),
-    );
+    let _ = state
+        .event_tx
+        .send(serde_json::json!({"type": "workspace:changed"}).to_string());
 
     Ok(Json(DeleteResponse { deleted }))
 }
@@ -106,10 +106,7 @@ async fn delete_proof(
         .find(|d| d.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let proof_name = entry
-        .proof_file
-        .as_ref()
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let proof_name = entry.proof_file.as_ref().ok_or(StatusCode::NOT_FOUND)?;
 
     let proof_path = state.workspace.join(proof_name);
     if !proof_path.is_file() {
@@ -122,9 +119,9 @@ async fn delete_proof(
     })?;
 
     // Broadcast workspace change
-    let _ = state.event_tx.send(
-        serde_json::json!({"type": "workspace:changed"}).to_string(),
-    );
+    let _ = state
+        .event_tx
+        .send(serde_json::json!({"type": "workspace:changed"}).to_string());
 
     Ok(Json(DeleteResponse {
         deleted: vec![proof_name.clone()],
@@ -206,12 +203,9 @@ async fn create_deposit(
             ));
         }
 
-        total_amount = total_amount.checked_add(amount).ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "total amount overflow".to_string(),
-            )
-        })?;
+        total_amount = total_amount
+            .checked_add(amount)
+            .ok_or_else(|| (StatusCode::BAD_REQUEST, "total amount overflow".to_string()))?;
 
         if let Some(ref label) = note.label {
             if label.len() > 64 {
@@ -348,8 +342,8 @@ async fn get_claim_tx(
         )
     })?;
 
-    let bundled: crate::prover::pipeline::BundledProof =
-        serde_json::from_slice(&proof_raw).map_err(|e| {
+    let bundled: crate::prover::pipeline::BundledProof = serde_json::from_slice(&proof_raw)
+        .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("failed to parse proof file: {}", e),
@@ -375,7 +369,10 @@ async fn get_claim_tx(
 
     // Build the claim calldata
     let proof_bytes = hex::decode(
-        note_proof.proof.strip_prefix("0x").unwrap_or(&note_proof.proof),
+        note_proof
+            .proof
+            .strip_prefix("0x")
+            .unwrap_or(&note_proof.proof),
     )
     .map_err(|e| {
         (
@@ -552,7 +549,11 @@ async fn get_deposit_balance(
 
     let required: u128 = deposit.total_amount.parse().unwrap_or(0);
     let bal: u128 = balance.parse().unwrap_or(0);
-    let due = if bal >= required { 0u128 } else { required - bal };
+    let due = if bal >= required {
+        0u128
+    } else {
+        required - bal
+    };
 
     Ok(Json(BalanceResponse {
         target_address: deposit.target_address.clone(),
@@ -615,26 +616,31 @@ async fn import_deposit(
     State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        (StatusCode::BAD_REQUEST, format!("multipart error: {}", e))
-    })? {
-        let filename = field
-            .file_name()
-            .unwrap_or("deposit.json")
-            .to_string();
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("multipart error: {}", e)))?
+    {
+        let filename = field.file_name().unwrap_or("deposit.json").to_string();
         if !filename.ends_with(".json") {
-            return Err((StatusCode::BAD_REQUEST, "file must be a .json file".to_string()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "file must be a .json file".to_string(),
+            ));
         }
-        let data = field.bytes().await.map_err(|e| {
-            (StatusCode::BAD_REQUEST, format!("read error: {}", e))
-        })?;
+        let data = field
+            .bytes()
+            .await
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("read error: {}", e)))?;
         // Validate it's valid JSON
-        let _: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
-            (StatusCode::BAD_REQUEST, format!("invalid JSON: {}", e))
-        })?;
+        let _: serde_json::Value = serde_json::from_slice(&data)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid JSON: {}", e)))?;
         let path = state.workspace.join(&filename);
         std::fs::write(&path, &data).map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("write failed: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("write failed: {}", e),
+            )
         })?;
         let _ = state
             .event_tx

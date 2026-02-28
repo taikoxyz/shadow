@@ -62,14 +62,7 @@ library SystemStateLib {
     bytes32 constant TAG_DIGEST = sha256("risc0.SystemState");
 
     function digest(SystemState memory state) internal pure returns (bytes32) {
-        return sha256(
-            abi.encodePacked(
-                TAG_DIGEST,
-                state.merkle_root,
-                reverseByteOrderUint32(state.pc),
-                uint16(1) << 8
-            )
-        );
+        return sha256(abi.encodePacked(TAG_DIGEST, state.merkle_root, reverseByteOrderUint32(state.pc), uint16(1) << 8));
     }
 }
 
@@ -93,14 +86,7 @@ library OutputLib {
     bytes32 constant TAG_DIGEST = sha256("risc0.Output");
 
     function digest(Output memory output) internal pure returns (bytes32) {
-        return sha256(
-            abi.encodePacked(
-                TAG_DIGEST,
-                output.journalDigest,
-                output.assumptionsDigest,
-                uint16(2) << 8
-            )
-        );
+        return sha256(abi.encodePacked(TAG_DIGEST, output.journalDigest, output.assumptionsDigest, uint16(2) << 8));
     }
 }
 
