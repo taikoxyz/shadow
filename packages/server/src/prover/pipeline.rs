@@ -26,6 +26,9 @@ pub struct BundledProof {
     /// UTC creation timestamp (`YYYYMMDDTHHMMSS`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created: Option<String>,
+    /// RISC Zero guest image ID (circuit ID) used to generate the proofs (0x-prefixed hex).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub circuit_id: Option<String>,
     /// Deposit file this proof belongs to.
     pub deposit_file: String,
     /// Block number used for all proofs.
@@ -310,6 +313,7 @@ pub async fn run_pipeline(
     let bundled = BundledProof {
         version: "v2".to_string(),
         created: None,
+        circuit_id: None,
         deposit_file: deposit_filename.to_string(),
         block_number: block.number.to_string(),
         block_hash: format!("0x{}", hex::encode(block.hash)),

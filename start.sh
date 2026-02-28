@@ -6,7 +6,7 @@
 set -e
 
 REGISTRY_IMAGE="ghcr.io/taikoxyz/shadow:latest"
-EXPECTED_CIRCUIT_ID="0xac4b31fadeb0115a1e6019c8bccc0ddf900fe6e40a447409d9ce6b257913dcbc"
+EXPECTED_CIRCUIT_ID="0x08a05132ea1bfb9e7adbea32dd5bade4132986e9d23e8871d515f9a6a3e3d121"
 CONTAINER="shadow"
 WORKSPACE="$PWD/workspace"
 RISC0_WORK_DIR="$WORKSPACE/.risc0-work"
