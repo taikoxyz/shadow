@@ -114,6 +114,10 @@ async fn start_proof(
                 let proof_path = workspace.join(&proof_filename);
                 let mut bundled = bundled;
                 bundled.created = Some(proof_ts.clone());
+                #[cfg(feature = "prove")]
+                {
+                    bundled.circuit_id = Some(shadow_prover_lib::circuit_id_hex());
+                }
 
                 match serde_json::to_vec_pretty(&bundled) {
                     Ok(json_bytes) => {
