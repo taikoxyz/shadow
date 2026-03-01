@@ -162,7 +162,7 @@ function syncProofStartTimeWithJob(job = state.queueJob) {
 // ---------------------------------------------------------------------------
 
 function getTheme() {
-  return localStorage.getItem('shadow-theme') || 'dark';
+  return localStorage.getItem('shadow-theme') || 'light';
 }
 
 function setTheme(t) {
