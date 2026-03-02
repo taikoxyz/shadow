@@ -165,6 +165,11 @@ build_from_source() {
   wait "$pid2" && debug "Cached rust:bookworm" || debug "Failed to pull rust:bookworm"
   wait "$pid3" && debug "Cached debian:bookworm-slim" || debug "Failed to pull debian:bookworm-slim"
 
+  # Remove stale shadow-local images so only one copy exists after the build
+  for img in $(docker images --format '{{.Repository}}:{{.Tag}}' | grep '^shadow-local' 2>/dev/null); do
+    docker rmi "$img" > /dev/null 2>&1 || true
+  done
+
   local build_start
   build_start=$(date +%s)
 
@@ -207,6 +212,10 @@ build_from_source() {
     docker tag shadow-local "shadow-local:${git_sha}"
     debug "Tagged shadow-local:${git_sha}"
   fi
+
+  # Prune any dangling images left from the previous build
+  docker image prune -f > /dev/null 2>&1 || true
+  debug "Pruned dangling images"
 
   local image_size
   image_size=$(docker image inspect shadow-local --format '{{.Size}}' 2>/dev/null || echo "0")
