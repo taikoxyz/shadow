@@ -44,7 +44,8 @@ contract DeployTaiko is Script {
 
         deployed_.risc0CircuitVerifier = address(new Risc0CircuitVerifier(risc0Verifier, imageId));
         deployed_.shadowVerifier = address(new ShadowVerifier(anchor, deployed_.risc0CircuitVerifier));
-        deployed_.shadowImplementation = address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner, 8 ether));
+        deployed_.shadowImplementation =
+            address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner, 8 ether));
         bytes memory initData = abi.encodeCall(Shadow.initialize, (owner));
         deployed_.shadowProxy = address(new ERC1967Proxy(deployed_.shadowImplementation, initData));
 
