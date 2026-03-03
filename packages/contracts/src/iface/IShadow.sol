@@ -18,7 +18,6 @@ interface IShadow {
     error InvalidAmount(uint256 amount);
     error InvalidRecipient(address recipient);
     error NullifierAlreadyConsumed(bytes32 nullifier);
-    error ProofVerificationFailed();
 
     /// @notice Submits a proof and public inputs to mint ETH via the configured minter hook.
     /// @dev The Shadow implementation applies a 0.1% claim fee (`amount / 1000`) to an immutable feeRecipient.

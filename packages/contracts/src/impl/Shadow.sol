@@ -80,7 +80,7 @@ contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable, ReentrancyG
             revert NullifierAlreadyConsumed(_input.nullifier);
         }
 
-        require(verifier.verifyProof(_proof, _input), ProofVerificationFailed());
+        verifier.verifyProof(_proof, _input);
 
         _consumed[_input.nullifier] = true;
 

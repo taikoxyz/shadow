@@ -28,11 +28,7 @@ contract ShadowVerifier is IShadowVerifier {
     /// @dev Fetches the canonical blockHash from TaikoAnchor and builds public inputs.
     /// The ZK proof verifies: keccak256(block_header_rlp) == blockHash, then derives
     /// stateRoot from the header and verifies the account balance against it.
-    function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input)
-        external
-        view
-        returns (bool _isValid_)
-    {
+    function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input) external view {
         require(_input.blockNumber > 0, BlockHashNotFound(_input.blockNumber));
 
         // Get canonical block hash from TaikoAnchor
@@ -42,6 +38,5 @@ contract ShadowVerifier is IShadowVerifier {
         uint256[] memory publicInputs = ShadowPublicInputs.toArray(_input, blockHash);
         bool ok = circuitVerifier.verifyProof(_proof, publicInputs);
         require(ok, ProofVerificationFailed());
-        _isValid_ = true;
     }
 }

@@ -236,7 +236,7 @@ pub async fn run_pipeline(
             )
             .await;
 
-        let nullifier = derive_nullifier(&secret, chain_id, i as u32);
+        let nullifier = derive_nullifier(&secret, chain_id, i as u32, &notes_hash);
 
         let claim_input = build_claim_input(
             &block,

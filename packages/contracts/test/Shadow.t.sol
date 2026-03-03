@@ -6,6 +6,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {OwnableUpgradeable} from "../src/lib/OwnableUpgradeable.sol";
 import {Shadow} from "../src/impl/Shadow.sol";
 import {IShadow} from "../src/iface/IShadow.sol";
+import {IShadowVerifier} from "../src/iface/IShadowVerifier.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
 import {MockEtherMinter} from "./mocks/MockEtherMinter.sol";
@@ -141,7 +142,7 @@ contract ShadowTest is Test {
             nullifier: keccak256("nullifier")
         });
 
-        vm.expectRevert(IShadow.ProofVerificationFailed.selector);
+        vm.expectRevert(IShadowVerifier.ProofVerificationFailed.selector);
         shadow.claim("", input);
     }
 
@@ -160,7 +161,7 @@ contract ShadowTest is Test {
             nullifier: nullifierValue
         });
 
-        vm.expectRevert(IShadow.ProofVerificationFailed.selector);
+        vm.expectRevert(IShadowVerifier.ProofVerificationFailed.selector);
         shadow.claim("", input);
 
         assertFalse(shadow.isConsumed(nullifierValue));

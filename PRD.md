@@ -51,7 +51,7 @@ Deposits are made to `targetAddress` using standard ETH transfers.
 A per-note nullifier is derived inside the circuit and published as part of the proof’s public outputs. `Shadow` tracks and consumes nullifiers on-chain to prevent replays.
 
 Current implementation:
-- `nullifier = SHA256(domain_sep || chainId || secret || noteIndex)`
+- `nullifier = SHA256(domain_sep || chainId || secret || noteIndex || notesHash)`
 
 ## System Flow
 

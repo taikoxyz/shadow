@@ -49,8 +49,7 @@ contract ShadowVerifierTest is Test {
             nullifier: keccak256("nullifier")
         });
 
-        bool ok = verifier.verifyProof("", input);
-        assertTrue(ok);
+        verifier.verifyProof("", input);
     }
 
     function test_verifyProof_RevertWhen_BlockNumberIsZero() external {
@@ -114,8 +113,7 @@ contract ShadowVerifierTest is Test {
             nullifier: keccak256("nullifier-old-block")
         });
 
-        bool ok = verifier.verifyProof("", input);
-        assertTrue(ok);
+        verifier.verifyProof("", input);
     }
 
     function test_verifyProof_RevertWhen_FutureBlockNotInAnchor() external {

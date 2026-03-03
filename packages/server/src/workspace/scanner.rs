@@ -182,32 +182,35 @@ fn process_deposit(
     let secret = parse_hex_bytes32(&deposit.secret)?;
 
     let mut amounts: Vec<u128> = Vec::with_capacity(note_count);
+    let mut recipients: Vec<[u8; 20]> = Vec::with_capacity(note_count);
     let mut recipient_hashes: Vec<[u8; 32]> = Vec::with_capacity(note_count);
-    let mut note_entries: Vec<NoteEntry> = Vec::with_capacity(note_count);
     let mut total_amount: u128 = 0;
 
-    for (i, note) in deposit.notes.iter().enumerate() {
+    for note in &deposit.notes {
         let recipient = parse_hex_address(&note.recipient)?;
         let amount: u128 = note.amount.parse()?;
         let recipient_hash = compute_recipient_hash(&recipient);
-        let nullifier = derive_nullifier(&secret, chain_id, i as u32);
-
         amounts.push(amount);
+        recipients.push(recipient);
         recipient_hashes.push(recipient_hash);
         total_amount = total_amount.checked_add(amount).unwrap_or(u128::MAX);
+    }
 
+    let notes_hash = compute_notes_hash(note_count, &amounts, &recipient_hashes)
+        .map_err(|e| anyhow::anyhow!("notes hash: {}", e.as_str()))?;
+
+    let mut note_entries: Vec<NoteEntry> = Vec::with_capacity(note_count);
+    for (i, note) in deposit.notes.iter().enumerate() {
+        let nullifier = derive_nullifier(&secret, chain_id, i as u32, &notes_hash);
         note_entries.push(NoteEntry {
             index: i as u32,
-            recipient: format!("0x{}", hex::encode(recipient)),
+            recipient: format!("0x{}", hex::encode(recipients[i])),
             amount: note.amount.clone(),
             label: note.label.clone(),
             nullifier: format!("0x{}", hex::encode(nullifier)),
             claim_status: "unknown".to_string(),
         });
     }
-
-    let notes_hash = compute_notes_hash(note_count, &amounts, &recipient_hashes)
-        .map_err(|e| anyhow::anyhow!("notes hash: {}", e.as_str()))?;
     let target_address = derive_target_address(&secret, chain_id, &notes_hash);
 
     // Verify targetAddress field if present

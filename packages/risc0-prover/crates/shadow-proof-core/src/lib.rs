@@ -248,7 +248,7 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::InsufficientAccountBalance);
     }
 
-    let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index);
+    let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index, &notes_hash);
 
     // Note: stateRoot is derived in-circuit from block_header_rlp and verified against
     // input.block_hash. We commit to block_hash because that's what TaikoAnchor provides.
@@ -305,12 +305,18 @@ pub fn derive_target_address(secret: &[u8; 32], chain_id: u64, notes_hash: &[u8;
     out
 }
 
-pub fn derive_nullifier(secret: &[u8; 32], chain_id: u64, note_index: u32) -> [u8; 32] {
-    let mut input = [0u8; 128];
+pub fn derive_nullifier(
+    secret: &[u8; 32],
+    chain_id: u64,
+    note_index: u32,
+    notes_hash: &[u8; 32],
+) -> [u8; 32] {
+    let mut input = [0u8; 160];
     input[..32].copy_from_slice(&pad_magic_label(MAGIC_NULLIFIER));
     input[32..64].copy_from_slice(&u64_to_bytes32(chain_id));
     input[64..96].copy_from_slice(secret);
     input[96..128].copy_from_slice(&u64_to_bytes32(note_index as u64));
+    input[128..160].copy_from_slice(notes_hash);
 
     sha256(&input)
 }
@@ -444,11 +450,25 @@ mod tests {
     fn nullifier_includes_note_index() {
         let secret = [7u8; 32];
         let chain_id = 167013u64;
+        let notes_hash = [0xabu8; 32];
 
-        let n0 = derive_nullifier(&secret, chain_id, 0);
-        let n1 = derive_nullifier(&secret, chain_id, 1);
+        let n0 = derive_nullifier(&secret, chain_id, 0, &notes_hash);
+        let n1 = derive_nullifier(&secret, chain_id, 1, &notes_hash);
 
         assert_ne!(n0, n1);
+    }
+
+    #[test]
+    fn nullifier_differs_for_different_notes_hash() {
+        let secret = [7u8; 32];
+        let chain_id = 167013u64;
+        let notes_hash_a = [0xabu8; 32];
+        let notes_hash_b = [0xcdu8; 32];
+
+        let n_a = derive_nullifier(&secret, chain_id, 0, &notes_hash_a);
+        let n_b = derive_nullifier(&secret, chain_id, 0, &notes_hash_b);
+
+        assert_ne!(n_a, n_b);
     }
 
     #[test]
