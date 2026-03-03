@@ -40,10 +40,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Set up Foundry
-        run: |
-          curl -fsSL https://foundry.paradigm.xyz | bash
-          echo "$HOME/.foundry/bin" >> $GITHUB_PATH
-          $HOME/.foundry/bin/foundryup --no-verify
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
 
       - name: Run Solidity tests
         run: pnpm contracts:test
