@@ -30,12 +30,27 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Set up Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Generate contracts storage layout
+        run: pnpm contracts:layout
+
       - name: Format Solidity
-        run: forge fmt
-        working-directory: packages/contracts
+        run: pnpm contracts:fmt
 
       - name: Format Rust server
         run: cargo fmt --manifest-path packages/server/Cargo.toml

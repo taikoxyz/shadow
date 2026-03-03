@@ -7,6 +7,7 @@
     "ui:preview": "pnpm --filter shadow-ui preview",
     "contracts:test": "pnpm --filter shadow-contracts test",
     "contracts:fmt": "pnpm --filter shadow-contracts fmt",
+    "contracts:layout": "pnpm --filter shadow-contracts layout",
     "prover:build": "pnpm --filter shadow-risc0-prover build",
     "prover:prove": "pnpm --filter shadow-risc0-prover prove",
     "prover:verify": "pnpm --filter shadow-risc0-prover verify",

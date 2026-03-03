@@ -3,6 +3,7 @@
 ## Commands
 - `pnpm contracts:test` – runs `forge test -vvv` using pnpm-managed dependencies
 - `pnpm contracts:fmt` – formats Solidity sources via `forge fmt`
+- `pnpm contracts:layout` – regenerates `*_Layout.sol` storage layout docs for proxy contracts
 - `forge script script/DeployTaiko.s.sol:DeployTaiko --rpc-url <RPC> --broadcast` – deploys and wires the full stack
 
 ## Directory Structure
