@@ -752,6 +752,84 @@ mod tests {
     }
 
     #[test]
+    fn is_inline_node_does_not_misidentify_32_byte_hash_reference() {
+        // A 32-byte hash whose first byte is >= 0xc0 must NOT be treated as an inline
+        // node. Before this fix, is_inline_node only checked bytes[0] >= 0xc0, causing
+        // 32-byte hash references to be misidentified as inline nodes → InvalidRlpNode.
+        let hash_c0 = [0xc0u8; 32];
+        assert!(!is_inline_node(&hash_c0), "32-byte hash with 0xc0 prefix is not inline");
+        let hash_ff = [0xffu8; 32];
+        assert!(!is_inline_node(&hash_ff), "32-byte hash with 0xff prefix is not inline");
+
+        // A genuine inline node (< 32 bytes, first byte >= 0xc0) IS inline.
+        let tiny_list = rlp_encode_list(&[rlp_encode_bytes(&[0x01])]);
+        assert!(tiny_list.len() < 32);
+        assert!(is_inline_node(&tiny_list), "short RLP list is inline");
+
+        // Empty slice is never inline.
+        assert!(!is_inline_node(&[]), "empty is not inline");
+    }
+
+    #[test]
+    fn verify_account_proof_handles_branch_child_hash_with_high_first_byte() {
+        // Regression: a branch node child that is a 32-byte hash whose first byte is
+        // 0xc0 or above must be followed as a hash reference (not treated as inline).
+        // We build a minimal trie: branch → leaf.  We iterate target addresses until
+        // we find one where the leaf node hashes to something with first byte >= 0xc0.
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),
+            rlp_encode_bytes(&[0x05]),
+            rlp_encode_bytes(&[0xaau8; 32]),
+            rlp_encode_bytes(&[0xbbu8; 32]),
+        ]);
+
+        // Find an address whose derived key produces a leaf hash with first byte >= 0xc0.
+        let mut found = None;
+        for seed in 0u8..=255 {
+            let addr = [seed; 20];
+            let key_hash = keccak256(&addr);
+            let key_nibbles = hash_to_nibbles(&key_hash);
+            let compact_path = nibbles_to_compact_path(&key_nibbles[1..], true);
+            let leaf_node = rlp_encode_list(&[
+                rlp_encode_bytes(&compact_path),
+                rlp_encode_bytes(&account_rlp),
+            ]);
+            let leaf_hash = keccak256(&leaf_node);
+            if leaf_hash[0] >= 0xc0 {
+                found = Some((addr, key_nibbles, leaf_node, leaf_hash));
+                break;
+            }
+        }
+
+        let (addr, key_nibbles, leaf_node, leaf_hash) =
+            found.expect("should find an address with leaf_hash[0] >= 0xc0 within 256 seeds");
+
+        let mut branch_items: Vec<Vec<u8>> = (0..16)
+            .map(|i| {
+                if i == key_nibbles[0] as usize {
+                    rlp_encode_bytes(&leaf_hash)
+                } else {
+                    rlp_encode_bytes(&[])
+                }
+            })
+            .collect();
+        branch_items.push(rlp_encode_bytes(&[]));
+        let branch_node = rlp_encode_list(&branch_items);
+        let state_root = keccak256(&branch_node);
+
+        let balance = verify_account_proof_and_get_balance(
+            &state_root,
+            &addr,
+            &[branch_node, leaf_node],
+        )
+        .expect("proof should succeed when hash-reference first byte >= 0xc0");
+
+        let mut expected = [0u8; 32];
+        expected[31] = 0x05;
+        assert_eq!(balance, expected);
+    }
+
+    #[test]
     fn verify_account_proof_rejects_when_parent_child_reference_hash_mismatches() {
         let target_address = [0x11u8; 20];
         let key_hash = keccak256(&target_address);
@@ -999,7 +1077,11 @@ fn node_matches_reference(node: &[u8], reference: &[u8]) -> bool {
 }
 
 fn is_inline_node(bytes: &[u8]) -> bool {
-    !bytes.is_empty() && bytes[0] >= 0xc0
+    // In Ethereum's MPT, a child reference is either a 32-byte keccak256 hash or an
+    // inline RLP node (the node is small enough to embed directly, so it's always < 32
+    // bytes). A 32-byte hash must never be treated as an inline node, even when its
+    // first byte happens to be >= 0xc0.
+    !bytes.is_empty() && bytes.len() < 32 && bytes[0] >= 0xc0
 }
 
 fn decode_account_balance(account_rlp: &[u8]) -> Result<[u8; 32], ClaimValidationError> {
