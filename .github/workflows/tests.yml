@@ -72,3 +72,5 @@ jobs:
 
       - name: Run prover tests
         run: cargo test --manifest-path packages/risc0-prover/Cargo.toml --workspace --exclude shadow_claim_guest
+        env:
+          RISC0_SKIP_BUILD: "1"
