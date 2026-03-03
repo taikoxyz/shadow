@@ -18,7 +18,7 @@ contract UpgradeImageId is Script {
     address internal constant RISC0_GROTH16_VERIFIER = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
     address internal constant DUMMY_ETHER_MINTER = 0x6DC226aA43E86fE77735443fB50a0A90e5666AA4;
     address internal constant SHADOW_PROXY = 0x77cdA0575e66A5FC95404fdA856615AD507d8A07;
-    // Image ID deployed: 0x08a05132ea1bfb9e7adbea32dd5bade4132986e9d23e8871d515f9a6a3e3d121
+    // Image ID deployed: 0xb38ce9e89fa2a277b01c7310da13451cbc4339a391d0df70eecf2217397851bc
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_KEY");

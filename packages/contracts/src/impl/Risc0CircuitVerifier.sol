@@ -20,6 +20,7 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
     error JournalRecipientMismatch(address expected, address actual);
     error JournalNullifierMismatch(bytes32 expected, bytes32 actual);
     error PublicInputByteOutOfRange(uint256 index, uint256 value);
+    error OnlyInternal();
 
     IRiscZeroVerifier public immutable risc0Verifier;
     bytes32 public immutable imageId;
@@ -81,6 +82,7 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
         view
         returns (bytes memory seal_, bytes32 journalDigest_)
     {
+        require(msg.sender == address(this), OnlyInternal());
         require(_publicInputs.length == _PUBLIC_INPUTS_LEN, InvalidPublicInputsLength(_publicInputs.length));
 
         bytes memory seal;

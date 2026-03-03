@@ -273,8 +273,6 @@ pub struct LegacyClaimInput {
     pub proof_depth: String,
     #[serde(rename = "proofNodes")]
     pub proof_nodes: Vec<Vec<String>>,
-    #[serde(rename = "proofNodeLengths")]
-    pub proof_node_lengths: Vec<String>,
 }
 
 /// Load a claim input from a JSON file (supports both native and legacy formats).
@@ -313,9 +311,6 @@ pub fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
     if legacy.proof_nodes.len() < proof_depth as usize {
         bail!("proofNodes length is smaller than proofDepth");
     }
-    if legacy.proof_node_lengths.len() < proof_depth as usize {
-        bail!("proofNodeLengths length is smaller than proofDepth");
-    }
 
     let mut amounts = Vec::with_capacity(note_count as usize);
     for i in 0..note_count as usize {
@@ -328,20 +323,8 @@ pub fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
     }
 
     let mut proof_nodes = Vec::with_capacity(proof_depth as usize);
-    let mut proof_node_lengths = Vec::with_capacity(proof_depth as usize);
     for i in 0..proof_depth as usize {
-        let declared_len = parse_u32(&legacy.proof_node_lengths[i])?;
-        let full_node = &legacy.proof_nodes[i];
-        if full_node.len() < declared_len as usize {
-            bail!("proof node {} shorter than declared length", i);
-        }
-
-        let mut node = Vec::with_capacity(declared_len as usize);
-        for entry in full_node.iter().take(declared_len as usize) {
-            node.push(parse_u8(entry)?);
-        }
-        proof_nodes.push(node);
-        proof_node_lengths.push(declared_len);
+        proof_nodes.push(parse_u8_vec(&legacy.proof_nodes[i])?);
     }
 
     Ok(ClaimInput {
@@ -358,7 +341,6 @@ pub fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
         block_header_rlp,
         proof_depth,
         proof_nodes,
-        proof_node_lengths,
     })
 }
 

@@ -196,6 +196,19 @@ contract Risc0CircuitVerifierTest is Test {
         assertFalse(ok);
     }
 
+    function test_decodeAndValidateProof_revertsWhenCalledByExternalCaller() external {
+        bytes32 stateRoot = _sampleStateRoot();
+        IShadow.PublicInput memory input = _sampleInput();
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
+
+        bytes memory seal = hex"010203";
+        bytes memory journal = _buildJournal(input, stateRoot);
+        bytes memory proof = abi.encode(seal, journal);
+
+        vm.expectRevert(Risc0CircuitVerifier.OnlyInternal.selector);
+        adapter.decodeAndValidateProof(proof, publicInputs);
+    }
+
     function _toArray(IShadow.PublicInput calldata _input, bytes32 _stateRoot)
         external
         pure
