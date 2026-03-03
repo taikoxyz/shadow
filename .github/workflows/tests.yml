@@ -42,7 +42,7 @@ jobs:
       - name: Set up Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: v1.5.1
 
       - name: Run Solidity tests
         run: pnpm contracts:test
