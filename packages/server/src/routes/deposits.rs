@@ -440,7 +440,7 @@ async fn get_claim_tx(
     }))
 }
 
-/// ABI-encode `claim(bytes _proof, (uint64,uint256,uint256,address,bytes32) _input)`.
+/// ABI-encode `claim(bytes _proof, (uint64,uint64,uint256,address,bytes32) _input)`.
 fn encode_claim_calldata(
     proof_bytes: &[u8],
     block_number: u64,
@@ -449,11 +449,11 @@ fn encode_claim_calldata(
     recipient: &[u8],
     nullifier: &[u8],
 ) -> Vec<u8> {
-    // Function selector: claim(bytes,(uint64,uint256,uint256,address,bytes32))
-    // keccak256("claim(bytes,(uint64,uint256,uint256,address,bytes32))")
+    // Function selector: claim(bytes,(uint64,uint64,uint256,address,bytes32))
+    // keccak256("claim(bytes,(uint64,uint64,uint256,address,bytes32))")
     use tiny_keccak::{Hasher, Keccak};
     let mut keccak = Keccak::v256();
-    keccak.update(b"claim(bytes,(uint64,uint256,uint256,address,bytes32))");
+    keccak.update(b"claim(bytes,(uint64,uint64,uint256,address,bytes32))");
     let mut selector = [0u8; 32];
     keccak.finalize(&mut selector);
 
@@ -488,7 +488,7 @@ fn encode_claim_calldata(
     bn[24..32].copy_from_slice(&block_number.to_be_bytes());
     calldata.extend_from_slice(&bn);
 
-    // _input.chainId (uint256)
+    // _input.chainId (uint64)
     let mut cid = [0u8; 32];
     cid[24..32].copy_from_slice(&chain_id.to_be_bytes());
     calldata.extend_from_slice(&cid);
