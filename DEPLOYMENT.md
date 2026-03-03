@@ -16,9 +16,9 @@
 | Contract | Address | Explorer |
 |----------|---------|----------|
 | Shadow (proxy) | `0x77cdA0575e66A5FC95404fdA856615AD507d8A07` | [View](https://hoodi.taikoscan.io/address/0x77cdA0575e66A5FC95404fdA856615AD507d8A07) |
-| Shadow (implementation) | `0x6334e25262562128C9B63f25799a739ADFef607C` | [View](https://hoodi.taikoscan.io/address/0x6334e25262562128C9B63f25799a739ADFef607C) |
-| ShadowVerifier | `0x5F95029E21c60194B39c111AB448BCE026b4C597` | [View](https://hoodi.taikoscan.io/address/0x5F95029E21c60194B39c111AB448BCE026b4C597) |
-| Risc0CircuitVerifier | `0x0b38325D802B462b27a0aFD8A27bee53bBB8bF07` | [View](https://hoodi.taikoscan.io/address/0x0b38325D802B462b27a0aFD8A27bee53bBB8bF07) |
+| Shadow (implementation) | `0xb929D1A7Be4043b2D3F160EaE13267E9e47B2ce5` | [View](https://hoodi.taikoscan.io/address/0xb929D1A7Be4043b2D3F160EaE13267E9e47B2ce5) |
+| ShadowVerifier | `0x79b12A7a8c03Ab9b44D83a4d76d1E33cD72B178F` | [View](https://hoodi.taikoscan.io/address/0x79b12A7a8c03Ab9b44D83a4d76d1E33cD72B178F) |
+| Risc0CircuitVerifier | `0x300f31567898228c968141F2aD68817b7F9e4646` | [View](https://hoodi.taikoscan.io/address/0x300f31567898228c968141F2aD68817b7F9e4646) |
 | DummyEtherMinter | `0x6DC226aA43E86fE77735443fB50a0A90e5666AA4` | [View](https://hoodi.taikoscan.io/address/0x6DC226aA43E86fE77735443fB50a0A90e5666AA4) |
 
 ### Configuration
@@ -28,7 +28,7 @@
 | Owner | `0xe36C0F16d5fB473CC5181f5fb86b6Eb3299aD9cb` |
 | TaikoAnchor | `0x1670130000000000000000000000000000010001` |
 | RISC0 Verifier (v3.0.1) | `0xd1934807041B168f383870A0d8F565aDe2DF9D7D` |
-| Image ID | `0x0002ad2f8d7968764bc3e933a1bd37eabf1c9e20728350ee4f4c5e7aa2494239` |
+| Image ID | `0xd3515023284a4bc91b3207ba068d6bae09015ae0c405e19bc5182ef7dc760f41` |
 | Max Claim Amount | `8 ETH` |
 
 ### Docker Image
