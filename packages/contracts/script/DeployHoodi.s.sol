@@ -9,7 +9,7 @@ import {DummyEtherMinter} from "../src/impl/DummyEtherMinter.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {Risc0CircuitVerifier} from "../src/impl/Risc0CircuitVerifier.sol";
 
-contract DeployTaiko is Script {
+contract DeployHoodi is Script {
     // Deployer: 0xe36C0F16d5fB473CC5181f5fb86b6Eb3299aD9cb
     address internal constant MAINNET_RISC0_VERIFIER_V3_0_1_SHANGHAI = 0xA5Da6507E6Ab8832EA3fDeB43bA6B7390952D8dA;
 

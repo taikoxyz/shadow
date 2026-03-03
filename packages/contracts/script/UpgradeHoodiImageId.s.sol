@@ -12,7 +12,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 /// @dev Only redeploys what's necessary: Risc0CircuitVerifier, ShadowVerifier,
 /// and Shadow implementation. Reuses existing RiscZeroGroth16Verifier,
 /// DummyEtherMinter, and TaikoAnchor. Upgrades the existing UUPS proxy.
-contract UpgradeImageId is Script {
+contract UpgradeHoodiImageId is Script {
     // Existing contracts on Taiko Hoodi that don't need redeployment
     address internal constant TAIKO_ANCHOR = 0x1670130000000000000000000000000000010001;
     address internal constant RISC0_GROTH16_VERIFIER = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;

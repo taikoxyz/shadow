@@ -9,12 +9,12 @@ import {DummyEtherMinter} from "../src/impl/DummyEtherMinter.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {Risc0CircuitVerifier} from "../src/impl/Risc0CircuitVerifier.sol";
 
-// Import OFFICIAL RISC0 v3.0.0 verifier from risc0-ethereum library
-import {RiscZeroGroth16Verifier} from "risc0-ethereum/groth16/RiscZeroGroth16Verifier.sol";
-import {ControlID} from "risc0-ethereum/groth16/ControlID.sol";
+// Import RISC0 v3.0.0 verifier
+import {RiscZeroGroth16Verifier} from "../src/risc0-v3/RiscZeroGroth16Verifier.sol";
+import {ControlID} from "../src/risc0-v3/ControlID.sol";
 
-/// @notice Deploy Shadow with the OFFICIAL RISC0 v3.0.0 Groth16 verifier
-contract DeployWithOfficialRisc0 is Script {
+/// @notice Deploy Shadow with a fresh RISC0 v3.0.0 Groth16 verifier
+contract DeployHoodiWithV3Verifier is Script {
     address internal constant HOODI_ANCHOR = 0x1670130000000000000000000000000000010001;
 
     // imageId in Digest::as_bytes() format (LE words, w0→w7)
@@ -41,7 +41,7 @@ contract DeployWithOfficialRisc0 is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy OFFICIAL RISC0 v3.0.0 Groth16 Verifier
+        // Deploy RISC0 v3.0.0 Groth16 Verifier
         deployed_.risc0Groth16Verifier =
             address(new RiscZeroGroth16Verifier(ControlID.CONTROL_ROOT, ControlID.BN254_CONTROL_ID));
 
@@ -78,13 +78,13 @@ contract DeployWithOfficialRisc0 is Script {
     }
 
     function _logDeployment(Deployment memory deployed_) private pure {
-        console2.log("=== Deployed Contracts (OFFICIAL RISC0) ===");
-        console2.log("RiscZeroGroth16Verifier (v3.0.0 official)", deployed_.risc0Groth16Verifier);
+        console2.log("=== Deployed Contracts ===");
+        console2.log("RiscZeroGroth16Verifier (v3.0.0)", deployed_.risc0Groth16Verifier);
         console2.log("DummyEtherMinter", deployed_.etherMinter);
         console2.log("Risc0CircuitVerifier", deployed_.risc0CircuitVerifier);
         console2.log("ShadowVerifier", deployed_.shadowVerifier);
         console2.log("Shadow implementation", deployed_.shadowImplementation);
         console2.log("Shadow proxy", deployed_.shadowProxy);
-        console2.log("============================================");
+        console2.log("==========================");
     }
 }

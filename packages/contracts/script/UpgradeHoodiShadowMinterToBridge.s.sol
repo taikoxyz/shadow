@@ -16,7 +16,7 @@ interface IShadowConfig {
 /// @notice Deploys a new Shadow implementation using Taiko L2 Bridge as IEthMinter,
 /// then upgrades the existing Shadow proxy in place.
 /// @dev Keeps the proxy address unchanged for server/docker compatibility.
-contract UpgradeShadowMinterToBridge is Script {
+contract UpgradeHoodiShadowMinterToBridge is Script {
     address internal constant SHADOW_PROXY = 0x77cdA0575e66A5FC95404fdA856615AD507d8A07;
     address internal constant BRIDGE_PROXY = 0x1670130000000000000000000000000000000001;
     uint256 internal constant HOODI_CHAIN_ID = 167013;
