@@ -485,8 +485,9 @@ async function handleFundDeposit(deposit) {
   const requiredChainHex = '0x' + parseInt(deposit.chainId, 10).toString(16);
   if (!await ensureChain(requiredChainHex)) return;
 
+  await loadDepositBalance(deposit.id);
   const bal = state.depositBalance;
-  if (!bal) { showToast('Balance not loaded yet', 'error'); return; }
+  if (!bal || bal.error) { showToast('Could not load balance \u2014 RPC may be unavailable.', 'error'); return; }
 
   const dueWei = BigInt(bal.due);
   if (dueWei <= 0n) { showToast('Deposit already funded', 'info'); return; }

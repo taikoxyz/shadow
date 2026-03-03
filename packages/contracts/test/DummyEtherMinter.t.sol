@@ -19,4 +19,3 @@ contract DummyEtherMinterTest is Test {
         minter.mintEth(address(0xBEEF), 123);
     }
 }
-

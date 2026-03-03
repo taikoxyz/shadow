@@ -5,6 +5,7 @@
     "compile": "forge build",
     "test": "forge test -vvv",
     "fmt": "forge fmt",
+    "layout": "./script/gen-layouts.sh",
     "coverage": "forge coverage"
   },
   "dependencies": {

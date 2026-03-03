@@ -4,13 +4,14 @@ pragma solidity ^0.8.33;
 import {IEthMinter} from "../iface/IEthMinter.sol";
 import {IShadow} from "../iface/IShadow.sol";
 import {IShadowVerifier} from "../iface/IShadowVerifier.sol";
+import {ShadowLayout} from "./Shadow_Layout.sol";
 import {OwnableUpgradeable} from "../lib/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 /// @custom:security-contact security@taiko.xyz
 
-contract Shadow is IShadow, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
+contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     IShadowVerifier public immutable verifier;
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
