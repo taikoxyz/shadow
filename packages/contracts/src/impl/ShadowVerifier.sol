@@ -30,6 +30,7 @@ contract ShadowVerifier is IShadowVerifier {
     /// stateRoot from the header and verifies the account balance against it.
     function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input) external view {
         require(_input.blockNumber > 0, BlockHashNotFound(_input.blockNumber));
+        require(_input.chainId == uint64(block.chainid), IShadow.ChainIdMismatch(_input.chainId, uint64(block.chainid)));
 
         // Get canonical block hash from TaikoAnchor
         bytes32 blockHash = anchor.blockHashes(_input.blockNumber);

@@ -43,7 +43,7 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier")
@@ -55,7 +55,7 @@ contract ShadowVerifierTest is Test {
     function test_verifyProof_RevertWhen_BlockNumberIsZero() external {
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: 0,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier")
@@ -71,7 +71,7 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier")
@@ -89,7 +89,7 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier")
@@ -107,7 +107,7 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: oldBlockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier-old-block")
@@ -123,7 +123,7 @@ contract ShadowVerifierTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: futureBlockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier-future")

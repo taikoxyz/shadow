@@ -6,7 +6,7 @@ pragma solidity ^0.8.33;
 interface IShadow {
     struct PublicInput {
         uint64 blockNumber;
-        uint256 chainId;
+        uint64 chainId;
         uint256 amount;
         address recipient;
         bytes32 nullifier;
@@ -15,10 +15,11 @@ interface IShadow {
     /// @dev `amount` is the gross (pre-fee) value from the ZK proof. The recipient receives `amount - fee`.
     event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount);
 
-    error ChainIdMismatch(uint256 expected, uint256 actual);
+    error ChainIdMismatch(uint64 expected, uint64 actual);
     error InvalidAmount(uint256 amount);
     error InvalidRecipient(address recipient);
     error NullifierAlreadyConsumed(bytes32 nullifier);
+    error AmountExceedsMax(uint256 amount, uint256 max);
 
     /// @notice Submits a proof and public inputs to mint ETH via the configured minter hook.
     /// @dev The Shadow implementation applies a 0.1% claim fee (`amount / 1000`) to an immutable feeRecipient.

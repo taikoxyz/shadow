@@ -43,7 +43,7 @@ contract UpgradeImageId is Script {
         address newShadowVerifier = address(new ShadowVerifier(TAIKO_ANCHOR, newCircuitVerifier));
 
         // 3. Deploy new Shadow implementation with new verifier
-        address newShadowImpl = address(new Shadow(newShadowVerifier, DUMMY_ETHER_MINTER, owner));
+        address newShadowImpl = address(new Shadow(newShadowVerifier, DUMMY_ETHER_MINTER, owner, 8 ether));
 
         // 4. Upgrade the UUPS proxy to the new implementation (no reinit needed)
         UUPSUpgradeable(SHADOW_PROXY).upgradeTo(newShadowImpl);

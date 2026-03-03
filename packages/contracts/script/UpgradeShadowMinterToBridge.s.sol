@@ -48,7 +48,7 @@ contract UpgradeShadowMinterToBridge is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        address newShadowImpl = address(new Shadow(verifier, BRIDGE_PROXY, feeRecipient));
+        address newShadowImpl = address(new Shadow(verifier, BRIDGE_PROXY, feeRecipient, 8 ether));
         UUPSUpgradeable(SHADOW_PROXY).upgradeTo(newShadowImpl);
 
         vm.stopBroadcast();

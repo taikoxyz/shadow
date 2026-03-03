@@ -20,6 +20,11 @@ contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeabl
     /// @dev Immutable at implementation-deploy time.
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     address public immutable feeRecipient;
+    /// @notice Maximum ETH amount (in wei) that can be claimed in a single proof.
+    /// @dev Mirrors the ZK circuit's MAX_TOTAL_WEI (8 ETH). Acts as an on-chain
+    ///      guardrail if the verifier is ever misconfigured during an upgrade.
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
+    uint256 public immutable maxClaimAmount;
 
     /// @dev Consumed nullifiers to prevent replayed claims.
     mapping(bytes32 _nullifier => bool _consumed) private _consumed;
@@ -30,16 +35,21 @@ contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeabl
     uint256 internal constant _FEE_DIVISOR = 1000; // 0.1%
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _verifier, address _etherMinter, address _feeRecipient) {
+    constructor(address _verifier, address _etherMinter, address _feeRecipient, uint256 _maxClaimAmount) {
         require(_verifier != address(0), ZeroAddress());
         require(_etherMinter != address(0), ZeroAddress());
         require(_feeRecipient != address(0), ZeroAddress());
         verifier = IShadowVerifier(_verifier);
         etherMinter = IEthMinter(_etherMinter);
         feeRecipient = _feeRecipient;
+        maxClaimAmount = _maxClaimAmount;
     }
 
-    /// @notice Initializes the contract.
+    /// @notice Initializes the proxy and transfers ownership to the Taiko DAO.
+    /// @dev The owner (proxy admin) MUST be the Taiko DAO governance contract
+    ///      (timelock/multisig). UUPS upgrades replace all immutable dependencies
+    ///      (verifier, etherMinter, feeRecipient, maxClaimAmount) atomically;
+    ///      all upgrade proposals must go through DAO governance.
     function initialize(address _owner) external initializer {
         __OwnableUpgradeable_init(_owner);
         __Pausable_init();
@@ -74,8 +84,9 @@ contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeabl
     ///      target address space (~2^80 hash operations), ensuring such an attack remains
     ///      economically infeasible.
     function claim(bytes calldata _proof, PublicInput calldata _input) external whenNotPaused nonReentrant {
-        require(_input.chainId == block.chainid, ChainIdMismatch(_input.chainId, block.chainid));
+        require(_input.chainId == block.chainid, ChainIdMismatch(_input.chainId, uint64(block.chainid)));
         require(_input.amount > 0, InvalidAmount(_input.amount));
+        require(_input.amount <= maxClaimAmount, AmountExceedsMax(_input.amount, maxClaimAmount));
         require(_input.recipient != address(0), InvalidRecipient(_input.recipient));
         if (_consumed[_input.nullifier]) {
             revert NullifierAlreadyConsumed(_input.nullifier);

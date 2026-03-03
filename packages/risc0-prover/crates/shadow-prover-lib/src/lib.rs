@@ -302,14 +302,14 @@ pub fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
     let recipient = parse_fixed_u8_array::<20>(&legacy.recipient)?;
     let secret = parse_fixed_u8_array::<32>(&legacy.secret)?;
 
-    if legacy.amounts.len() < note_count as usize {
-        bail!("amounts length is smaller than noteCount");
+    if legacy.amounts.len() != note_count as usize {
+        bail!("amounts length must equal noteCount");
     }
-    if legacy.recipient_hashes.len() < note_count as usize {
-        bail!("recipientHashes length is smaller than noteCount");
+    if legacy.recipient_hashes.len() != note_count as usize {
+        bail!("recipientHashes length must equal noteCount");
     }
-    if legacy.proof_nodes.len() < proof_depth as usize {
-        bail!("proofNodes length is smaller than proofDepth");
+    if legacy.proof_nodes.len() != proof_depth as usize {
+        bail!("proofNodes length must equal proofDepth");
     }
 
     let mut amounts = Vec::with_capacity(note_count as usize);

@@ -220,7 +220,7 @@ contract Risc0CircuitVerifierTest is Test {
     function _sampleInput() private view returns (IShadow.PublicInput memory) {
         return IShadow.PublicInput({
             blockNumber: 4_353_615,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1_230_000_000_000,
             recipient: 0xA92C80B3962F10e063Ad5463f996fe414F0E1F66,
             nullifier: keccak256("nullifier")

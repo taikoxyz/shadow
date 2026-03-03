@@ -855,6 +855,10 @@ fn parse_u64_from_rlp_quantity(bytes: &[u8]) -> Option<u64> {
         return None;
     }
 
+    if bytes.len() > 1 && bytes[0] == 0 {
+        return None;
+    }
+
     let mut out = 0u64;
     for b in bytes {
         out = out.checked_mul(256)?;
@@ -1045,6 +1049,10 @@ fn decode_compact_nibbles(encoded: &[u8]) -> Result<(bool, Vec<u8>), ClaimValida
     }
     let is_leaf = (flag & 0x2) != 0;
     let is_odd = (flag & 0x1) != 0;
+
+    if !is_odd && (encoded[0] & 0x0f) != 0 {
+        return Err(ClaimValidationError::InvalidTriePath);
+    }
 
     let mut nibbles = Vec::with_capacity(encoded.len() * 2);
     if is_odd {

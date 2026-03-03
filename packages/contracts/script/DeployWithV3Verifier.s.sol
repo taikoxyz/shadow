@@ -55,7 +55,7 @@ contract DeployWithV3Verifier is Script {
         deployed_.shadowVerifier = address(new ShadowVerifier(anchor, deployed_.risc0CircuitVerifier));
 
         // Deploy Shadow implementation and proxy
-        deployed_.shadowImplementation = address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner));
+        deployed_.shadowImplementation = address(new Shadow(deployed_.shadowVerifier, deployed_.etherMinter, owner, 8 ether));
         bytes memory initData = abi.encodeCall(Shadow.initialize, (owner));
         deployed_.shadowProxy = address(new ERC1967Proxy(deployed_.shadowImplementation, initData));
 
