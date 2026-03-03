@@ -22,3 +22,5 @@ pragma solidity ^0.8.33;
 //   __gap                          | uint256[49]                                        | Slot: 302  | Offset: 0    | Bytes: 1568
 //   _consumed                      | mapping(bytes32 => bool)                           | Slot: 351  | Offset: 0    | Bytes: 32
 //   __gap                          | uint256[49]                                        | Slot: 352  | Offset: 0    | Bytes: 1568
+
+abstract contract ShadowLayout {}

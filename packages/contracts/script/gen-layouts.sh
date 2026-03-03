@@ -59,6 +59,8 @@ pragma solidity ^0.8.33;
 
 // solhint-disable max-line-length
 ${layout_comments}
+
+abstract contract ${contract_name}Layout { }
 EOF
 
   echo "Updated $layout_path"
