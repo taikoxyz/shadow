@@ -16,10 +16,8 @@
 4. [Risk Classification](#4-risk-classification)
 5. [Findings](#5-findings)
    - [H-01 — No Timelock on UUPS Upgrade Authorization](#h-01--no-timelock-on-uups-upgrade-authorization)
-   - [M-01 — Nullifier Scheme Does Not Commit to Note Set](#m-01--nullifier-scheme-does-not-commit-to-note-set)
    - [L-01 — decodeAndValidateProof / decodeProof Unnecessarily Public](#l-01--decodeandvalidateproof--decodeproof-unnecessarily-public)
    - [L-02 — require(false, …) Anti-Pattern in Risc0CircuitVerifier](#l-02--requirefalse--anti-pattern-in-risc0circuitverifier)
-   - [L-03 — ShadowVerifier.verifyProof Always Reverts on Failure](#l-03--shadowverifierverifyproof-always-reverts-on-failure)
    - [L-04 — Dead Code in OwnableUpgradeable._initialize](#l-04--dead-code-in-ownableupgradeable_initialize)
    - [L-05 — Claimed Event Emits Gross Amount, Not Net Amount](#l-05--claimed-event-emits-gross-amount-not-net-amount)
    - [I-01 — No Staleness Constraint on Block Number (By Design)](#i-01--no-staleness-constraint-on-block-number-by-design)
@@ -43,19 +41,14 @@ The contract architecture is clean and well-tested. The core `Shadow.sol` → `S
 
 **One High-severity issue** was identified: the UUPS upgrade path has no timelock, meaning a single compromised owner key can immediately replace the implementation. This is a critical risk once the real ETH minter is connected for production.
 
-**One Medium-severity issue** was identified: the nullifier construction does not commit to the note set, a documented protocol concern. **This has been fixed** (circuit-level change; new `imageId` deployment required).
-
 No re-entrancy, front-running, or cryptographic vulnerabilities were found in the core claiming flow.
 
-**Remediation summary:** Following the initial audit, M-01 (nullifier scheme) and L-03 (verifyProof return type inconsistency) have been fixed. H-01 remains open.
-
-| Severity | Count | Fixed |
-|----------|-------|-------|
-| High | 1 | 0 |
-| Medium | 1 | 1 |
-| Low | 5 | 1 |
-| Informational | 7 | 0 |
-| **Total** | **14** | **2** |
+| Severity | Count |
+|----------|-------|
+| High | 1 |
+| Low | 4 |
+| Informational | 7 |
+| **Total** | **12** |
 
 ---
 
@@ -153,40 +146,6 @@ The current test deployment uses a stub minter (no real ETH), limiting exposure.
 
 ---
 
-### M-01 — Nullifier Scheme Does Not Commit to Note Set
-
-**Severity:** Medium (Protocol Design; documented)
-**Status:** Fixed (circuit-level change applied; new `imageId` deployment required)
-**File:** `PRIVACY.md`, `PRD.md`
-
-**Description:**
-
-The original nullifier formula was:
-
-```
-nullifier = SHA256(domain_sep || chainId || secret || noteIndex)
-```
-
-It did **not** commit to the note set (amounts, recipients). Two entirely different deposit files that share the same `(secret, chainId)` pair would produce identical nullifiers for the same `noteIndex`. If one claim were executed, the identical nullifier in the second deposit would be permanently consumed, permanently blocking the claim for the second deposit.
-
-The PRIVACY.md document had acknowledged this:
-
-> "Reusing the same `secret` across multiple deposit files is strongly discouraged because `nullifier` does not include the note set, so it can create nullifier collisions across deposits."
-
-**Fix Applied:**
-
-The circuit guest program (`shadow-proof-core/src/lib.rs`), the prover library (`shadow-prover-lib/src/deposit.rs`), and the server pipeline (`server/src/prover/pipeline.rs`) have been updated to compute:
-
-```
-nullifier = SHA256(domain_sep || chainId || secret || noteIndex || notesHash)
-```
-
-where `notesHash = SHA256(amounts[] || recipientHashes[])` commits to the full note set. This eliminates cross-deposit nullifier collisions even when the same `secret` is reused across different deposits. `PRD.md` has been updated to match.
-
-**Deployment Note:** This is a breaking circuit change. A new `imageId` must be computed from the updated guest binary and deployed (via `Shadow.upgradeImageId`) before the fix takes effect on-chain.
-
----
-
 ### L-01 — `decodeAndValidateProof` / `decodeProof` Unnecessarily Public
 
 **Severity:** Low
@@ -227,32 +186,6 @@ They are called internally via `this.decodeProof(...)` and `this.decodeAndValida
 `require(false, ...)` is an unusual pattern since Solidity 0.8+. The idiomatic form is `revert InvalidProofEncoding()`. Using `require(false, ...)` confuses static analysis tools and readers who expect `require` to guard a meaningful condition.
 
 **Recommendation:** Replace with `revert InvalidProofEncoding();`.
-
----
-
-### L-03 — `ShadowVerifier.verifyProof` Always Reverts on Failure
-
-**Severity:** Low
-**Status:** Fixed
-**File:** `src/impl/ShadowVerifier.sol`, `src/iface/IShadowVerifier.sol`, `src/impl/Shadow.sol`
-
-**Description:**
-
-The `IShadowVerifier` interface originally declared a `bool` return value:
-
-```solidity
-function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input)
-    external view returns (bool _isValid_);
-```
-
-However, `ShadowVerifier.verifyProof` never returned `false` — all failure paths called `require(...)` which reverts. The `Shadow` contract called the verifier via `require(verifier.verifyProof(...), ProofVerificationFailed())`, so when `ShadowVerifier` reverted with `BlockHashNotFound`, the outer `ProofVerificationFailed` message shadowed the informative inner revert, making diagnosis confusing.
-
-**Fix Applied (option a from recommendation):**
-
-- `IShadowVerifier.verifyProof` return type changed from `returns (bool _isValid_)` to no return value, with NatSpec documenting revert-on-failure behaviour.
-- `ShadowVerifier.verifyProof` updated to match: removed `_isValid_ = true` dead assignment.
-- `Shadow.claim` updated from `require(verifier.verifyProof(...), ProofVerificationFailed())` to a plain `verifier.verifyProof(...)` call — the error now propagates directly from the verifier with its precise reason.
-- `ProofVerificationFailed` error was removed from `IShadow` and is now defined only in `IShadowVerifier` (where it semantically belongs). Tests updated accordingly.
 
 ---
 
