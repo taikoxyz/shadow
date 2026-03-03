@@ -68,12 +68,28 @@ Even if you avoid reusing addresses, observers can correlate deposits and claims
 
 Reusing the same `secret` across multiple deposit files is strongly discouraged because `nullifier` does not include the note set, so it can create nullifier collisions across deposits (claims may fail or be blocked).
 
+### Historical Balance Proofs
+
+Shadow does not enforce a freshness window on the block used for proving. A valid proof can reference any historical block for which TaikoAnchor has a canonical hash. The ZK circuit proves that the target address had a sufficient balance *at that specific block* — not at the time of the claim transaction. This means a proof generated against an old block remains valid indefinitely, even if the target address balance has since changed.
+
 ## Operational Guidance (Non-Technical)
 
 - Use a fresh funding account for deposits if you want to avoid linking the deposit to your identity or other on-chain activity.
 - Separate deposit and claim in time if timing correlation is a concern.
 - Consider using a relayer to submit the claim so the transaction sender is not the same as the recipient (recipient is still public).
 - Treat the deposit file like a private key: do not upload it to third-party storage or share it.
+
+## Trust Assumptions
+
+### RISC Zero Groth16 Trusted Setup
+
+The on-chain verifier uses a Groth16 proof system that requires a one-time trusted setup ceremony. If the ceremony's toxic waste was retained or compromised by any participant, an attacker could forge proofs without satisfying circuit constraints — bypassing all ZK guarantees. Shadow relies on RISC Zero's publicly conducted ceremony. See: https://www.risczero.com/blog/ceremony.
+
+### RISC Zero zkVM Soundness
+
+The ZK circuit runs inside the RISC Zero zkVM. The system's soundness depends on the correctness of the RISC Zero constraint system and the absence of underconstrained components. RISC Zero publishes security advisories and undergoes third-party audits; see https://github.com/risc0/rz-security/blob/main/audits/README.md.
+
+---
 
 ## Legal / Compliance Notice
 

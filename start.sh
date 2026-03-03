@@ -6,7 +6,6 @@
 set -e
 
 REGISTRY_IMAGE="ghcr.io/taikoxyz/shadow:latest"
-EXPECTED_CIRCUIT_ID="0x08a05132ea1bfb9e7adbea32dd5bade4132986e9d23e8871d515f9a6a3e3d121"
 CONTAINER="shadow"
 WORKSPACE="$PWD/workspace"
 RISC0_WORK_DIR="$WORKSPACE/.risc0-work"
@@ -133,16 +132,6 @@ wait_for_server() {
     i=$((i + 1))
   done
   return 1
-}
-
-# Check if a local image matches the expected circuit ID
-image_matches_circuit_id() {
-  local image="$1"
-  local cid
-  cid=$(docker run --rm --entrypoint cat "$image" /tmp/circuit-id.txt 2>/dev/null | tr -d '[:space:]' || true)
-  debug "Image '$image' circuit ID: ${cid:-<none>}"
-  debug "Expected circuit ID: $EXPECTED_CIRCUIT_ID"
-  [ "$cid" = "$EXPECTED_CIRCUIT_ID" ]
 }
 
 # Build image from source
@@ -296,7 +285,6 @@ fi
 ok "Docker found"
 debug "Docker version: $(docker --version)"
 debug "Registry image: $REGISTRY_IMAGE"
-debug "Expected circuit ID: $EXPECTED_CIRCUIT_ID"
 
 # ---------------------------------------------------------------------------
 # 2. Check Docker resources
@@ -427,14 +415,11 @@ elif [ "$FORCE_PULL" = true ]; then
   fi
 
 else
-  # Default: check local image → pull from registry → build from source
-  if docker image inspect shadow-local > /dev/null 2>&1 && image_matches_circuit_id shadow-local; then
-    ok "Using local image 'shadow-local' (circuit ID matches)"
+  # Default: use local image → pull from registry → build from source
+  if docker image inspect shadow-local > /dev/null 2>&1; then
+    ok "Using local image 'shadow-local'"
     USE_IMAGE="shadow-local"
   else
-    if docker image inspect shadow-local > /dev/null 2>&1; then
-      info "Local image exists but circuit ID doesn't match — pulling from registry"
-    fi
     info "Pulling $REGISTRY_IMAGE ..."
     if [ "$VERBOSE" = true ]; then
       docker pull --platform linux/amd64 "$REGISTRY_IMAGE" && pull_ok=true || pull_ok=false

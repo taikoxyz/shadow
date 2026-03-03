@@ -68,7 +68,7 @@ pub struct DerivedNoteInfo {
     pub amount: u128,
     /// Optional label.
     pub label: Option<String>,
-    /// The nullifier for this note: SHA-256(magic || chainId || secret || noteIndex).
+    /// The nullifier for this note: SHA-256(magic || chainId || secret || noteIndex || notesHash).
     pub nullifier: [u8; 32],
     /// The recipient hash: SHA-256(magic || left-padded recipient).
     pub recipient_hash: [u8; 32],
@@ -143,7 +143,7 @@ pub fn validate_deposit(deposit: &DepositFile) -> Result<()> {
 ///
 /// This computes:
 /// - Target address from (secret, chainId, notesHash)
-/// - Nullifiers for each note from (secret, chainId, noteIndex)
+/// - Nullifiers for each note from (secret, chainId, noteIndex, notesHash)
 /// - Notes hash, total amount
 pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> {
     let chain_id: u64 = deposit
@@ -154,8 +154,8 @@ pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> 
 
     let note_count = deposit.notes.len();
     let mut amounts = Vec::with_capacity(note_count);
+    let mut recipients = Vec::with_capacity(note_count);
     let mut recipient_hashes = Vec::with_capacity(note_count);
-    let mut derived_notes = Vec::with_capacity(note_count);
     let mut total_amount: u128 = 0;
 
     for (i, note) in deposit.notes.iter().enumerate() {
@@ -164,29 +164,32 @@ pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> 
             .amount
             .parse()
             .with_context(|| format!("invalid amount in note {}", i))?;
-
         let recipient_hash = compute_recipient_hash(&recipient);
-        let nullifier = derive_nullifier(&secret, chain_id, i as u32);
 
         amounts.push(amount);
+        recipients.push(recipient);
         recipient_hashes.push(recipient_hash);
         total_amount = total_amount
             .checked_add(amount)
             .context("total amount overflow")?;
-
-        derived_notes.push(DerivedNoteInfo {
-            index: i as u32,
-            recipient,
-            amount,
-            label: note.label.clone(),
-            nullifier,
-            recipient_hash,
-        });
     }
 
     let notes_hash = compute_notes_hash(note_count, &amounts, &recipient_hashes)
         .map_err(|e| anyhow::anyhow!("notes hash computation failed: {}", e.as_str()))?;
     let target_address = derive_target_address(&secret, chain_id, &notes_hash);
+
+    let mut derived_notes = Vec::with_capacity(note_count);
+    for (i, note) in deposit.notes.iter().enumerate() {
+        let nullifier = derive_nullifier(&secret, chain_id, i as u32, &notes_hash);
+        derived_notes.push(DerivedNoteInfo {
+            index: i as u32,
+            recipient: recipients[i],
+            amount: amounts[i],
+            label: note.label.clone(),
+            nullifier,
+            recipient_hash: recipient_hashes[i],
+        });
+    }
 
     // If targetAddress is present in the deposit file, verify it matches
     if let Some(ref expected_addr) = deposit.target_address {

@@ -11,8 +11,6 @@ interface IShadowVerifier {
     error ZeroAddress();
 
     /// @notice Verifies a proof and its public inputs.
-    function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input)
-        external
-        view
-        returns (bool _isValid_);
+    /// @dev Reverts on any failure (BlockHashNotFound, ProofVerificationFailed). Never returns false.
+    function verifyProof(bytes calldata _proof, IShadow.PublicInput calldata _input) external view;
 }

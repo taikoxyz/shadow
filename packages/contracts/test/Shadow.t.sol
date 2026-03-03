@@ -6,6 +6,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {OwnableUpgradeable} from "../src/lib/OwnableUpgradeable.sol";
 import {Shadow} from "../src/impl/Shadow.sol";
 import {IShadow} from "../src/iface/IShadow.sol";
+import {IShadowVerifier} from "../src/iface/IShadowVerifier.sol";
 import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
 import {MockEtherMinter} from "./mocks/MockEtherMinter.sol";
@@ -26,7 +27,7 @@ contract ShadowTest is Test {
         shadowVerifier = new ShadowVerifier(address(anchor), address(circuitVerifier));
         etherMinter = new MockEtherMinter();
 
-        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(this));
+        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(this), 8 ether);
         ERC1967Proxy shadowProxy =
             new ERC1967Proxy(address(shadowImpl), abi.encodeCall(Shadow.initialize, (address(this))));
         shadow = Shadow(address(shadowProxy));
@@ -34,17 +35,17 @@ contract ShadowTest is Test {
 
     function test_constructor_RevertWhen_VerifierIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(0), address(etherMinter), address(this));
+        new Shadow(address(0), address(etherMinter), address(this), 8 ether);
     }
 
     function test_constructor_RevertWhen_EtherMinterIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(shadowVerifier), address(0), address(this));
+        new Shadow(address(shadowVerifier), address(0), address(this), 8 ether);
     }
 
     function test_constructor_RevertWhen_FeeRecipientIsZeroAddress() external {
         vm.expectRevert(OwnableUpgradeable.ZeroAddress.selector);
-        new Shadow(address(shadowVerifier), address(etherMinter), address(0));
+        new Shadow(address(shadowVerifier), address(etherMinter), address(0), 8 ether);
     }
 
     function test_feeRecipient_isImmutable() external view {
@@ -62,7 +63,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: amount,
             recipient: recipient,
             nullifier: nullifierValue
@@ -92,7 +93,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: amount,
             recipient: recipient,
             nullifier: nullifierValue
@@ -117,7 +118,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid + 1,
+            chainId: uint64(block.chainid + 1),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier")
@@ -135,13 +136,13 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier")
         });
 
-        vm.expectRevert(IShadow.ProofVerificationFailed.selector);
+        vm.expectRevert(IShadowVerifier.ProofVerificationFailed.selector);
         shadow.claim("", input);
     }
 
@@ -154,13 +155,13 @@ contract ShadowTest is Test {
         bytes32 nullifierValue = keccak256("nullifier-security");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: nullifierValue
         });
 
-        vm.expectRevert(IShadow.ProofVerificationFailed.selector);
+        vm.expectRevert(IShadowVerifier.ProofVerificationFailed.selector);
         shadow.claim("", input);
 
         assertFalse(shadow.isConsumed(nullifierValue));
@@ -176,7 +177,7 @@ contract ShadowTest is Test {
         bytes32 nullifierValue = keccak256("nullifier-mint-failure");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: nullifierValue
@@ -198,7 +199,7 @@ contract ShadowTest is Test {
         bytes32 nullifierValue = keccak256("nullifier-fee-mint-failure");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1000,
             recipient: address(0xBEEF),
             nullifier: nullifierValue
@@ -219,7 +220,7 @@ contract ShadowTest is Test {
         bytes32 nullifierValue = keccak256("nullifier");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: nullifierValue
@@ -237,7 +238,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0),
             nullifier: keccak256("nullifier")
@@ -254,7 +255,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 0,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier")
@@ -297,7 +298,7 @@ contract ShadowTest is Test {
     }
 
     function test_upgradeToAndCall_RevertWhen_NotOwner() external {
-        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(0xCAFE));
+        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(0xCAFE), 8 ether);
 
         vm.prank(address(0xBEEF));
         vm.expectRevert();
@@ -306,7 +307,7 @@ contract ShadowTest is Test {
 
     function test_upgradeToAndCall_succeedsAndUpdatesFeeRecipient() external {
         address newFeeRecipient = address(0xCAFE);
-        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), newFeeRecipient);
+        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), newFeeRecipient, 8 ether);
 
         // OZ UUPS upgradeToAndCall() always delegatecalls the new implementation.
         // Use a safe no-op view call to avoid triggering fallback reverts.
@@ -327,7 +328,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input1 = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: recipient1,
             nullifier: nullifier1
@@ -335,7 +336,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input2 = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 2 ether,
             recipient: recipient2,
             nullifier: nullifier2
@@ -358,7 +359,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier-1wei")
@@ -377,7 +378,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1000,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier-1000wei")
@@ -397,7 +398,7 @@ contract ShadowTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1001,
             recipient: address(0xBEEF),
             nullifier: keccak256("nullifier-1001wei")
@@ -418,7 +419,7 @@ contract ShadowTest is Test {
         bytes32 nullifierValue = keccak256("nullifier-upgrade-test");
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
             nullifier: nullifierValue
@@ -429,7 +430,7 @@ contract ShadowTest is Test {
 
         // Upgrade to new implementation
         address newFeeRecipient = address(0xCAFE);
-        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), newFeeRecipient);
+        Shadow newImpl = new Shadow(address(shadowVerifier), address(etherMinter), newFeeRecipient, 8 ether);
         shadow.upgradeToAndCall(address(newImpl), abi.encodeWithSignature("feeRecipient()"));
 
         // Verify nullifier storage is preserved after upgrade

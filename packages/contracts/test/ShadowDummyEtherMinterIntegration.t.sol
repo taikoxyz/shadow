@@ -25,7 +25,7 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
         shadowVerifier = new ShadowVerifier(address(anchor), address(circuitVerifier));
         etherMinter = new DummyEtherMinter();
 
-        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(this));
+        Shadow shadowImpl = new Shadow(address(shadowVerifier), address(etherMinter), address(this), 8 ether);
         ERC1967Proxy shadowProxy =
             new ERC1967Proxy(address(shadowImpl), abi.encodeCall(Shadow.initialize, (address(this))));
         shadow = Shadow(address(shadowProxy));
@@ -42,7 +42,7 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
             blockNumber: blockNumber,
-            chainId: block.chainid,
+            chainId: uint64(block.chainid),
             amount: amount,
             recipient: recipient,
             nullifier: nullifierValue

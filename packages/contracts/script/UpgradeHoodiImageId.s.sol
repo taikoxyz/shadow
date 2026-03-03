@@ -12,13 +12,13 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 /// @dev Only redeploys what's necessary: Risc0CircuitVerifier, ShadowVerifier,
 /// and Shadow implementation. Reuses existing RiscZeroGroth16Verifier,
 /// DummyEtherMinter, and TaikoAnchor. Upgrades the existing UUPS proxy.
-contract UpgradeImageId is Script {
+contract UpgradeHoodiImageId is Script {
     // Existing contracts on Taiko Hoodi that don't need redeployment
     address internal constant TAIKO_ANCHOR = 0x1670130000000000000000000000000000010001;
     address internal constant RISC0_GROTH16_VERIFIER = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
     address internal constant DUMMY_ETHER_MINTER = 0x6DC226aA43E86fE77735443fB50a0A90e5666AA4;
     address internal constant SHADOW_PROXY = 0x77cdA0575e66A5FC95404fdA856615AD507d8A07;
-    // Image ID deployed: 0x08a05132ea1bfb9e7adbea32dd5bade4132986e9d23e8871d515f9a6a3e3d121
+    // Image ID deployed: 0xd3515023284a4bc91b3207ba068d6bae09015ae0c405e19bc5182ef7dc760f41
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_KEY");
@@ -43,7 +43,7 @@ contract UpgradeImageId is Script {
         address newShadowVerifier = address(new ShadowVerifier(TAIKO_ANCHOR, newCircuitVerifier));
 
         // 3. Deploy new Shadow implementation with new verifier
-        address newShadowImpl = address(new Shadow(newShadowVerifier, DUMMY_ETHER_MINTER, owner));
+        address newShadowImpl = address(new Shadow(newShadowVerifier, DUMMY_ETHER_MINTER, owner, 8 ether));
 
         // 4. Upgrade the UUPS proxy to the new implementation (no reinit needed)
         UUPSUpgradeable(SHADOW_PROXY).upgradeTo(newShadowImpl);

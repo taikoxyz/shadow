@@ -4,7 +4,7 @@
 - `pnpm contracts:test` – runs `forge test -vvv` using pnpm-managed dependencies
 - `pnpm contracts:fmt` – formats Solidity sources via `forge fmt`
 - `pnpm contracts:layout` – regenerates `*_Layout.sol` storage layout docs for proxy contracts
-- `forge script script/DeployTaiko.s.sol:DeployTaiko --rpc-url <RPC> --broadcast` – deploys and wires the full stack
+- `forge script script/DeployHoodi.s.sol:DeployHoodi --rpc-url <RPC> --broadcast` – deploys and wires the full stack on Hoodi
 
 ## Directory Structure
 - `src/iface/` – Interface contracts (IShadow, IShadowVerifier, etc.)
@@ -48,9 +48,9 @@ The on-chain verification flow:
 Private inputs enforced inside the zkVM guest (not in the journal):
 - `noteIndex`, secret, and Merkle proof data
 
-## Taiko deployment script
+## Hoodi deployment script
 
-`script/DeployTaiko.s.sol` deploys, initializes, and wires:
+`script/DeployHoodi.s.sol` deploys, initializes, and wires:
 
 1. `DummyEtherMinter`
 2. `Risc0CircuitVerifier`
@@ -77,7 +77,7 @@ export OWNER="0x..."
 export ANCHOR="0x..."
 export IMAGE_ID="0x..."
 
-forge script script/DeployTaiko.s.sol:DeployTaiko \
+forge script script/DeployHoodi.s.sol:DeployHoodi \
   --rpc-url "$RPC_URL" \
   --broadcast
 ```

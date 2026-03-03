@@ -31,7 +31,6 @@ pub struct ClaimInput {
     pub block_header_rlp: Vec<u8>,
     pub proof_depth: u32,
     pub proof_nodes: Vec<Vec<u8>>,
-    pub proof_node_lengths: Vec<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -216,20 +215,11 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
     if input.proof_depth == 0 || input.proof_depth as usize > MAX_PROOF_DEPTH {
         return Err(ClaimValidationError::InvalidProofDepth);
     }
-    if input.proof_depth as usize != input.proof_nodes.len()
-        || input.proof_depth as usize != input.proof_node_lengths.len()
-    {
+    if input.proof_depth as usize != input.proof_nodes.len() {
         return Err(ClaimValidationError::ProofShapeMismatch);
     }
 
-    for (node, declared_len) in input
-        .proof_nodes
-        .iter()
-        .zip(input.proof_node_lengths.iter())
-    {
-        if node.len() != *declared_len as usize {
-            return Err(ClaimValidationError::ProofShapeMismatch);
-        }
+    for node in &input.proof_nodes {
         if node.len() > MAX_NODE_BYTES {
             return Err(ClaimValidationError::ProofNodeTooLarge);
         }
@@ -248,7 +238,7 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::InsufficientAccountBalance);
     }
 
-    let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index);
+    let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index, &notes_hash);
 
     // Note: stateRoot is derived in-circuit from block_header_rlp and verified against
     // input.block_hash. We commit to block_hash because that's what TaikoAnchor provides.
@@ -305,12 +295,18 @@ pub fn derive_target_address(secret: &[u8; 32], chain_id: u64, notes_hash: &[u8;
     out
 }
 
-pub fn derive_nullifier(secret: &[u8; 32], chain_id: u64, note_index: u32) -> [u8; 32] {
-    let mut input = [0u8; 128];
+pub fn derive_nullifier(
+    secret: &[u8; 32],
+    chain_id: u64,
+    note_index: u32,
+    notes_hash: &[u8; 32],
+) -> [u8; 32] {
+    let mut input = [0u8; 160];
     input[..32].copy_from_slice(&pad_magic_label(MAGIC_NULLIFIER));
     input[32..64].copy_from_slice(&u64_to_bytes32(chain_id));
     input[64..96].copy_from_slice(secret);
     input[96..128].copy_from_slice(&u64_to_bytes32(note_index as u64));
+    input[128..160].copy_from_slice(notes_hash);
 
     sha256(&input)
 }
@@ -444,11 +440,25 @@ mod tests {
     fn nullifier_includes_note_index() {
         let secret = [7u8; 32];
         let chain_id = 167013u64;
+        let notes_hash = [0xabu8; 32];
 
-        let n0 = derive_nullifier(&secret, chain_id, 0);
-        let n1 = derive_nullifier(&secret, chain_id, 1);
+        let n0 = derive_nullifier(&secret, chain_id, 0, &notes_hash);
+        let n1 = derive_nullifier(&secret, chain_id, 1, &notes_hash);
 
         assert_ne!(n0, n1);
+    }
+
+    #[test]
+    fn nullifier_differs_for_different_notes_hash() {
+        let secret = [7u8; 32];
+        let chain_id = 167013u64;
+        let notes_hash_a = [0xabu8; 32];
+        let notes_hash_b = [0xcdu8; 32];
+
+        let n_a = derive_nullifier(&secret, chain_id, 0, &notes_hash_a);
+        let n_b = derive_nullifier(&secret, chain_id, 0, &notes_hash_b);
+
+        assert_ne!(n_a, n_b);
     }
 
     #[test]
@@ -468,12 +478,14 @@ mod tests {
     }
 
     #[test]
-    fn decode_rlp_list_payload_items_rejects_nested_list_items() {
-        // [[0x01]] is a list whose only element is another list. We reject nested lists.
+    fn decode_rlp_list_payload_items_returns_full_rlp_bytes_for_nested_list_items() {
+        // [[0x01]] is a list whose only element is another list (inline trie node).
+        // The full RLP encoding of the inner list is returned, not an error.
         let inner = rlp_encode_list(&[rlp_encode_bytes(&[0x01])]);
-        let outer = rlp_encode_list(&[inner]);
-        let err = decode_rlp_list_payload_items(&outer).unwrap_err();
-        assert!(matches!(err, ClaimValidationError::InvalidRlpNode));
+        let outer = rlp_encode_list(&[inner.clone()]);
+        let items = decode_rlp_list_payload_items(&outer).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0], inner.as_slice());
     }
 
     #[test]
@@ -650,6 +662,177 @@ mod tests {
     }
 
     #[test]
+    fn decode_rlp_list_payload_items_accepts_inline_list_items_and_returns_full_rlp_bytes() {
+        // A branch node where slot 0 holds an inline trie node (an RLP list) rather than
+        // a 32-byte hash or empty string. The function must return the full list bytes.
+        let inline = rlp_encode_list(&[rlp_encode_bytes(&[0x01])]);
+
+        let mut items: Vec<Vec<u8>> = (0..16)
+            .map(|i| {
+                if i == 0 {
+                    inline.clone()
+                } else {
+                    rlp_encode_bytes(&[])
+                }
+            })
+            .collect();
+        items.push(rlp_encode_bytes(&[]));
+        let branch = rlp_encode_list(&items);
+
+        let slots = decode_rlp_list_payload_items(&branch).unwrap();
+        assert_eq!(slots.len(), 17);
+        assert_eq!(slots[0], inline.as_slice());
+        assert!(slots[1].is_empty());
+    }
+
+    #[test]
+    fn verify_account_proof_traverses_through_inline_branch_node() {
+        // Trie layout:
+        //   extension (covers nibbles 0..62, hashed) →
+        //   parent branch (nibble 63 → inline terminal branch) →
+        //   [inline] terminal branch (key exhausted, account value at slot 16)
+        //
+        // The terminal branch is 23 bytes (< 32) so it embeds inline in the parent.
+        // proof_nodes contains only the extension and the parent branch; the terminal
+        // branch is embedded inside the parent and processed in-place by the circuit.
+        let target_address = [0x55u8; 20];
+        let key_hash = keccak256(&target_address);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        // Minimal account: [nonce=0, balance=1, storageRoot=empty, codeHash=empty]
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),
+            rlp_encode_bytes(&[0x01]),
+            rlp_encode_bytes(&[]),
+            rlp_encode_bytes(&[]),
+        ]);
+
+        // Terminal branch: 16 empty nibble slots + account value at slot 16.
+        // Payload = 16 × 1 + 6 = 22 bytes → total = 23 bytes (inline-capable).
+        let mut terminal_items: Vec<Vec<u8>> = (0..16).map(|_| rlp_encode_bytes(&[])).collect();
+        terminal_items.push(rlp_encode_bytes(&account_rlp));
+        let terminal_branch = rlp_encode_list(&terminal_items);
+        assert!(
+            terminal_branch.len() < 32,
+            "terminal branch must be short enough to embed inline"
+        );
+
+        // Parent branch: slot key_nibbles[63] holds the inline terminal branch directly.
+        let mut parent_items: Vec<Vec<u8>> = (0..16)
+            .map(|i| {
+                if i == key_nibbles[63] as usize {
+                    terminal_branch.clone()
+                } else {
+                    rlp_encode_bytes(&[])
+                }
+            })
+            .collect();
+        parent_items.push(rlp_encode_bytes(&[]));
+        let parent_branch = rlp_encode_list(&parent_items);
+        let parent_hash = keccak256(&parent_branch);
+
+        // Extension: covers nibbles 0..62 (63 nibbles), points to parent branch by hash.
+        let compact_path = nibbles_to_compact_path(&key_nibbles[..63], false);
+        let extension_node = rlp_encode_list(&[
+            rlp_encode_bytes(&compact_path),
+            rlp_encode_bytes(&parent_hash),
+        ]);
+        let state_root = keccak256(&extension_node);
+
+        let balance_32 = verify_account_proof_and_get_balance(
+            &state_root,
+            &target_address,
+            &[extension_node, parent_branch],
+        )
+        .unwrap();
+
+        let mut expected = [0u8; 32];
+        expected[31] = 0x01;
+        assert_eq!(balance_32, expected);
+    }
+
+    #[test]
+    fn is_inline_node_does_not_misidentify_32_byte_hash_reference() {
+        // A 32-byte hash whose first byte is >= 0xc0 must NOT be treated as an inline
+        // node. Before this fix, is_inline_node only checked bytes[0] >= 0xc0, causing
+        // 32-byte hash references to be misidentified as inline nodes → InvalidRlpNode.
+        let hash_c0 = [0xc0u8; 32];
+        assert!(
+            !is_inline_node(&hash_c0),
+            "32-byte hash with 0xc0 prefix is not inline"
+        );
+        let hash_ff = [0xffu8; 32];
+        assert!(
+            !is_inline_node(&hash_ff),
+            "32-byte hash with 0xff prefix is not inline"
+        );
+
+        // A genuine inline node (< 32 bytes, first byte >= 0xc0) IS inline.
+        let tiny_list = rlp_encode_list(&[rlp_encode_bytes(&[0x01])]);
+        assert!(tiny_list.len() < 32);
+        assert!(is_inline_node(&tiny_list), "short RLP list is inline");
+
+        // Empty slice is never inline.
+        assert!(!is_inline_node(&[]), "empty is not inline");
+    }
+
+    #[test]
+    fn verify_account_proof_handles_branch_child_hash_with_high_first_byte() {
+        // Regression: a branch node child that is a 32-byte hash whose first byte is
+        // 0xc0 or above must be followed as a hash reference (not treated as inline).
+        // We build a minimal trie: branch → leaf.  We iterate target addresses until
+        // we find one where the leaf node hashes to something with first byte >= 0xc0.
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),
+            rlp_encode_bytes(&[0x05]),
+            rlp_encode_bytes(&[0xaau8; 32]),
+            rlp_encode_bytes(&[0xbbu8; 32]),
+        ]);
+
+        // Find an address whose derived key produces a leaf hash with first byte >= 0xc0.
+        let mut found = None;
+        for seed in 0u8..=255 {
+            let addr = [seed; 20];
+            let key_hash = keccak256(&addr);
+            let key_nibbles = hash_to_nibbles(&key_hash);
+            let compact_path = nibbles_to_compact_path(&key_nibbles[1..], true);
+            let leaf_node = rlp_encode_list(&[
+                rlp_encode_bytes(&compact_path),
+                rlp_encode_bytes(&account_rlp),
+            ]);
+            let leaf_hash = keccak256(&leaf_node);
+            if leaf_hash[0] >= 0xc0 {
+                found = Some((addr, key_nibbles, leaf_node, leaf_hash));
+                break;
+            }
+        }
+
+        let (addr, key_nibbles, leaf_node, leaf_hash) =
+            found.expect("should find an address with leaf_hash[0] >= 0xc0 within 256 seeds");
+
+        let mut branch_items: Vec<Vec<u8>> = (0..16)
+            .map(|i| {
+                if i == key_nibbles[0] as usize {
+                    rlp_encode_bytes(&leaf_hash)
+                } else {
+                    rlp_encode_bytes(&[])
+                }
+            })
+            .collect();
+        branch_items.push(rlp_encode_bytes(&[]));
+        let branch_node = rlp_encode_list(&branch_items);
+        let state_root = keccak256(&branch_node);
+
+        let balance =
+            verify_account_proof_and_get_balance(&state_root, &addr, &[branch_node, leaf_node])
+                .expect("proof should succeed when hash-reference first byte >= 0xc0");
+
+        let mut expected = [0u8; 32];
+        expected[31] = 0x05;
+        assert_eq!(balance, expected);
+    }
+
+    #[test]
     fn verify_account_proof_rejects_when_parent_child_reference_hash_mismatches() {
         let target_address = [0x11u8; 20];
         let key_hash = keccak256(&target_address);
@@ -753,6 +936,10 @@ fn parse_u64_from_rlp_quantity(bytes: &[u8]) -> Option<u64> {
         return None;
     }
 
+    if bytes.len() > 1 && bytes[0] == 0 {
+        return None;
+    }
+
     let mut out = 0u64;
     for b in bytes {
         out = out.checked_mul(256)?;
@@ -780,22 +967,42 @@ fn verify_account_proof_and_get_balance(
     let mut key_index = 0usize;
     let mut expected_ref: Option<Vec<u8>> = None;
     let mut account_rlp: Option<Vec<u8>> = None;
+    let mut pending_inline: Option<Vec<u8>> = None;
+    let mut proof_idx = 0usize;
 
-    for (depth, node) in proof_nodes.iter().enumerate() {
-        if depth == 0 {
-            if keccak256(node) != *state_root {
-                return Err(ClaimValidationError::InvalidNodeReference);
+    loop {
+        // Source the current node from a pending inline ref or the next proof_nodes entry.
+        // Inline nodes are authenticated by being embedded in an already-verified parent,
+        // so they skip the reference check.
+        let (node_bytes, needs_ref_check) = match pending_inline.take() {
+            Some(inline) => (inline, false),
+            None => {
+                if proof_idx >= proof_nodes.len() {
+                    break;
+                }
+                let b = proof_nodes[proof_idx].clone();
+                proof_idx += 1;
+                (b, true)
             }
-        } else {
-            let parent_ref = expected_ref
-                .as_ref()
-                .ok_or(ClaimValidationError::InvalidTriePath)?;
-            if !node_matches_reference(node, parent_ref) {
-                return Err(ClaimValidationError::InvalidNodeReference);
+        };
+
+        if needs_ref_check {
+            if proof_idx == 1 {
+                if keccak256(&node_bytes) != *state_root {
+                    return Err(ClaimValidationError::InvalidNodeReference);
+                }
+            } else {
+                let r = expected_ref
+                    .as_ref()
+                    .ok_or(ClaimValidationError::InvalidTriePath)?;
+                if !node_matches_reference(&node_bytes, r) {
+                    return Err(ClaimValidationError::InvalidNodeReference);
+                }
             }
+            expected_ref = None;
         }
 
-        let elements = decode_rlp_list_payload_items(node)?;
+        let elements = decode_rlp_list_payload_items(&node_bytes)?;
         match elements.len() {
             17 => {
                 if key_index == key_nibbles.len() {
@@ -804,7 +1011,7 @@ fn verify_account_proof_and_get_balance(
                         return Err(ClaimValidationError::MissingAccountValue);
                     }
                     account_rlp = Some(value.to_vec());
-                    if depth + 1 != proof_nodes.len() {
+                    if proof_idx != proof_nodes.len() || pending_inline.is_some() {
                         return Err(ClaimValidationError::InvalidTriePath);
                     }
                     break;
@@ -814,7 +1021,11 @@ fn verify_account_proof_and_get_balance(
                 if next_ref.is_empty() {
                     return Err(ClaimValidationError::MissingAccountValue);
                 }
-                expected_ref = Some(next_ref.to_vec());
+                if is_inline_node(next_ref) {
+                    pending_inline = Some(next_ref.to_vec());
+                } else {
+                    expected_ref = Some(next_ref.to_vec());
+                }
                 key_index += 1;
             }
             2 => {
@@ -836,7 +1047,7 @@ fn verify_account_proof_and_get_balance(
                         return Err(ClaimValidationError::MissingAccountValue);
                     }
                     account_rlp = Some(value.to_vec());
-                    if depth + 1 != proof_nodes.len() {
+                    if proof_idx != proof_nodes.len() || pending_inline.is_some() {
                         return Err(ClaimValidationError::InvalidTriePath);
                     }
                     break;
@@ -846,7 +1057,11 @@ fn verify_account_proof_and_get_balance(
                 if next_ref.is_empty() {
                     return Err(ClaimValidationError::InvalidTriePath);
                 }
-                expected_ref = Some(next_ref.to_vec());
+                if is_inline_node(next_ref) {
+                    pending_inline = Some(next_ref.to_vec());
+                } else {
+                    expected_ref = Some(next_ref.to_vec());
+                }
             }
             _ => return Err(ClaimValidationError::InvalidTrieNode),
         }
@@ -862,6 +1077,14 @@ fn node_matches_reference(node: &[u8], reference: &[u8]) -> bool {
         32 => keccak256(node) == to_32(reference),
         _ => node == reference,
     }
+}
+
+fn is_inline_node(bytes: &[u8]) -> bool {
+    // In Ethereum's MPT, a child reference is either a 32-byte keccak256 hash or an
+    // inline RLP node (the node is small enough to embed directly, so it's always < 32
+    // bytes). A 32-byte hash must never be treated as an inline node, even when its
+    // first byte happens to be >= 0xc0.
+    !bytes.is_empty() && bytes.len() < 32 && bytes[0] >= 0xc0
 }
 
 fn decode_account_balance(account_rlp: &[u8]) -> Result<[u8; 32], ClaimValidationError> {
@@ -912,12 +1135,16 @@ fn decode_compact_nibbles(encoded: &[u8]) -> Result<(bool, Vec<u8>), ClaimValida
     let is_leaf = (flag & 0x2) != 0;
     let is_odd = (flag & 0x1) != 0;
 
+    if !is_odd && (encoded[0] & 0x0f) != 0 {
+        return Err(ClaimValidationError::InvalidTriePath);
+    }
+
     let mut nibbles = Vec::with_capacity(encoded.len() * 2);
     if is_odd {
         nibbles.push(encoded[0] & 0x0f);
     }
 
-    let start = if is_odd { 1 } else { 1 };
+    let start = 1; // always skip byte 0 (flag byte); odd path already pushed its low nibble above
     for byte in encoded.iter().skip(start) {
         nibbles.push(byte >> 4);
         nibbles.push(byte & 0x0f);
@@ -939,13 +1166,13 @@ fn decode_rlp_list_payload_items(input: &[u8]) -> Result<Vec<&[u8]>, ClaimValida
     while cursor < end {
         let item = decode_rlp_item(input, cursor)?;
         if item.is_list {
-            return Err(ClaimValidationError::InvalidRlpNode);
+            // Inline trie node: return the complete RLP encoding (list prefix + payload)
+            // so the caller can byte-compare it via node_matches_reference.
+            out.push(&input[cursor..cursor + item.total_len]);
+        } else {
+            let payload_end = item.payload_offset + item.payload_len;
+            out.push(&input[item.payload_offset..payload_end]);
         }
-        let payload_end = item.payload_offset + item.payload_len;
-        if payload_end > input.len() {
-            return Err(ClaimValidationError::InvalidRlpNode);
-        }
-        out.push(&input[item.payload_offset..payload_end]);
         cursor += item.total_len;
     }
 

@@ -236,7 +236,7 @@ pub async fn run_pipeline(
             )
             .await;
 
-        let nullifier = derive_nullifier(&secret, chain_id, i as u32);
+        let nullifier = derive_nullifier(&secret, chain_id, i as u32, &notes_hash);
 
         let claim_input = build_claim_input(
             &block,
@@ -357,9 +357,7 @@ fn build_claim_input(
         bail!("empty account proof");
     }
 
-    // Trim proof nodes to their actual lengths (no padding needed)
-    let mut trimmed_nodes = Vec::with_capacity(proof_nodes.len());
-    let mut node_lengths = Vec::with_capacity(proof_nodes.len());
+    let mut validated_nodes = Vec::with_capacity(proof_nodes.len());
     for node in proof_nodes {
         if node.len() > MAX_NODE_BYTES {
             bail!(
@@ -368,8 +366,7 @@ fn build_claim_input(
                 node.len()
             );
         }
-        node_lengths.push(node.len() as u32);
-        trimmed_nodes.push(node.clone());
+        validated_nodes.push(node.clone());
     }
 
     Ok(ClaimInput {
@@ -385,8 +382,7 @@ fn build_claim_input(
         recipient_hashes: recipient_hashes.to_vec(),
         block_header_rlp: block.header_rlp.clone(),
         proof_depth,
-        proof_nodes: trimmed_nodes,
-        proof_node_lengths: node_lengths,
+        proof_nodes: validated_nodes,
     })
 }
 
