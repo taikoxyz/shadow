@@ -668,7 +668,13 @@ mod tests {
         let inline = rlp_encode_list(&[rlp_encode_bytes(&[0x01])]);
 
         let mut items: Vec<Vec<u8>> = (0..16)
-            .map(|i| if i == 0 { inline.clone() } else { rlp_encode_bytes(&[]) })
+            .map(|i| {
+                if i == 0 {
+                    inline.clone()
+                } else {
+                    rlp_encode_bytes(&[])
+                }
+            })
             .collect();
         items.push(rlp_encode_bytes(&[]));
         let branch = rlp_encode_list(&items);
@@ -703,8 +709,7 @@ mod tests {
 
         // Terminal branch: 16 empty nibble slots + account value at slot 16.
         // Payload = 16 × 1 + 6 = 22 bytes → total = 23 bytes (inline-capable).
-        let mut terminal_items: Vec<Vec<u8>> =
-            (0..16).map(|_| rlp_encode_bytes(&[])).collect();
+        let mut terminal_items: Vec<Vec<u8>> = (0..16).map(|_| rlp_encode_bytes(&[])).collect();
         terminal_items.push(rlp_encode_bytes(&account_rlp));
         let terminal_branch = rlp_encode_list(&terminal_items);
         assert!(
