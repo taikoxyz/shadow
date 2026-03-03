@@ -1,4 +1,95 @@
-# Deploying to Taiko Hoodi Testnet
+# Deploying Shadow Contracts
+
+## Networks at a Glance
+
+| Network | Chain ID | RPC | Explorer |
+|---------|----------|-----|----------|
+| Taiko Mainnet | `167000` | `https://rpc.mainnet.taiko.xyz` | `https://taikoscan.io/` |
+| Taiko Hoodi (testnet) | `167013` | `https://rpc.hoodi.taiko.xyz` | `https://hoodi.taikoscan.io/` |
+
+---
+
+## Deploying to Taiko Mainnet
+
+### Key Addresses
+
+| Contract | Address |
+|----------|---------|
+| TaikoAnchor | `0x1670000000000000000000000000000000010001` |
+| TaikoBridge (IEthMinter) | `0x1670000000000000000000000000000000000001` |
+| L2 Delegate Controller (proxy owner) | `0xfA06E15B8b4c5BF3FC5d9cfD083d45c53Cbe8C7C` |
+| Taiko Labs multisig (fee recipient) | `0xB73b0FC4C0Cfc73cF6e034Af6f6b42Ebe6c8b49D` |
+| RISC0 Groth16 Verifier | deploy with `DeployMainnetRisc0Verifier.s.sol` (see below) |
+
+### Environment Variables
+
+- `DEPLOYER_KEY` — Private key for deploying contracts
+- `ETHERSCAN_API_KEY` — API key for contract verification on Taikoscan
+- `RISC0_VERIFIER` — Address of the deployed `RiscZeroGroth16Verifier` (**required**)
+- `IMAGE_ID` — ZK circuit image ID (**required** — get from `shadow-risc0-host circuit-id`)
+- `OWNER` — Owner address (defaults to `L2_DELEGATE_CONTROLLER`)
+- `FEE_RECIPIENT` — Fee recipient address (defaults to `TAIKO_LABS`)
+
+### Step 1: Deploy the RISC0 Groth16 Verifier
+
+```bash
+forge script script/DeployMainnetRisc0Verifier.s.sol:DeployMainnetRisc0Verifier \
+  --rpc-url https://rpc.mainnet.taiko.xyz \
+  --broadcast --verify \
+  --verifier custom \
+  --verifier-url "https://api.etherscan.io/v2/api?chainid=167000&apikey=$ETHERSCAN_API_KEY" \
+  --verifier-api-key "$ETHERSCAN_API_KEY"
+```
+
+Record the printed `RiscZeroGroth16Verifier` address as `RISC0_VERIFIER`.
+
+### Step 2: Deploy Shadow
+
+```bash
+RISC0_VERIFIER=0x<verifier-address> \
+IMAGE_ID=0x<circuit-id> \
+forge script script/DeployMainnet.s.sol:DeployMainnet \
+  --rpc-url https://rpc.mainnet.taiko.xyz \
+  --broadcast --verify \
+  --verifier custom \
+  --verifier-url "https://api.etherscan.io/v2/api?chainid=167000&apikey=$ETHERSCAN_API_KEY" \
+  --verifier-api-key "$ETHERSCAN_API_KEY"
+```
+
+### Upgrade Image ID
+
+```bash
+RISC0_VERIFIER=0x<verifier-address> \
+SHADOW_PROXY=0x<proxy-address> \
+IMAGE_ID=0x<new-circuit-id> \
+forge script script/UpgradeMainnetImageId.s.sol:UpgradeMainnetImageId \
+  --rpc-url https://rpc.mainnet.taiko.xyz \
+  --broadcast
+```
+
+### Verify Contracts Manually
+
+```bash
+# Risc0CircuitVerifier
+forge verify-contract <ADDRESS> src/impl/Risc0CircuitVerifier.sol:Risc0CircuitVerifier \
+  --chain-id 167000 \
+  --verifier custom \
+  --verifier-url "https://api.etherscan.io/v2/api?chainid=167000&apikey=$ETHERSCAN_API_KEY" \
+  --verifier-api-key "$ETHERSCAN_API_KEY" \
+  --constructor-args $(cast abi-encode "constructor(address,bytes32)" 0xA5Da6507E6Ab8832EA3fDeB43bA6B7390952D8dA <IMAGE_ID>)
+
+# ShadowVerifier
+forge verify-contract <ADDRESS> src/impl/ShadowVerifier.sol:ShadowVerifier \
+  --chain-id 167000 \
+  --verifier custom \
+  --verifier-url "https://api.etherscan.io/v2/api?chainid=167000&apikey=$ETHERSCAN_API_KEY" \
+  --verifier-api-key "$ETHERSCAN_API_KEY" \
+  --constructor-args $(cast abi-encode "constructor(address,address)" 0x1670000000000000000000000000000000010001 <CIRCUIT_VERIFIER>)
+```
+
+---
+
+## Deploying to Taiko Hoodi Testnet
 
 ## Network Details
 
