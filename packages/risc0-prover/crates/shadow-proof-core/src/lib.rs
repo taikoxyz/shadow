@@ -757,9 +757,15 @@ mod tests {
         // node. Before this fix, is_inline_node only checked bytes[0] >= 0xc0, causing
         // 32-byte hash references to be misidentified as inline nodes → InvalidRlpNode.
         let hash_c0 = [0xc0u8; 32];
-        assert!(!is_inline_node(&hash_c0), "32-byte hash with 0xc0 prefix is not inline");
+        assert!(
+            !is_inline_node(&hash_c0),
+            "32-byte hash with 0xc0 prefix is not inline"
+        );
         let hash_ff = [0xffu8; 32];
-        assert!(!is_inline_node(&hash_ff), "32-byte hash with 0xff prefix is not inline");
+        assert!(
+            !is_inline_node(&hash_ff),
+            "32-byte hash with 0xff prefix is not inline"
+        );
 
         // A genuine inline node (< 32 bytes, first byte >= 0xc0) IS inline.
         let tiny_list = rlp_encode_list(&[rlp_encode_bytes(&[0x01])]);
@@ -817,12 +823,9 @@ mod tests {
         let branch_node = rlp_encode_list(&branch_items);
         let state_root = keccak256(&branch_node);
 
-        let balance = verify_account_proof_and_get_balance(
-            &state_root,
-            &addr,
-            &[branch_node, leaf_node],
-        )
-        .expect("proof should succeed when hash-reference first byte >= 0xc0");
+        let balance =
+            verify_account_proof_and_get_balance(&state_root, &addr, &[branch_node, leaf_node])
+                .expect("proof should succeed when hash-reference first byte >= 0xc0");
 
         let mut expected = [0u8; 32];
         expected[31] = 0x05;
