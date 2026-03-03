@@ -91,7 +91,7 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
             seal = decodedSeal;
             journal = decodedJournal;
         } catch {
-            require(false, InvalidProofEncoding());
+            revert InvalidProofEncoding();
         }
 
         _requireJournalMatchesPublicInputs(journal, _publicInputs);

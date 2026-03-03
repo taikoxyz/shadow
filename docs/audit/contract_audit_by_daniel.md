@@ -16,10 +16,7 @@
 4. [Risk Classification](#4-risk-classification)
 5. [Findings](#5-findings)
    - [H-01 — No Timelock on UUPS Upgrade Authorization](#h-01--no-timelock-on-uups-upgrade-authorization)
-   - [L-01 — decodeAndValidateProof / decodeProof Unnecessarily Public](#l-01--decodeandvalidateproof--decodeproof-unnecessarily-public)
-   - [L-02 — require(false, …) Anti-Pattern in Risc0CircuitVerifier](#l-02--requirefalse--anti-pattern-in-risc0circuitverifier)
-   - [L-04 — Dead Code in OwnableUpgradeable._initialize](#l-04--dead-code-in-ownableupgradeable_initialize)
-   - [L-05 — Claimed Event Emits Gross Amount, Not Net Amount](#l-05--claimed-event-emits-gross-amount-not-net-amount)
+   - [L-01 — decodeProof Unnecessarily Public](#l-01--decodeproof-unnecessarily-public)
    - [I-01 — No Staleness Constraint on Block Number (By Design)](#i-01--no-staleness-constraint-on-block-number-by-design)
    - [I-02 — No Upper Bound on amount in the Contract](#i-02--no-upper-bound-on-amount-in-the-contract)
    - [I-03 — Mixed Endianness in Risc0CircuitVerifier](#i-03--mixed-endianness-in-risc0circuitverifier)
@@ -46,9 +43,9 @@ No re-entrancy, front-running, or cryptographic vulnerabilities were found in th
 | Severity | Count |
 |----------|-------|
 | High | 1 |
-| Low | 4 |
+| Low | 1 |
 | Informational | 7 |
-| **Total** | **12** |
+| **Total** | **9** |
 
 ---
 
@@ -146,86 +143,32 @@ The current test deployment uses a stub minter (no real ETH), limiting exposure.
 
 ---
 
-### L-01 — `decodeAndValidateProof` / `decodeProof` Unnecessarily Public
+### L-01 — `decodeProof` Unnecessarily Public
 
 **Severity:** Low
-**File:** `src/impl/Risc0CircuitVerifier.sol`, lines 50, 79
+**File:** `src/impl/Risc0CircuitVerifier.sol`, line 51
 
 **Description:**
 
-Both `decodeProof` and `decodeAndValidateProof` are marked `external`, making them callable by any EOA or contract:
+`decodeProof` is marked `external`, making it callable by any EOA or contract. `decodeAndValidateProof` is also `external` but is now guarded by `require(msg.sender == address(this), OnlyInternal())`, restricting it to internal `try/catch` invocations only:
 
 ```solidity
+// Still fully public — callable by any EOA or contract:
 function decodeProof(bytes calldata _proof) external pure returns (bytes memory _seal_, bytes memory _journal_) { ... }
+
+// Protected — only callable via this.decodeAndValidateProof(...):
 function decodeAndValidateProof(bytes calldata _proof, uint256[] calldata _publicInputs)
-    external view returns (bytes memory seal_, bytes32 journalDigest_) { ... }
-```
-
-They are called internally via `this.decodeProof(...)` and `this.decodeAndValidateProof(...)` to leverage the `try/catch` pattern. While there is no direct security impact (proof data is already public calldata), this pattern:
-1. Exposes internal validation logic unnecessarily.
-2. Adds external call overhead (~2100 gas per call) for every proof verification.
-3. Creates a larger attack surface if the contract is later used in a different context.
-
-**Recommendation:** Use `try/catch` with an internal function by catching custom reverts, or restructure to use a `bool + bytes memory` return rather than `try/catch`. If the `try/catch` pattern is necessary, wrap the helper in an `internal` function and only expose a thin `external` wrapper for the use case that actually needs public access. Note: `decodeProof` appears to be a utility for off-chain debugging — if so, mark it with an explicit `@dev utility, not for production use` comment.
-
----
-
-### L-02 — `require(false, …)` Anti-Pattern in `Risc0CircuitVerifier`
-
-**Severity:** Low
-**File:** `src/impl/Risc0CircuitVerifier.sol`, line 92
-
-**Description:**
-
-```solidity
-} catch {
-    require(false, InvalidProofEncoding());
+    external view returns (bytes memory seal_, bytes32 journalDigest_) {
+    require(msg.sender == address(this), OnlyInternal());
+    ...
 }
 ```
 
-`require(false, ...)` is an unusual pattern since Solidity 0.8+. The idiomatic form is `revert InvalidProofEncoding()`. Using `require(false, ...)` confuses static analysis tools and readers who expect `require` to guard a meaningful condition.
+The `OnlyInternal()` guard on `decodeAndValidateProof` resolves the primary concern of exposing internal validation logic to external callers. The residual issue is `decodeProof`, a pure ABI-decode utility. While it presents no direct security risk (proof data is already public calldata), this pattern still:
+1. Adds external call overhead (~2100 gas per call) for the `this.decodeProof(...)` hop inside `decodeAndValidateProof`.
+2. Exposes a surface that could mislead integrators about the contract's intended interface.
 
-**Recommendation:** Replace with `revert InvalidProofEncoding();`.
-
----
-
-### L-04 — Dead Code in `OwnableUpgradeable._initialize`
-
-**Severity:** Low
-**File:** `src/lib/OwnableUpgradeable.sol`, lines 25–27
-
-**Description:**
-
-```solidity
-function _initialize() internal initializer {
-    __OwnableUpgradeable_init(msg.sender);
-}
-```
-
-This function is defined but never called anywhere in the codebase. It uses the `initializer` modifier which would conflict with the `Shadow.initialize(address _owner)` function if both attempted to initialize in the same transaction (the `initializer` modifier is single-use per proxy).
-
-**Recommendation:** Delete the unused `_initialize()` function.
-
----
-
-### L-05 — `Claimed` Event Emits Gross Amount, Not Net Amount
-
-**Severity:** Low
-**File:** `src/impl/Shadow.sol`, line 95
-
-**Description:**
-
-```solidity
-emit Claimed(_input.nullifier, _input.recipient, _input.amount);
-```
-
-The event emits `_input.amount` (the full amount from the proof), but the recipient actually receives `_input.amount - fee`. The `fee` (up to 0.1%) is silently deducted before minting.
-
-Off-chain monitors, indexers, and the UI may display `amount` as what the user received, creating confusion. For example, a claim of 1 ETH triggers `Claimed(..., 1e18)` but the recipient receives `0.999e18`.
-
-**Recommendation:** Either:
-- Emit both the gross amount and the net amount: `emit Claimed(nullifier, recipient, amount, netAmount)`, or
-- Add explicit NatSpec to the event declaration stating that `amount` is the pre-fee value.
+**Recommendation:** `decodeProof` appears to be a utility for off-chain debugging — mark it with an explicit `@dev Off-chain debugging utility; not part of the on-chain verification interface.` NatSpec comment. No further structural change is required given the `OnlyInternal()` guard already in place on `decodeAndValidateProof`.
 
 ---
 

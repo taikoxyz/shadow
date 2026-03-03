@@ -12,6 +12,7 @@ interface IShadow {
         bytes32 nullifier;
     }
 
+    /// @dev `amount` is the gross (pre-fee) value from the ZK proof. The recipient receives `amount - fee`.
     event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount);
 
     error ChainIdMismatch(uint256 expected, uint256 actual);

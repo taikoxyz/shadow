@@ -21,11 +21,6 @@ abstract contract OwnableUpgradeable is Ownable2StepUpgradeable, UUPSUpgradeable
         _transferOwnership(_owner);
     }
 
-    /// @notice Initializes the contract with caller as owner.
-    function _initialize() internal initializer {
-        __OwnableUpgradeable_init(msg.sender);
-    }
-
     /// @dev Authorizes an upgrade to a new implementation.
     function _authorizeUpgrade(address) internal override onlyOwner {}
 }
