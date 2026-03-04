@@ -14,7 +14,7 @@ Or run without cloning:
 curl -fsSL https://raw.githubusercontent.com/taikoxyz/shadow/main/start.sh | sh
 ```
 
-This will pull the Shadow Docker image (or build from source if unavailable), create a `./workspace` directory, start the server, and open **http://localhost:3000** in your browser.
+This will pull the Shadow Docker image (or build from source if unavailable), create a `~/.taikoshadow` directory, start the server, and open **http://localhost:3000** in your browser.
 
 Options:
 
@@ -61,7 +61,7 @@ The server provides:
 - REST API + WebSocket for real-time updates
 - In-process ZK proof generation (RISC Zero Groth16)
 
-Place deposit files in `./workspace/` or create new deposits from the UI.
+Place deposit files in `~/.taikoshadow/` or create new deposits from the UI.
 
 ## Building the Docker Image
 
@@ -119,11 +119,8 @@ Prerequisites:
 ### Option A: Without proving (UI/API dev only)
 
 ```bash
-mkdir -p workspace
-
 # Terminal 1 — server on :3000
 cargo run --manifest-path packages/server/Cargo.toml -- \
-  --workspace ./workspace \
   --port 3000
 
 # Terminal 2 — UI dev server on :5173 (proxies API/WS to :3000)
@@ -135,11 +132,8 @@ Open **http://localhost:5173**.
 ### Option B: With ZK proving (full flow)
 
 ```bash
-mkdir -p workspace
-
 # Terminal 1 — server on :3000 with proving enabled
 cargo run --release --manifest-path packages/server/Cargo.toml --features prove -- \
-  --workspace ./workspace \
   --port 3000 \
   --rpc-url https://rpc.hoodi.taiko.xyz \
   --shadow-address 0x77cdA0575e66A5FC95404fdA856615AD507d8A07
