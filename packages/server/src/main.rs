@@ -22,8 +22,8 @@ use state::AppState;
 #[command(about = "Shadow Protocol local backend server")]
 struct Cli {
     /// Workspace directory (where deposit and proof files live).
-    #[arg(long, default_value = ".")]
-    workspace: PathBuf,
+    #[arg(long)]
+    workspace: Option<PathBuf>,
 
     /// Port to listen on.
     #[arg(long, default_value = "3000")]
@@ -54,11 +54,17 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Resolve workspace to absolute path
-    let workspace = cli
-        .workspace
+    // Resolve workspace to absolute path, defaulting to ~/.taikoshadow
+    let workspace_path = cli.workspace.unwrap_or_else(|| {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".taikoshadow")
+    });
+    std::fs::create_dir_all(&workspace_path)
+        .with_context(|| format!("failed to create workspace: {}", workspace_path.display()))?;
+    let workspace = workspace_path
         .canonicalize()
-        .with_context(|| format!("workspace not found: {}", cli.workspace.display()))?;
+        .with_context(|| format!("workspace not found: {}", workspace_path.display()))?;
 
     tracing::info!(workspace = %workspace.display(), "starting shadow-server");
     tracing::info!(port = cli.port, "listening on port");

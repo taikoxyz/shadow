@@ -7,7 +7,7 @@ set -e
 
 REGISTRY_IMAGE="ghcr.io/taikoxyz/shadow:latest"
 CONTAINER="shadow"
-WORKSPACE="$PWD/workspace"
+WORKSPACE="$HOME/.taikoshadow"
 RISC0_WORK_DIR="$WORKSPACE/.risc0-work"
 FORCE_PULL=false
 FORCE_BUILD=false
@@ -68,7 +68,7 @@ WHAT IT DOES (UI MODE)
   1. Checks Docker and verifies available resources (CPU, memory, disk)
   2. Resolves the image: local match → registry pull → build from source
   3. Selects an available port (default range 3000-3099)
-  4. Creates ./workspace if missing
+  4. Creates ~/.taikoshadow if missing
   5. Starts the container and opens the browser
 
 WHAT IT DOES (PROVE MODE)

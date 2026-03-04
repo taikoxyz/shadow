@@ -27,6 +27,7 @@ tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "5"
 
 # Local crate dependencies
 shadow-proof-core = { path = "../risc0-prover/crates/shadow-proof-core" }
