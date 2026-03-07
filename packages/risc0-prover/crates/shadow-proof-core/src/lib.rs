@@ -973,8 +973,10 @@ mod tests {
 
     #[test]
     fn pack_unpack_journal_roundtrip_with_nonzero_token() {
-        let token_addr = [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
-                          0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];
+        let token_addr = [
+            0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
+            0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+        ];
         let journal = ClaimJournal {
             block_number: 99999,
             block_hash: [0x11u8; 32],
@@ -1012,10 +1014,10 @@ mod tests {
 
         let storage_root_raw = [0xAAu8; 32];
         let account_rlp = rlp_encode_list(&[
-            rlp_encode_bytes(&[]),             // nonce
-            rlp_encode_bytes(&[0x01]),          // balance
-            rlp_encode_bytes(&storage_root_raw),// storageRoot (field[2])
-            rlp_encode_bytes(&[0xBBu8; 32]),   // codeHash
+            rlp_encode_bytes(&[]),               // nonce
+            rlp_encode_bytes(&[0x01]),           // balance
+            rlp_encode_bytes(&storage_root_raw), // storageRoot (field[2])
+            rlp_encode_bytes(&[0xBBu8; 32]),     // codeHash
         ]);
 
         let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
