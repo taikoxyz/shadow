@@ -117,6 +117,6 @@ contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeabl
             }
         }
 
-        emit Claimed(_input.nullifier, _input.recipient, _input.amount, _input.token);
+        emit Claimed(_input.nullifier, _input.recipient, _input.token);
     }
 }

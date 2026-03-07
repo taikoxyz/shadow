@@ -15,7 +15,7 @@ import {TestShadowToken} from "../src/impl/TestShadowToken.sol";
 import {IShadowCompatibleToken} from "../src/iface/IShadowCompatibleToken.sol";
 
 contract ShadowTest is Test {
-    event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount, address token);
+    event Claimed(bytes32 indexed nullifier, address indexed recipient, address token);
 
     MockAnchor internal anchor;
     MockCircuitVerifier internal circuitVerifier;
@@ -73,7 +73,7 @@ contract ShadowTest is Test {
         });
 
         vm.expectEmit(true, true, false, true, address(shadow));
-        emit Claimed(nullifierValue, recipient, amount, address(0));
+        emit Claimed(nullifierValue, recipient, address(0));
         shadow.claim("", input);
         uint256 fee = amount / 1000;
         uint256 netAmount = amount - fee;
@@ -104,7 +104,7 @@ contract ShadowTest is Test {
         });
 
         vm.expectEmit(true, true, false, true, address(shadow));
-        emit Claimed(nullifierValue, recipient, amount, address(0));
+        emit Claimed(nullifierValue, recipient, address(0));
         shadow.claim("", input);
 
         assertEq(etherMinter.mintCount(), 1);
@@ -478,7 +478,7 @@ contract ShadowTest is Test {
         });
 
         vm.expectEmit(true, true, false, true);
-        emit Claimed(nullifierValue, recipient, amount, address(token));
+        emit Claimed(nullifierValue, recipient, address(token));
 
         shadow.claim("", input);
 

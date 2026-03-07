@@ -16,9 +16,9 @@
 | Contract | Address | Explorer |
 |----------|---------|----------|
 | Shadow (proxy) | `0x77cdA0575e66A5FC95404fdA856615AD507d8A07` | [View](https://hoodi.taikoscan.io/address/0x77cdA0575e66A5FC95404fdA856615AD507d8A07) |
-| Shadow (implementation) | `0xc21E661B52630B5A2d71816dA63d930648d39453` | [View](https://hoodi.taikoscan.io/address/0xc21E661B52630B5A2d71816dA63d930648d39453) |
-| ShadowVerifier | `0x124a810aff9aebeba50a95cde1e19a056c846740` | [View](https://hoodi.taikoscan.io/address/0x124a810aff9aebeba50a95cde1e19a056c846740) |
-| Risc0CircuitVerifier | `0x81df8306bca1731be62bfde69a9f6805ef5cc86b` | [View](https://hoodi.taikoscan.io/address/0x81df8306bca1731be62bfde69a9f6805ef5cc86b) |
+| Shadow (implementation) | `0xa12ed2c484ee075d4104e8326c0f42adbaef0cb6` | [View](https://hoodi.taikoscan.io/address/0xa12ed2c484ee075d4104e8326c0f42adbaef0cb6) |
+| ShadowVerifier | `0xf2bbb2ca267227422c8b4975489606d969cbc8b1` | [View](https://hoodi.taikoscan.io/address/0xf2bbb2ca267227422c8b4975489606d969cbc8b1) |
+| Risc0CircuitVerifier | `0xb7b85498cd316348d2ad64d59033cd8d6254e356` | [View](https://hoodi.taikoscan.io/address/0xb7b85498cd316348d2ad64d59033cd8d6254e356) |
 | DummyEtherMinter | `0x6DC226aA43E86fE77735443fB50a0A90e5666AA4` | [View](https://hoodi.taikoscan.io/address/0x6DC226aA43E86fE77735443fB50a0A90e5666AA4) |
 
 ### ERC20 Test Token
