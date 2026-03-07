@@ -19,6 +19,7 @@ const MAGIC_NULLIFIER: &[u8] = b"shadow.nullifier.v1";
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TokenClaimInput {
     pub token_address: [u8; 20],
+    pub balance_slot: u64,
     pub balance_storage_key: [u8; 32],
     pub token_account_proof_nodes: Vec<Vec<u8>>,
     pub balance_storage_proof_nodes: Vec<Vec<u8>>,
@@ -165,6 +166,7 @@ pub enum ClaimValidationError {
     InvalidStorageValue,
     InvalidTokenProofDepth,
     TokenProofNodeTooLarge,
+    StorageKeyMismatch,
 }
 
 impl ClaimValidationError {
@@ -195,6 +197,7 @@ impl ClaimValidationError {
             Self::InvalidStorageValue => "invalid storage value encoding",
             Self::InvalidTokenProofDepth => "invalid token proof depth",
             Self::TokenProofNodeTooLarge => "token proof node exceeds max byte length",
+            Self::StorageKeyMismatch => "balance storage key does not match target address",
         }
     }
 }
@@ -223,19 +226,7 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::RecipientHashMismatch);
     }
 
-    let mut total_amount: u128 = 0;
-    for i in 0..note_count {
-        let amt = input.amounts[i];
-        if amt == 0 {
-            return Err(ClaimValidationError::InactiveNoteHasZeroAmount);
-        }
-        total_amount = total_amount
-            .checked_add(amt)
-            .ok_or(ClaimValidationError::TotalAmountExceeded)?;
-    }
-    if total_amount > MAX_TOTAL_WEI {
-        return Err(ClaimValidationError::TotalAmountExceeded);
-    }
+    let total_amount = validate_note_amounts(note_count, &input.amounts)?;
 
     if input.proof_depth == 0 || input.proof_depth as usize > MAX_PROOF_DEPTH {
         return Err(ClaimValidationError::InvalidProofDepth);
@@ -258,59 +249,12 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         &input.block_header_rlp,
     )?;
 
-    let token_bytes: [u8; 20];
-
-    match &input.token {
-        None => {
-            // ETH path: single-level MPT proof for account balance (field[1])
-            let account_balance = verify_account_proof_and_get_field(
-                &state_root,
-                &target_address,
-                &input.proof_nodes,
-                1, // balance is field[1] in account RLP
-            )?;
-            if !balance_gte_total(&account_balance, total_amount) {
-                return Err(ClaimValidationError::InsufficientAccountBalance);
-            }
-            token_bytes = [0u8; 20];
-        }
+    let token_bytes = match &input.token {
+        None => verify_eth_balance(&state_root, &target_address, &input.proof_nodes, total_amount)?,
         Some(token_input) => {
-            // ERC20 path: two-level MPT proof
-            // Validate token proof nodes
-            for node in &token_input.token_account_proof_nodes {
-                if node.len() > MAX_NODE_BYTES {
-                    return Err(ClaimValidationError::TokenProofNodeTooLarge);
-                }
-            }
-            for node in &token_input.balance_storage_proof_nodes {
-                if node.len() > MAX_NODE_BYTES {
-                    return Err(ClaimValidationError::TokenProofNodeTooLarge);
-                }
-            }
-
-            // Level 1: state trie → token contract account → storageRoot (field[2])
-            let storage_root = verify_account_proof_and_get_field(
-                &state_root,
-                &token_input.token_address,
-                &token_input.token_account_proof_nodes,
-                2, // storageRoot is field[2] in account RLP
-            )?;
-            if storage_root == [0u8; 32] {
-                return Err(ClaimValidationError::StorageRootMissing);
-            }
-
-            // Level 2: storage trie → _balances[targetAddress]
-            let token_balance = verify_storage_proof_and_get_value(
-                &storage_root,
-                &token_input.balance_storage_key,
-                &token_input.balance_storage_proof_nodes,
-            )?;
-            if !balance_gte_total(&token_balance, total_amount) {
-                return Err(ClaimValidationError::InsufficientAccountBalance);
-            }
-            token_bytes = token_input.token_address;
+            verify_erc20_balance(&state_root, &target_address, token_input, total_amount)?
         }
-    }
+    };
 
     let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index, &notes_hash);
 
@@ -323,6 +267,98 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         nullifier,
         token: token_bytes,
     })
+}
+
+fn validate_note_amounts(
+    note_count: usize,
+    amounts: &[u128],
+) -> Result<u128, ClaimValidationError> {
+    let mut total_amount: u128 = 0;
+    for i in 0..note_count {
+        let amt = amounts[i];
+        if amt == 0 {
+            return Err(ClaimValidationError::InactiveNoteHasZeroAmount);
+        }
+        total_amount = total_amount
+            .checked_add(amt)
+            .ok_or(ClaimValidationError::TotalAmountExceeded)?;
+    }
+    if total_amount > MAX_TOTAL_WEI {
+        return Err(ClaimValidationError::TotalAmountExceeded);
+    }
+    Ok(total_amount)
+}
+
+fn verify_eth_balance(
+    state_root: &[u8; 32],
+    target_address: &[u8; 20],
+    proof_nodes: &[Vec<u8>],
+    total_amount: u128,
+) -> Result<[u8; 20], ClaimValidationError> {
+    let account_balance = verify_account_proof_and_get_field(
+        state_root,
+        target_address,
+        proof_nodes,
+        1,
+    )?;
+    if !balance_gte_total(&account_balance, total_amount) {
+        return Err(ClaimValidationError::InsufficientAccountBalance);
+    }
+    Ok([0u8; 20])
+}
+
+fn compute_balance_storage_key(holder: &[u8; 20], slot: u64) -> [u8; 32] {
+    let mut preimage = [0u8; 64];
+    preimage[12..32].copy_from_slice(holder);
+    preimage[56..64].copy_from_slice(&slot.to_be_bytes());
+    let mut keccak = Keccak::v256();
+    keccak.update(&preimage);
+    let mut key = [0u8; 32];
+    keccak.finalize(&mut key);
+    key
+}
+
+fn verify_erc20_balance(
+    state_root: &[u8; 32],
+    target_address: &[u8; 20],
+    token_input: &TokenClaimInput,
+    total_amount: u128,
+) -> Result<[u8; 20], ClaimValidationError> {
+    for node in &token_input.token_account_proof_nodes {
+        if node.len() > MAX_NODE_BYTES {
+            return Err(ClaimValidationError::TokenProofNodeTooLarge);
+        }
+    }
+    for node in &token_input.balance_storage_proof_nodes {
+        if node.len() > MAX_NODE_BYTES {
+            return Err(ClaimValidationError::TokenProofNodeTooLarge);
+        }
+    }
+
+    let expected_key = compute_balance_storage_key(target_address, token_input.balance_slot);
+    if expected_key != token_input.balance_storage_key {
+        return Err(ClaimValidationError::StorageKeyMismatch);
+    }
+
+    let storage_root = verify_account_proof_and_get_field(
+        state_root,
+        &token_input.token_address,
+        &token_input.token_account_proof_nodes,
+        2,
+    )?;
+    if storage_root == [0u8; 32] {
+        return Err(ClaimValidationError::StorageRootMissing);
+    }
+
+    let token_balance = verify_storage_proof_and_get_value(
+        &storage_root,
+        &token_input.balance_storage_key,
+        &token_input.balance_storage_proof_nodes,
+    )?;
+    if !balance_gte_total(&token_balance, total_amount) {
+        return Err(ClaimValidationError::InsufficientAccountBalance);
+    }
+    Ok(token_input.token_address)
 }
 
 pub fn compute_recipient_hash(recipient: &[u8; 20]) -> [u8; 32] {

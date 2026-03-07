@@ -422,6 +422,7 @@ fn build_claim_input(
     let token = match (token_address, erc20_proof) {
         (Some(addr), Some(proof)) => Some(TokenClaimInput {
             token_address: *addr,
+            balance_slot: proof.balance_slot,
             balance_storage_key: proof.balance_storage_key,
             token_account_proof_nodes: proof.token_account_proof_nodes.clone(),
             balance_storage_proof_nodes: proof.balance_storage_proof_nodes.clone(),
