@@ -250,7 +250,12 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
     )?;
 
     let token_bytes = match &input.token {
-        None => verify_eth_balance(&state_root, &target_address, &input.proof_nodes, total_amount)?,
+        None => verify_eth_balance(
+            &state_root,
+            &target_address,
+            &input.proof_nodes,
+            total_amount,
+        )?,
         Some(token_input) => {
             verify_erc20_balance(&state_root, &target_address, token_input, total_amount)?
         }
@@ -295,12 +300,8 @@ fn verify_eth_balance(
     proof_nodes: &[Vec<u8>],
     total_amount: u128,
 ) -> Result<[u8; 20], ClaimValidationError> {
-    let account_balance = verify_account_proof_and_get_field(
-        state_root,
-        target_address,
-        proof_nodes,
-        1,
-    )?;
+    let account_balance =
+        verify_account_proof_and_get_field(state_root, target_address, proof_nodes, 1)?;
     if !balance_gte_total(&account_balance, total_amount) {
         return Err(ClaimValidationError::InsufficientAccountBalance);
     }

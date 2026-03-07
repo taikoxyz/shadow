@@ -285,10 +285,9 @@ pub async fn eth_get_erc20_balance_proof(
         .context("balanceSlot() eth_call failed")?;
     let balance_slot = u64::from_be_bytes(slot_bytes[24..32].try_into().unwrap());
 
-    let balance_storage_key =
-        eth_call_bytes32(client, url, &token_hex, &key_calldata, &block_hex)
-            .await
-            .context("balanceStorageSlot eth_call failed")?;
+    let balance_storage_key = eth_call_bytes32(client, url, &token_hex, &key_calldata, &block_hex)
+        .await
+        .context("balanceStorageSlot eth_call failed")?;
 
     tracing::debug!(
         token = %token_hex, balance_slot, storage_key = %format!("0x{}", hex::encode(balance_storage_key)),
@@ -307,7 +306,9 @@ pub async fn eth_get_erc20_balance_proof(
     let obj = result.as_object().context("expected proof object")?;
 
     let token_account_proof_nodes = parse_proof_array(
-        obj.get("accountProof").and_then(|v| v.as_array()).context("missing accountProof")?,
+        obj.get("accountProof")
+            .and_then(|v| v.as_array())
+            .context("missing accountProof")?,
         "account proof",
     )?;
 
@@ -322,7 +323,10 @@ pub async fn eth_get_erc20_balance_proof(
         .as_object()
         .context("storageProof entry is not an object")?;
     let balance_storage_proof_nodes = parse_proof_array(
-        storage_entry.get("proof").and_then(|v| v.as_array()).context("missing storage proof nodes")?,
+        storage_entry
+            .get("proof")
+            .and_then(|v| v.as_array())
+            .context("missing storage proof nodes")?,
         "storage proof",
     )?;
 
