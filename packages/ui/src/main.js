@@ -494,14 +494,31 @@ async function handleFundDeposit(deposit) {
 
   try {
     showToast('Confirm the funding transaction in your wallet...', 'info');
-    const txHash = await window.ethereum.request({
-      method: 'eth_sendTransaction',
-      params: [{
-        from: state.walletAddress,
-        to: deposit.targetAddress,
-        value: '0x' + dueWei.toString(16),
-      }],
-    });
+    let txHash;
+    if (deposit.token) {
+      // ERC20: call transfer(address,uint256) on the token contract
+      const transferSelector = '0xa9059cbb';
+      const paddedTo = deposit.targetAddress.slice(2).padStart(64, '0');
+      const paddedAmount = dueWei.toString(16).padStart(64, '0');
+      txHash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: state.walletAddress,
+          to: deposit.token,
+          data: transferSelector + paddedTo + paddedAmount,
+        }],
+      });
+    } else {
+      // Native ETH transfer
+      txHash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: state.walletAddress,
+          to: deposit.targetAddress,
+          value: '0x' + dueWei.toString(16),
+        }],
+      });
+    }
     state.fundingTxHash = txHash;
     showToast(`Funding tx submitted: ${txHash.slice(0, 18)}...`, 'success');
     render();
@@ -963,7 +980,7 @@ function renderDepositCard(deposit) {
       ]),
       el('div', { className: 'deposit-card-meta' }, [
         el('span', {}, `${deposit.noteCount} note${deposit.noteCount !== 1 ? 's' : ''}`),
-        el('span', {}, `${totalEth} ETH`),
+        el('span', {}, `${totalEth} ${deposit.tokenSymbol || 'ETH'}`),
         el('span', {}, `Chain ${deposit.chainId}`),
         deposit.createdAt ? el('span', { title: formatDate(deposit.createdAt) }, timeAgo(deposit.createdAt)) : null,
       ].filter(Boolean)),
@@ -1101,8 +1118,9 @@ function renderFundAction(deposit, status, circuitMismatch) {
       }, 'Fund Deposit'),
     ]);
   }
+  const unit = deposit.tokenSymbol || (deposit.token ? 'tokens' : 'ETH');
   return el('p', { className: 'form-hint form-hint-top' },
-    `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`);
+    `Send ${weiToEth(state.depositBalance?.due || '0')} ${unit} to ${deposit.targetAddress}`);
 }
 
 function renderFundingSection(deposit, fundAction) {
@@ -1115,10 +1133,10 @@ function renderFundingSection(deposit, fundAction) {
   if (state.depositBalance) {
     return el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Funding'),
-      detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
-      detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
+      detailRow('Required', `${weiToEth(state.depositBalance.required)} ${state.depositBalance.tokenSymbol || (state.depositBalance.token ? 'tokens' : 'ETH')}`),
+      detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ${state.depositBalance.tokenSymbol || (state.depositBalance.token ? 'tokens' : 'ETH')}`),
       !state.depositBalance.isFunded
-        ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ETH`)
+        ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ${state.depositBalance.tokenSymbol || (state.depositBalance.token ? 'tokens' : 'ETH')}`)
         : null,
       fundAction,
     ].filter(Boolean));
@@ -1163,7 +1181,7 @@ function renderDetailView() {
       depositFileRow(deposit),
       detailRow('Network', `${networkName(deposit.chainId)} (${deposit.chainId})`),
       addressRow('Target Address', deposit.targetAddress, deposit.chainId),
-      detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
+      detailRow('Total Amount', `${totalEth} ${deposit.tokenSymbol || 'ETH'} (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
       detailRow('Status', overviewStatusTag),
@@ -1213,7 +1231,7 @@ function renderNotesTable(deposit) {
           el('td', { className: 'note-recipient-cell' }, [
             explorerLink(deposit.chainId, 'address', note.recipient),
           ]),
-          el('td', {}, `${weiToEth(note.amount)} ETH`),
+          el('td', {}, `${weiToEth(note.amount)} ${deposit.tokenSymbol || 'ETH'}`),
           el('td', { className: 'note-label-cell' }, note.label || '-'),
           el('td', {}, [
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),

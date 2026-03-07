@@ -1068,6 +1068,67 @@ mod tests {
         expected.copy_from_slice(&storage_root_raw);
         assert_eq!(result, expected);
     }
+
+    #[test]
+    fn verify_storage_proof_decodes_rlp_encoded_value() {
+        // Storage trie values are RLP-encoded scalars. Build a minimal storage
+        // trie with a single leaf whose value is RLP(0x1bc16d674ec80000) = 2 ETH.
+        let storage_key = [0x55u8; 32];
+        let key_hash = keccak256(&storage_key);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+
+        // The raw storage value (big-endian, trimmed)
+        let raw_value: Vec<u8> = vec![0x1b, 0xc1, 0x6d, 0x67, 0x4e, 0xc8, 0x00, 0x00];
+
+        // In the storage trie, values are stored as RLP-encoded scalars.
+        // The leaf contains: RLP_LIST([compact_path, RLP_STRING(raw_value)])
+        let leaf_node = rlp_encode_list(&[
+            rlp_encode_bytes(&path),
+            rlp_encode_bytes(&rlp_encode_bytes(&raw_value)),
+        ]);
+        let storage_root = keccak256(&leaf_node);
+
+        let result = verify_storage_proof_and_get_value(
+            &storage_root,
+            &storage_key,
+            &[leaf_node],
+        )
+        .unwrap();
+
+        let mut expected = [0u8; 32];
+        expected[24..].copy_from_slice(&raw_value);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn verify_storage_proof_decodes_single_byte_value() {
+        // For values <= 0x7f, RLP encoding is just the byte itself.
+        let storage_key = [0x77u8; 32];
+        let key_hash = keccak256(&storage_key);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+        let raw_value: Vec<u8> = vec![0x42];
+
+        let leaf_node = rlp_encode_list(&[
+            rlp_encode_bytes(&path),
+            rlp_encode_bytes(&rlp_encode_bytes(&raw_value)),
+        ]);
+        let storage_root = keccak256(&leaf_node);
+
+        let result = verify_storage_proof_and_get_value(
+            &storage_root,
+            &storage_key,
+            &[leaf_node],
+        )
+        .unwrap();
+
+        let mut expected = [0u8; 32];
+        expected[31] = 0x42;
+        assert_eq!(result, expected);
+    }
 }
 
 fn u128_to_bytes32(value: u128) -> [u8; 32] {
@@ -1408,13 +1469,17 @@ fn verify_storage_proof_and_get_value(
         }
     }
 
-    let raw = storage_value.ok_or(ClaimValidationError::InvalidStorageValue)?;
-    // Storage values are RLP-encoded big-endian uint256 (minimal encoding).
+    let rlp_encoded = storage_value.ok_or(ClaimValidationError::InvalidStorageValue)?;
+    // Storage trie values are RLP-encoded scalars. The trie leaf stores
+    // RLP(raw_value), and decode_rlp_list_payload_items strips the outer
+    // list encoding but leaves the inner RLP string encoding intact.
+    // Decode the RLP string to get the raw big-endian uint256 bytes.
+    let raw = decode_rlp_scalar(&rlp_encoded)?;
     if raw.len() > 32 {
         return Err(ClaimValidationError::InvalidStorageValue);
     }
     let mut out = [0u8; 32];
-    out[32 - raw.len()..].copy_from_slice(&raw);
+    out[32 - raw.len()..].copy_from_slice(raw);
     Ok(out)
 }
 
@@ -1466,6 +1531,17 @@ fn decode_compact_nibbles(encoded: &[u8]) -> Result<(bool, Vec<u8>), ClaimValida
     }
 
     Ok((is_leaf, nibbles))
+}
+
+fn decode_rlp_scalar(input: &[u8]) -> Result<&[u8], ClaimValidationError> {
+    if input.is_empty() {
+        return Ok(&[]);
+    }
+    let item = decode_rlp_item(input, 0).map_err(|_| ClaimValidationError::InvalidStorageValue)?;
+    if item.is_list || item.total_len != input.len() {
+        return Err(ClaimValidationError::InvalidStorageValue);
+    }
+    Ok(&input[item.payload_offset..item.payload_offset + item.payload_len])
 }
 
 fn decode_rlp_list_payload_items(input: &[u8]) -> Result<Vec<&[u8]>, ClaimValidationError> {

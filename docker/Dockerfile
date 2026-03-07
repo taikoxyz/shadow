@@ -43,8 +43,9 @@ FROM rust:bookworm AS rust-builder
 ENV CMAKE_BUILD_PARALLEL_LEVEL=0
 
 # Install build dependencies
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt/lists \
+RUN --mount=type=cache,id=apt-rust,target=/var/cache/apt \
+    --mount=type=cache,id=aptlists-rust,target=/var/lib/apt/lists \
+    rm -f /var/cache/apt/archives/lock /var/lib/apt/lists/lock && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       pkg-config \
@@ -66,6 +67,11 @@ WORKDIR /build
 COPY packages/risc0-prover/ ./packages/risc0-prover/
 COPY packages/server/ ./packages/server/
 
+# Pre-supply the recursion ZKR artifact to avoid download verification failures
+# under Rosetta 2 emulation. The file is SHA256-verified at build time by the
+# risc0-circuit-recursion build script via RECURSION_SRC_PATH.
+COPY docker/recursion_zkr.zip /tmp/recursion_zkr.zip
+
 # Build both binaries in a single step to share cache mounts and incremental state.
 # Cache mounts persist cargo registry and build artifacts across Docker builds,
 # so only changed source gets recompiled. The final binaries are copied to /tmp
@@ -74,11 +80,13 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
     --mount=type=cache,target=/build/packages/server/target \
     --mount=type=cache,target=/build/packages/risc0-prover/target \
+    RECURSION_SRC_PATH=/tmp/recursion_zkr.zip \
     cargo build \
       --release \
       --manifest-path packages/server/Cargo.toml \
       --features prove && \
     cp packages/server/target/release/shadow-server /tmp/shadow-server && \
+    RECURSION_SRC_PATH=/tmp/recursion_zkr.zip \
     cargo build \
       --release \
       --manifest-path packages/risc0-prover/Cargo.toml \
@@ -95,8 +103,9 @@ FROM debian:bookworm-slim
 
 ARG DOCKER_CLI_VERSION=29.2.0
 
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt/lists \
+RUN --mount=type=cache,id=apt-runtime,target=/var/cache/apt \
+    --mount=type=cache,id=aptlists-runtime,target=/var/lib/apt/lists \
+    rm -f /var/cache/apt/archives/lock /var/lib/apt/lists/lock && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates \

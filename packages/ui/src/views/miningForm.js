@@ -136,7 +136,7 @@ function parseNotes(notes) {
   }));
 }
 
-function noteRow(state, index, walletAddress, onRemove) {
+function noteRow(state, index, walletAddress, onRemove, amountLabel) {
   const note = state.miningNotes[index];
 
   return el('div', { className: 'note-entry' }, [
@@ -171,7 +171,7 @@ function noteRow(state, index, walletAddress, onRemove) {
         el('span', { className: 'form-field-warn', id: `mine-recipient-warn-${index}` }, ''),
       ]),
       el('div', { className: 'form-group form-group-amount' }, [
-        el('label', { className: 'form-label' }, 'Amount (ETH)'),
+        el('label', { className: 'form-label' }, amountLabel || 'Amount (ETH)'),
         el('input', {
           className: state.miningErrors[`amount-${index}`]
             ? 'form-input form-input-invalid'
@@ -290,6 +290,7 @@ export function renderMiningFormView({ state, chainId, walletAddress, onSubmit, 
 
     const isErc20 = state.miningToken && state.miningToken.trim();
     const capLabel = isErc20 ? 'Notes' : 'Notes (max 8 ETH total)';
+    const amountLabel = isErc20 ? 'Amount (tokens)' : 'Amount (ETH)';
 
     container.appendChild(el('div', { className: 'mining-notes-header' }, [
       el('span', { className: 'form-label form-label-inline' }, capLabel),
@@ -299,7 +300,7 @@ export function renderMiningFormView({ state, chainId, walletAddress, onSubmit, 
     ].filter(Boolean)));
 
     state.miningNotes.forEach((_note, index) => {
-      container.appendChild(noteRow(state, index, walletAddress, removeNote));
+      container.appendChild(noteRow(state, index, walletAddress, removeNote, amountLabel));
     });
 
     container.appendChild(el('span', { className: 'form-field-error', id: 'mine-total-error' },

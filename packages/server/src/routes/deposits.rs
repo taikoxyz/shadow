@@ -229,6 +229,21 @@ async fn create_deposit(
     let comment = body.comment.clone();
     let token = body.token.clone();
 
+    let token_symbol = if let (Some(ref token_addr), Some(ref chain_client)) =
+        (&body.token, &state.chain_client)
+    {
+        match chain_client.get_token_symbol(token_addr).await {
+            Ok(s) if !s.is_empty() => Some(s),
+            Ok(_) => None,
+            Err(e) => {
+                tracing::warn!(token = %token_addr, error = %e, "failed to fetch token symbol");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Run deposit creation in a blocking thread
     let result = tokio::task::spawn_blocking(move || {
         let req = mining::MineRequest {
@@ -246,6 +261,7 @@ async fn create_deposit(
             &req.notes,
             comment.as_deref(),
             token.as_deref(),
+            token_symbol.as_deref(),
         )?;
 
         Ok::<_, anyhow::Error>((filename, mine_result))
@@ -292,6 +308,10 @@ struct BalanceResponse {
     required: String,
     due: String,
     is_funded: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token_symbol: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -556,10 +576,19 @@ async fn get_deposit_balance(
         .find(|d| d.id == id)
         .ok_or((StatusCode::NOT_FOUND, format!("deposit {} not found", id)))?;
 
-    let balance = chain_client
-        .get_balance(&deposit.target_address)
-        .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let token = deposit.token.clone();
+    let token_symbol = deposit.token_symbol.clone();
+    let balance = if let Some(ref token_addr) = token {
+        chain_client
+            .get_token_balance(token_addr, &deposit.target_address)
+            .await
+            .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?
+    } else {
+        chain_client
+            .get_balance(&deposit.target_address)
+            .await
+            .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?
+    };
 
     let required: u128 = deposit.total_amount.parse().unwrap_or(0);
     let bal: u128 = balance.parse().unwrap_or(0);
@@ -575,6 +604,8 @@ async fn get_deposit_balance(
         required: deposit.total_amount.clone(),
         due: due.to_string(),
         is_funded: bal >= required,
+        token,
+        token_symbol,
     }))
 }
 

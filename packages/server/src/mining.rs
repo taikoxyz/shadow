@@ -68,6 +68,7 @@ pub fn write_deposit_file(
     notes: &[MineNote],
     comment: Option<&str>,
     token: Option<&str>,
+    token_symbol: Option<&str>,
 ) -> Result<String> {
     let hex_addr = hex::encode(target_address);
     let first4 = &hex_addr[..4];
@@ -102,6 +103,9 @@ pub fn write_deposit_file(
     }
     if let Some(t) = token {
         deposit_json["token"] = serde_json::Value::String(t.to_string());
+    }
+    if let Some(s) = token_symbol {
+        deposit_json["tokenSymbol"] = serde_json::Value::String(s.to_string());
     }
 
     let path = workspace.join(&filename);

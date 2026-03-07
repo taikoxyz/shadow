@@ -51,6 +51,12 @@ pub struct DepositEntry {
     /// Optional user comment.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
+    /// ERC20 token address (None = native ETH).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    /// ERC20 token symbol (e.g. "TST"). None for native ETH or if unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_symbol: Option<String>,
 }
 
 /// Per-note information within a deposit.
@@ -158,6 +164,10 @@ fn process_deposit(
         target_address: Option<String>,
         #[serde(default)]
         comment: Option<String>,
+        #[serde(default)]
+        token: Option<String>,
+        #[serde(default)]
+        token_symbol: Option<String>,
     }
 
     #[derive(serde::Deserialize)]
@@ -244,6 +254,8 @@ fn process_deposit(
         proof_valid,
         notes: note_entries,
         comment: deposit.comment,
+        token: deposit.token,
+        token_symbol: deposit.token_symbol,
     })
 }
 
