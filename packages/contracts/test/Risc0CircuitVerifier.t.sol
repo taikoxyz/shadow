@@ -8,7 +8,7 @@ import {ShadowPublicInputs} from "../src/lib/ShadowPublicInputs.sol";
 import {MockRiscZeroVerifier} from "./mocks/MockRiscZeroVerifier.sol";
 
 contract Risc0CircuitVerifierTest is Test {
-    uint256 private constant _JOURNAL_LEN = 116;
+    uint256 private constant _JOURNAL_LEN = 136;
     bytes32 private constant _IMAGE_ID = keccak256("shadow-image-id");
 
     MockRiscZeroVerifier internal risc0Verifier;
@@ -223,7 +223,8 @@ contract Risc0CircuitVerifierTest is Test {
             chainId: uint64(block.chainid),
             amount: 1_230_000_000_000,
             recipient: 0xA92C80B3962F10e063Ad5463f996fe414F0E1F66,
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
     }
 
@@ -244,6 +245,7 @@ contract Risc0CircuitVerifierTest is Test {
         _writeLe(journal_, 48, _input.amount, 16);
         _writeAddress(journal_, 64, _input.recipient);
         _writeBytes32(journal_, 84, _input.nullifier);
+        _writeAddress(journal_, 116, _input.token);
     }
 
     function _writeLe(bytes memory _buffer, uint256 _offset, uint256 _value, uint256 _len) private pure {

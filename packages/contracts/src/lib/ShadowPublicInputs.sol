@@ -12,16 +12,18 @@ import {IShadow} from "../iface/IShadow.sol";
 /// - Index 34: amount (u128)
 /// - Index 35-54: recipient (20 bytes)
 /// - Index 55-86: nullifier (32 bytes)
+/// - Index 87-106: token (20 bytes, all zeros = ETH)
 /// @custom:security-contact security@taiko.xyz
 
 library ShadowPublicInputs {
-    uint256 private constant _PUBLIC_INPUTS_LEN = 87;
+    uint256 private constant _PUBLIC_INPUTS_LEN = 107;
     uint256 private constant _IDX_BLOCK_NUMBER = 0;
     uint256 private constant _IDX_BLOCK_HASH = 1;
     uint256 private constant _IDX_CHAIN_ID = 33;
     uint256 private constant _IDX_AMOUNT = 34;
     uint256 private constant _IDX_RECIPIENT = 35;
     uint256 private constant _IDX_NULLIFIER = 55;
+    uint256 private constant _IDX_TOKEN = 87;
 
     /// @notice Converts a PublicInput struct to a uint256 array for circuit verification.
     /// @dev blockHash is fetched on-chain from TaikoAnchor, so it is not part of
@@ -42,6 +44,7 @@ library ShadowPublicInputs {
 
         _writeAddress(inputs_, _IDX_RECIPIENT, _input.recipient);
         _writeBytes32(inputs_, _IDX_NULLIFIER, _input.nullifier);
+        _writeAddress(inputs_, _IDX_TOKEN, _input.token);
     }
 
     function _writeBytes32(uint256[] memory _inputs, uint256 _offset, bytes32 _value) private pure {

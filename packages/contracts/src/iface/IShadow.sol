@@ -10,10 +10,11 @@ interface IShadow {
         uint256 amount;
         address recipient;
         bytes32 nullifier;
+        address token; // address(0) = ETH
     }
 
     /// @dev `amount` is the gross (pre-fee) value from the ZK proof. The recipient receives `amount - fee`.
-    event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount);
+    event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount, address token);
 
     error ChainIdMismatch(uint64 expected, uint64 actual);
     error InvalidAmount(uint256 amount);

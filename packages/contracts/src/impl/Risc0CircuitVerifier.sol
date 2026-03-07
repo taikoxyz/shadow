@@ -19,27 +19,30 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
     error JournalBlockHashMismatch(bytes32 expected, bytes32 actual);
     error JournalRecipientMismatch(address expected, address actual);
     error JournalNullifierMismatch(bytes32 expected, bytes32 actual);
+    error JournalTokenMismatch(address expected, address actual);
     error PublicInputByteOutOfRange(uint256 index, uint256 value);
     error OnlyInternal();
 
     IRiscZeroVerifier public immutable risc0Verifier;
     bytes32 public immutable imageId;
 
-    uint256 private constant _PUBLIC_INPUTS_LEN = 87;
+    uint256 private constant _PUBLIC_INPUTS_LEN = 107;
     uint256 private constant _IDX_BLOCK_NUMBER = 0;
     uint256 private constant _IDX_BLOCK_HASH = 1;
     uint256 private constant _IDX_CHAIN_ID = 33;
     uint256 private constant _IDX_AMOUNT = 34;
     uint256 private constant _IDX_RECIPIENT = 35;
     uint256 private constant _IDX_NULLIFIER = 55;
+    uint256 private constant _IDX_TOKEN = 87;
 
-    uint256 private constant _JOURNAL_LEN = 116;
+    uint256 private constant _JOURNAL_LEN = 136;
     uint256 private constant _OFFSET_BLOCK_NUMBER = 0;
     uint256 private constant _OFFSET_BLOCK_HASH = 8;
     uint256 private constant _OFFSET_CHAIN_ID = 40;
     uint256 private constant _OFFSET_AMOUNT = 48;
     uint256 private constant _OFFSET_RECIPIENT = 64;
     uint256 private constant _OFFSET_NULLIFIER = 84;
+    uint256 private constant _OFFSET_TOKEN = 116;
 
     constructor(address _risc0Verifier, bytes32 _imageId) {
         require(_risc0Verifier != address(0), ZeroVerifier());
@@ -126,6 +129,10 @@ contract Risc0CircuitVerifier is ICircuitVerifier {
 
         bytes32 expectedNullifier = _readBytes32FromPublicInputs(_publicInputs, _IDX_NULLIFIER);
         require(nullifier == expectedNullifier, JournalNullifierMismatch(expectedNullifier, nullifier));
+
+        address token = _readAddress(_journal, _OFFSET_TOKEN);
+        address expectedToken = _readAddressFromPublicInputs(_publicInputs, _IDX_TOKEN);
+        require(token == expectedToken, JournalTokenMismatch(expectedToken, token));
     }
 
     function _readLeUint(bytes memory _data, uint256 _offset, uint256 _len) private pure returns (uint256 value_) {

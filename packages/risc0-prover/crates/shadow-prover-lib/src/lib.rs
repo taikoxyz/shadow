@@ -341,6 +341,7 @@ pub fn legacy_to_input(legacy: LegacyClaimInput) -> Result<ClaimInput> {
         block_header_rlp,
         proof_depth,
         proof_nodes,
+        token: None,
     })
 }
 

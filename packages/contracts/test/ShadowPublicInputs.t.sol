@@ -16,11 +16,11 @@ contract ShadowPublicInputsTest is Test {
         address recipient = address(0x11223344556677889900aABbCcdDEeFF00112233);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
-            blockNumber: 42, chainId: 167, amount: 5 ether, recipient: recipient, nullifier: nullifier
+            blockNumber: 42, chainId: 167, amount: 5 ether, recipient: recipient, nullifier: nullifier, token: address(0)
         });
 
         uint256[] memory inputs = this._toArray(input, blockHash);
-        assertEq(inputs.length, 87);
+        assertEq(inputs.length, 107);
         assertEq(inputs[0], 42);
         assertEq(inputs[33], 167);
         assertEq(inputs[34], 5 ether);
@@ -33,6 +33,11 @@ contract ShadowPublicInputsTest is Test {
         bytes20 recipientBytes = bytes20(recipient);
         for (uint256 i = 0; i < 20; i++) {
             assertEq(inputs[35 + i], uint256(uint8(recipientBytes[i])));
+        }
+
+        // token = address(0) → all 20 bytes should be zero
+        for (uint256 i = 0; i < 20; i++) {
+            assertEq(inputs[87 + i], 0);
         }
     }
 }

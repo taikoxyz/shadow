@@ -691,11 +691,12 @@ async function handleMineDeposit(formData) {
   try {
     const chainId = formData.chainId || state.config?.chainId;
     if (!chainId) { showToast('Chain ID not available — check server RPC config', 'error'); state.mining = false; render(); return; }
-    await api.createDeposit(chainId, formData.notes, formData.comment);
+    await api.createDeposit(chainId, formData.notes, formData.comment, formData.token);
     state.showMiningForm = false;
     state.mining = false;
     state.miningNotes = null;
     state.miningComment = '';
+    state.miningToken = '';
     state.miningErrors = {};
     showToast('Deposit created!', 'success');
     await refresh();

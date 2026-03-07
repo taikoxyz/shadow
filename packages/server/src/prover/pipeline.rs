@@ -9,7 +9,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use shadow_proof_core::{
     compute_notes_hash, compute_recipient_hash, derive_nullifier, derive_target_address,
-    ClaimInput, MAX_NODE_BYTES, MAX_NOTES,
+    ClaimInput, TokenClaimInput, MAX_NODE_BYTES, MAX_NOTES,
 };
 
 use super::{
@@ -59,6 +59,9 @@ pub struct NoteProofResult {
     /// Base64-encoded receipt (for verification/re-export).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub receipt_base64: Option<String>,
+    /// Token contract address (0x-prefixed hex). Absent = ETH.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 /// Run the proof pipeline for a deposit file.
@@ -90,6 +93,7 @@ pub async fn run_pipeline(
         secret: String,
         notes: Vec<NoteJson>,
         target_address: Option<String>,
+        token: Option<String>,
     }
 
     #[derive(Deserialize)]
@@ -106,6 +110,11 @@ pub async fn run_pipeline(
     let chain_id: u64 = deposit.chain_id.parse()?;
     let secret = parse_hex_bytes32(&deposit.secret)?;
     let note_count = deposit.notes.len();
+    let token_address: Option<[u8; 20]> = deposit
+        .token
+        .as_ref()
+        .map(|t| parse_hex_address(t))
+        .transpose()?;
 
     if note_count == 0 || note_count > MAX_NOTES {
         bail!("invalid note count: {}", note_count);
@@ -204,6 +213,42 @@ pub async fn run_pipeline(
         bail!("account proof is empty; target address may not exist on-chain");
     }
 
+    // For ERC20: fetch the token balance proof (two-level MPT)
+    let erc20_proof = if let Some(ref token_addr) = token_address {
+        queue
+            .update_progress(
+                0,
+                "Fetching ERC20 balance proof...",
+                Some(&ProgressExtra {
+                    chain_id: Some(chain_id),
+                    block_number: Some(block.number),
+                    stage: Some("rpc_erc20_proof".into()),
+                    ..Default::default()
+                }),
+            )
+            .await;
+
+        let proof = rpc::eth_get_erc20_balance_proof(
+            &http_client,
+            rpc_url,
+            token_addr,
+            &target_address,
+            block.number,
+        )
+        .await?;
+
+        tracing::info!(
+            token = %format!("0x{}", hex::encode(token_addr)),
+            account_proof_depth = proof.token_account_proof_nodes.len(),
+            storage_proof_depth = proof.balance_storage_proof_nodes.len(),
+            "ERC20 balance proof fetched"
+        );
+
+        Some(proof)
+    } else {
+        None
+    };
+
     // 3. Prove each note sequentially
     let mut note_results: Vec<NoteProofResult> = Vec::with_capacity(note_count);
 
@@ -249,6 +294,8 @@ pub async fn run_pipeline(
             &amounts,
             &recipient_hashes,
             &account_proof.proof_nodes,
+            token_address.as_ref(),
+            erc20_proof.as_ref(),
         )?;
 
         // Race the prover against the cancel signal so Kill takes effect
@@ -306,6 +353,7 @@ pub async fn run_pipeline(
             journal: note_proof.journal_hex,
             proof: note_proof.proof_hex,
             receipt_base64: note_proof.receipt_base64,
+            token: token_address.map(|a| format!("0x{}", hex::encode(a))),
         });
     }
 
@@ -343,6 +391,8 @@ fn build_claim_input(
     amounts: &[u128],
     recipient_hashes: &[[u8; 32]],
     proof_nodes: &[Vec<u8>],
+    token_address: Option<&[u8; 20]>,
+    erc20_proof: Option<&rpc::Erc20BalanceProofData>,
 ) -> Result<ClaimInput> {
     let proof_depth = proof_nodes.len() as u32;
 
@@ -369,6 +419,16 @@ fn build_claim_input(
         validated_nodes.push(node.clone());
     }
 
+    let token = match (token_address, erc20_proof) {
+        (Some(addr), Some(proof)) => Some(TokenClaimInput {
+            token_address: *addr,
+            balance_storage_key: proof.balance_storage_key,
+            token_account_proof_nodes: proof.token_account_proof_nodes.clone(),
+            balance_storage_proof_nodes: proof.balance_storage_proof_nodes.clone(),
+        }),
+        _ => None,
+    };
+
     Ok(ClaimInput {
         block_number: block.number,
         block_hash: block.hash,
@@ -383,6 +443,7 @@ fn build_claim_input(
         block_header_rlp: block.header_rlp.clone(),
         proof_depth,
         proof_nodes: validated_nodes,
+        token,
     })
 }
 

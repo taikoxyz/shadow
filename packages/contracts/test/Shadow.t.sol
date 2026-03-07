@@ -11,9 +11,11 @@ import {ShadowVerifier} from "../src/impl/ShadowVerifier.sol";
 import {MockCircuitVerifier} from "./mocks/MockCircuitVerifier.sol";
 import {MockEtherMinter} from "./mocks/MockEtherMinter.sol";
 import {MockAnchor} from "./mocks/MockAnchor.sol";
+import {TestShadowToken} from "../src/impl/TestShadowToken.sol";
+import {IShadowCompatibleToken} from "../src/iface/IShadowCompatibleToken.sol";
 
 contract ShadowTest is Test {
-    event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount);
+    event Claimed(bytes32 indexed nullifier, address indexed recipient, uint256 amount, address token);
 
     MockAnchor internal anchor;
     MockCircuitVerifier internal circuitVerifier;
@@ -66,11 +68,12 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: amount,
             recipient: recipient,
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         vm.expectEmit(true, true, false, true, address(shadow));
-        emit Claimed(nullifierValue, recipient, amount);
+        emit Claimed(nullifierValue, recipient, amount, address(0));
         shadow.claim("", input);
         uint256 fee = amount / 1000;
         uint256 netAmount = amount - fee;
@@ -96,11 +99,12 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: amount,
             recipient: recipient,
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         vm.expectEmit(true, true, false, true, address(shadow));
-        emit Claimed(nullifierValue, recipient, amount);
+        emit Claimed(nullifierValue, recipient, amount, address(0));
         shadow.claim("", input);
 
         assertEq(etherMinter.mintCount(), 1);
@@ -121,7 +125,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid + 1),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadow.ChainIdMismatch.selector, block.chainid + 1, block.chainid));
@@ -139,7 +144,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         vm.expectRevert(IShadowVerifier.ProofVerificationFailed.selector);
@@ -158,7 +164,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         vm.expectRevert(IShadowVerifier.ProofVerificationFailed.selector);
@@ -180,7 +187,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         vm.expectRevert(MockEtherMinter.MintFailed.selector);
@@ -202,7 +210,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1000,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         vm.expectRevert(MockEtherMinter.MintFailed.selector);
@@ -223,7 +232,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         shadow.claim("", input);
@@ -241,7 +251,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadow.InvalidRecipient.selector, address(0)));
@@ -258,7 +269,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 0,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadow.InvalidAmount.selector, 0));
@@ -331,7 +343,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: recipient1,
-            nullifier: nullifier1
+            nullifier: nullifier1,
+            token: address(0)
         });
 
         IShadow.PublicInput memory input2 = IShadow.PublicInput({
@@ -339,7 +352,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 2 ether,
             recipient: recipient2,
-            nullifier: nullifier2
+            nullifier: nullifier2,
+            token: address(0)
         });
 
         shadow.claim("", input1);
@@ -362,7 +376,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier-1wei")
+            nullifier: keccak256("nullifier-1wei"),
+            token: address(0)
         });
 
         shadow.claim("", input);
@@ -381,7 +396,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1000,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier-1000wei")
+            nullifier: keccak256("nullifier-1000wei"),
+            token: address(0)
         });
 
         shadow.claim("", input);
@@ -401,7 +417,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1001,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier-1001wei")
+            nullifier: keccak256("nullifier-1001wei"),
+            token: address(0)
         });
 
         shadow.claim("", input);
@@ -422,7 +439,8 @@ contract ShadowTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         shadow.claim("", input);
@@ -435,5 +453,132 @@ contract ShadowTest is Test {
 
         // Verify nullifier storage is preserved after upgrade
         assertTrue(shadow.isConsumed(nullifierValue));
+    }
+
+    // ───────── ERC20 claim tests ─────────
+
+    function test_claim_erc20_succeeds() external {
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        TestShadowToken token = new TestShadowToken(address(shadow), 100 ether);
+
+        address recipient = address(0xBEEF);
+        uint256 amount = 10 ether;
+        bytes32 nullifierValue = keccak256("erc20-nullifier");
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: amount,
+            recipient: recipient,
+            nullifier: nullifierValue,
+            token: address(token)
+        });
+
+        vm.expectEmit(true, true, false, true);
+        emit Claimed(nullifierValue, recipient, amount, address(token));
+
+        shadow.claim("", input);
+
+        assertTrue(shadow.isConsumed(nullifierValue));
+
+        uint256 fee = amount / 1000;
+        uint256 net = amount - fee;
+        assertEq(token.balanceOf(recipient), net);
+        assertEq(token.balanceOf(shadow.feeRecipient()), fee);
+    }
+
+    function test_claim_erc20_feeSplitting() external {
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        TestShadowToken token = new TestShadowToken(address(shadow), 100 ether);
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: 5000,
+            recipient: address(0xBEEF),
+            nullifier: keccak256("erc20-fee-nullifier"),
+            token: address(token)
+        });
+
+        shadow.claim("", input);
+
+        // 5000 / 1000 = 5 fee, 4995 net
+        assertEq(token.balanceOf(address(0xBEEF)), 4995);
+        assertEq(token.balanceOf(shadow.feeRecipient()), 5);
+    }
+
+    function test_claim_erc20_RevertWhen_AmountExceedsMax() external {
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        uint256 maxAmount = 10 ether;
+        TestShadowToken token = new TestShadowToken(address(shadow), maxAmount);
+
+        uint256 overAmount = maxAmount + 1;
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: overAmount,
+            recipient: address(0xBEEF),
+            nullifier: keccak256("erc20-over-nullifier"),
+            token: address(token)
+        });
+
+        vm.expectRevert(abi.encodeWithSelector(IShadow.AmountExceedsMax.selector, overAmount, maxAmount));
+        shadow.claim("", input);
+    }
+
+    function test_claim_erc20_doesNotUseEtherMinter() external {
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        TestShadowToken token = new TestShadowToken(address(shadow), 100 ether);
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: 1 ether,
+            recipient: address(0xBEEF),
+            nullifier: keccak256("erc20-no-eth-nullifier"),
+            token: address(token)
+        });
+
+        shadow.claim("", input);
+
+        // EtherMinter should not have been called
+        assertEq(etherMinter.mintCount(), 0);
+    }
+
+    function test_claim_eth_maxClaimAmount_doesNotApplyToErc20() external {
+        // Shadow has maxClaimAmount = 8 ether for ETH
+        // ERC20 should use token's maxShadowMintAmount instead
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        // Token with 100 ether max (> 8 ether ETH max)
+        TestShadowToken token = new TestShadowToken(address(shadow), 100 ether);
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: 50 ether,
+            recipient: address(0xBEEF),
+            nullifier: keccak256("erc20-large-nullifier"),
+            token: address(token)
+        });
+
+        // Should succeed even though 50 ether > 8 ether (ETH max)
+        shadow.claim("", input);
+        uint256 fee = 50 ether / 1000;
+        assertEq(token.balanceOf(address(0xBEEF)), 50 ether - fee);
     }
 }

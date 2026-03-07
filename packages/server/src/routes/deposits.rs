@@ -139,6 +139,8 @@ struct CreateDepositRequest {
     notes: Vec<CreateDepositNote>,
     #[serde(default)]
     comment: Option<String>,
+    #[serde(default)]
+    token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -225,6 +227,7 @@ async fn create_deposit(
 
     let workspace = state.workspace.clone();
     let comment = body.comment.clone();
+    let token = body.token.clone();
 
     // Run deposit creation in a blocking thread
     let result = tokio::task::spawn_blocking(move || {
@@ -242,6 +245,7 @@ async fn create_deposit(
             &mine_result.target_address,
             &req.notes,
             comment.as_deref(),
+            token.as_deref(),
         )?;
 
         Ok::<_, anyhow::Error>((filename, mine_result))
@@ -424,6 +428,20 @@ async fn get_claim_tx(
         )
     })?;
 
+    let token = note_proof
+        .token
+        .as_ref()
+        .map(|t| {
+            hex::decode(t.strip_prefix("0x").unwrap_or(t)).map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("invalid token address: {}", e),
+                )
+            })
+        })
+        .transpose()?
+        .unwrap_or_default();
+
     let calldata = encode_claim_calldata(
         &proof_bytes,
         block_number,
@@ -431,6 +449,7 @@ async fn get_claim_tx(
         amount,
         &recipient,
         &nullifier,
+        &token,
     );
 
     Ok(Json(ClaimTxResponse {
@@ -440,7 +459,7 @@ async fn get_claim_tx(
     }))
 }
 
-/// ABI-encode `claim(bytes _proof, (uint64,uint64,uint256,address,bytes32) _input)`.
+/// ABI-encode `claim(bytes _proof, (uint64,uint64,uint256,address,bytes32,address) _input)`.
 fn encode_claim_calldata(
     proof_bytes: &[u8],
     block_number: u64,
@@ -448,12 +467,12 @@ fn encode_claim_calldata(
     amount: u128,
     recipient: &[u8],
     nullifier: &[u8],
+    token: &[u8],
 ) -> Vec<u8> {
-    // Function selector: claim(bytes,(uint64,uint64,uint256,address,bytes32))
-    // keccak256("claim(bytes,(uint64,uint64,uint256,address,bytes32))")
+    // Function selector: claim(bytes,(uint64,uint64,uint256,address,bytes32,address))
     use tiny_keccak::{Hasher, Keccak};
     let mut keccak = Keccak::v256();
-    keccak.update(b"claim(bytes,(uint64,uint64,uint256,address,bytes32))");
+    keccak.update(b"claim(bytes,(uint64,uint64,uint256,address,bytes32,address))");
     let mut selector = [0u8; 32];
     keccak.finalize(&mut selector);
 
@@ -461,26 +480,14 @@ fn encode_claim_calldata(
     // Function selector (4 bytes)
     calldata.extend_from_slice(&selector[..4]);
 
-    // Head section (2 slots): offset of _proof (dynamic) + start of _input (tuple)
-    // _proof offset: points past head section. Head has 2 params, but _input is a static
-    // tuple of 5 x 32-byte words = 160 bytes. So _proof offset = 32 + 160 = 192.
-    // Wait, ABI encoding for (bytes, tuple): the bytes is dynamic, tuple is static.
-    // Layout: [offset_proof (32)] [blockNumber (32)] [chainId (32)] [amount (32)] [recipient (32)] [nullifier (32)] [proof_len (32)] [proof_data (padded)]
-    // But that's not standard ABI. Standard ABI for (bytes, (uint64,uint256,uint256,address,bytes32)):
-    // Slot 0: offset to bytes data = 32 * 7 = 224? No...
-    //
-    // Actually for function(bytes, Tuple), where Tuple is a static tuple:
-    // The function signature has 2 params. Param 1 (bytes) is dynamic → stored as offset.
-    // Param 2 (tuple of static types) is static → inline 5 words.
-    // Head: [offset_param1 (32)] [param2.field1 (32)] [param2.field2 (32)] ... [param2.field5 (32)]
-    // = 6 x 32 = 192 bytes head
+    // For function(bytes, Tuple) where Tuple is static (6 fields = 6 words):
+    // Head: [offset_param1 (32)] [param2.field1..6 (6 x 32)]
+    // = 7 x 32 = 224 bytes head
     // Tail: [length (32)] [data (padded)]
-    //
-    // So offset_param1 = 192 (6 * 32 = start of tail section)
+    // offset_param1 = 224
 
-    // Offset for _proof dynamic bytes: 6 * 32 = 192
     let mut offset_bytes = [0u8; 32];
-    offset_bytes[28..32].copy_from_slice(&192u32.to_be_bytes());
+    offset_bytes[28..32].copy_from_slice(&224u32.to_be_bytes());
     calldata.extend_from_slice(&offset_bytes);
 
     // _input.blockNumber (uint64, left-padded to 32 bytes)
@@ -511,6 +518,13 @@ fn encode_claim_calldata(
         nul.copy_from_slice(nullifier);
     }
     calldata.extend_from_slice(&nul);
+
+    // _input.token (address, left-padded to 32 bytes)
+    let mut tok = [0u8; 32];
+    if token.len() == 20 {
+        tok[12..32].copy_from_slice(token);
+    }
+    calldata.extend_from_slice(&tok);
 
     // Proof bytes dynamic data
     let mut proof_len = [0u8; 32];

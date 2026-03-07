@@ -46,7 +46,8 @@ contract ShadowVerifierTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         verifier.verifyProof("", input);
@@ -58,7 +59,8 @@ contract ShadowVerifierTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, uint64(0)));
@@ -74,7 +76,8 @@ contract ShadowVerifierTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, blockNumber));
@@ -92,7 +95,8 @@ contract ShadowVerifierTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.ProofVerificationFailed.selector));
@@ -110,7 +114,8 @@ contract ShadowVerifierTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier-old-block")
+            nullifier: keccak256("nullifier-old-block"),
+            token: address(0)
         });
 
         verifier.verifyProof("", input);
@@ -126,7 +131,8 @@ contract ShadowVerifierTest is Test {
             chainId: uint64(block.chainid),
             amount: 1 ether,
             recipient: address(0xBEEF),
-            nullifier: keccak256("nullifier-future")
+            nullifier: keccak256("nullifier-future"),
+            token: address(0)
         });
 
         vm.expectRevert(abi.encodeWithSelector(IShadowVerifier.BlockHashNotFound.selector, futureBlockNumber));
