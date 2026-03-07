@@ -88,13 +88,9 @@ pub async fn run_pipeline(
 ) -> Result<BundledProof> {
     let pipeline_start = std::time::Instant::now();
 
-    let ctx = load_deposit_and_fetch_proofs(
-        workspace, deposit_filename, rpc_url, &queue,
-    ).await?;
+    let ctx = load_deposit_and_fetch_proofs(workspace, deposit_filename, rpc_url, &queue).await?;
 
-    let note_results = prove_all_notes(
-        &ctx, &queue, &mut cancel_rx, &pipeline_start,
-    ).await?;
+    let note_results = prove_all_notes(&ctx, &queue, &mut cancel_rx, &pipeline_start).await?;
 
     let bundled = BundledProof {
         version: "v2".to_string(),
