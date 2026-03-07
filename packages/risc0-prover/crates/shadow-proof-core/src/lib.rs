@@ -947,6 +947,88 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ClaimValidationError::InvalidNodeReference));
     }
+
+    #[test]
+    fn pack_unpack_journal_roundtrip_with_zero_token() {
+        let journal = ClaimJournal {
+            block_number: 12345,
+            block_hash: [0xaau8; 32],
+            chain_id: 167013,
+            amount: 1_000_000_000_000,
+            recipient: [0xbbu8; 20],
+            nullifier: [0xccu8; 32],
+            token: [0u8; 20],
+        };
+        let packed = pack_journal(&journal);
+        assert_eq!(packed.len(), PACKED_JOURNAL_LEN);
+        let unpacked = unpack_journal(&packed).unwrap();
+        assert_eq!(unpacked.block_number, journal.block_number);
+        assert_eq!(unpacked.block_hash, journal.block_hash);
+        assert_eq!(unpacked.chain_id, journal.chain_id);
+        assert_eq!(unpacked.amount, journal.amount);
+        assert_eq!(unpacked.recipient, journal.recipient);
+        assert_eq!(unpacked.nullifier, journal.nullifier);
+        assert_eq!(unpacked.token, [0u8; 20]);
+    }
+
+    #[test]
+    fn pack_unpack_journal_roundtrip_with_nonzero_token() {
+        let token_addr = [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+                          0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];
+        let journal = ClaimJournal {
+            block_number: 99999,
+            block_hash: [0x11u8; 32],
+            chain_id: 1,
+            amount: 5_000_000_000_000_000_000,
+            recipient: [0x22u8; 20],
+            nullifier: [0x33u8; 32],
+            token: token_addr,
+        };
+        let packed = pack_journal(&journal);
+        assert_eq!(packed.len(), PACKED_JOURNAL_LEN);
+        // Verify token is at offset 116
+        assert_eq!(&packed[116..136], &token_addr);
+        let unpacked = unpack_journal(&packed).unwrap();
+        assert_eq!(unpacked.token, token_addr);
+        assert_eq!(unpacked.amount, journal.amount);
+    }
+
+    #[test]
+    fn unpack_journal_rejects_wrong_length() {
+        let short = [0u8; 100];
+        assert!(unpack_journal(&short).is_err());
+        let long = [0u8; 200];
+        assert!(unpack_journal(&long).is_err());
+    }
+
+    #[test]
+    fn verify_account_proof_extracts_storage_root_field2() {
+        // Test that field_index=2 correctly extracts storageRoot from account RLP
+        let target_address = [0x44u8; 20];
+        let key_hash = keccak256(&target_address);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+
+        let storage_root_raw = [0xAAu8; 32];
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),             // nonce
+            rlp_encode_bytes(&[0x01]),          // balance
+            rlp_encode_bytes(&storage_root_raw),// storageRoot (field[2])
+            rlp_encode_bytes(&[0xBBu8; 32]),   // codeHash
+        ]);
+
+        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
+        let state_root = keccak256(&leaf_node);
+
+        let result =
+            verify_account_proof_and_get_field(&state_root, &target_address, &[leaf_node], 2)
+                .unwrap();
+
+        let mut expected = [0u8; 32];
+        expected.copy_from_slice(&storage_root_raw);
+        assert_eq!(result, expected);
+    }
 }
 
 fn u128_to_bytes32(value: u128) -> [u8; 32] {

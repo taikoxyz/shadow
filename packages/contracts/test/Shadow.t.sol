@@ -557,6 +557,73 @@ contract ShadowTest is Test {
         assertEq(etherMinter.mintCount(), 0);
     }
 
+    function test_claim_erc20_RevertWhen_NullifierReused() external {
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        TestShadowToken token = new TestShadowToken(address(shadow), 100 ether);
+
+        bytes32 nullifierValue = keccak256("erc20-reuse-nullifier");
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: 1 ether,
+            recipient: address(0xBEEF),
+            nullifier: nullifierValue,
+            token: address(token)
+        });
+
+        shadow.claim("", input);
+        assertTrue(shadow.isConsumed(nullifierValue));
+
+        vm.expectRevert(abi.encodeWithSelector(IShadow.NullifierAlreadyConsumed.selector, nullifierValue));
+        shadow.claim("", input);
+    }
+
+    function test_claim_erc20_zeroFee() external {
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        TestShadowToken token = new TestShadowToken(address(shadow), 100 ether);
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: 999, // 999 / 1000 = 0 fee
+            recipient: address(0xBEEF),
+            nullifier: keccak256("erc20-zerofee-nullifier"),
+            token: address(token)
+        });
+
+        shadow.claim("", input);
+
+        assertEq(token.balanceOf(address(0xBEEF)), 999);
+        assertEq(token.balanceOf(shadow.feeRecipient()), 0);
+    }
+
+    function test_claim_erc20_RevertWhen_Paused() external {
+        uint64 blockNumber = uint64(block.number);
+        bytes32 blockHash = keccak256("blockhash");
+        anchor.setBlockHash(blockNumber, blockHash);
+
+        TestShadowToken token = new TestShadowToken(address(shadow), 100 ether);
+
+        IShadow.PublicInput memory input = IShadow.PublicInput({
+            blockNumber: blockNumber,
+            chainId: uint64(block.chainid),
+            amount: 1 ether,
+            recipient: address(0xBEEF),
+            nullifier: keccak256("erc20-paused-nullifier"),
+            token: address(token)
+        });
+
+        shadow.pause();
+        vm.expectRevert("Pausable: paused");
+        shadow.claim("", input);
+    }
+
     function test_claim_eth_maxClaimAmount_doesNotApplyToErc20() external {
         // Shadow has maxClaimAmount = 8 ether for ETH
         // ERC20 should use token's maxShadowMintAmount instead

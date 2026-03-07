@@ -217,6 +217,37 @@ contract Risc0CircuitVerifierTest is Test {
         return ShadowPublicInputs.toArray(_input, _stateRoot);
     }
 
+    function test_verifyProof_returnsFalseWhenTokenMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
+        IShadow.PublicInput memory input = _sampleInput();
+        input.token = address(0xDEADBEEF);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
+
+        bytes memory seal = hex"0005";
+        bytes memory journal = _buildJournal(input, stateRoot);
+        bytes memory proof = abi.encode(seal, journal);
+
+        // Tamper with token in public inputs so it mismatches journal
+        publicInputs[87] = (publicInputs[87] + 1) % 256;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_succeedsWithNonZeroToken() external {
+        bytes32 stateRoot = _sampleStateRoot();
+        IShadow.PublicInput memory input = _sampleInput();
+        input.token = address(0xDEADBEEF);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
+
+        bytes memory seal = hex"0006";
+        bytes memory journal = _buildJournal(input, stateRoot);
+        bytes memory proof = abi.encode(seal, journal);
+
+        risc0Verifier.setExpectations(_IMAGE_ID, sha256(journal), seal, true);
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertTrue(ok);
+    }
+
     function _sampleInput() private view returns (IShadow.PublicInput memory) {
         return IShadow.PublicInput({
             blockNumber: 4_353_615,

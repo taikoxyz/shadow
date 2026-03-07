@@ -550,6 +550,79 @@ mod tests {
     }
 
     #[test]
+    fn validate_deposit_good_with_token() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "1230000000000".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: Some("0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF".into()),
+        };
+        validate_deposit(&deposit).unwrap();
+    }
+
+    #[test]
+    fn validate_deposit_rejects_bad_token_address() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "100".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: Some("0xBAD".into()),
+        };
+        assert!(validate_deposit(&deposit).is_err());
+    }
+
+    #[test]
+    fn derive_deposit_info_with_token() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "1230000000000".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: Some("0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF".into()),
+        };
+        let info = derive_deposit_info(&deposit).unwrap();
+        assert!(info.token.is_some());
+        let token_bytes = info.token.unwrap();
+        assert_eq!(token_bytes[0], 0xDE);
+        assert_eq!(token_bytes[19], 0xeF);
+    }
+
+    #[test]
+    fn derive_deposit_info_without_token() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "1230000000000".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: None,
+        };
+        let info = derive_deposit_info(&deposit).unwrap();
+        assert!(info.token.is_none());
+    }
+
+    #[test]
     fn format_timestamp_secs_epoch() {
         assert_eq!(format_timestamp_secs(0), "19700101T000000");
     }
