@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IShadowCompatibleToken } from "../iface/IShadowCompatibleToken.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IShadowCompatibleToken} from "../iface/IShadowCompatibleToken.sol";
 
 /// @title  ShadowCompatibleERC20
 /// @notice Abstract base for ERC20 tokens supporting Shadow privacy transfers.
@@ -22,12 +22,7 @@ abstract contract ShadowCompatibleERC20 is ERC20, IShadowCompatibleToken {
         _;
     }
 
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        address shadowContract_,
-        uint256 maxShadowMintAmount_
-    )
+    constructor(string memory name_, string memory symbol_, address shadowContract_, uint256 maxShadowMintAmount_)
         ERC20(name_, symbol_)
     {
         _shadowContract = shadowContract_;

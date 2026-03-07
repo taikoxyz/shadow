@@ -16,7 +16,12 @@ contract ShadowPublicInputsTest is Test {
         address recipient = address(0x11223344556677889900aABbCcdDEeFF00112233);
 
         IShadow.PublicInput memory input = IShadow.PublicInput({
-            blockNumber: 42, chainId: 167, amount: 5 ether, recipient: recipient, nullifier: nullifier, token: address(0)
+            blockNumber: 42,
+            chainId: 167,
+            amount: 5 ether,
+            recipient: recipient,
+            nullifier: nullifier,
+            token: address(0)
         });
 
         uint256[] memory inputs = this._toArray(input, blockHash);

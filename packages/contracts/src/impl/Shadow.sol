@@ -109,7 +109,10 @@ contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeabl
         } else {
             // ERC20 path
             IShadowCompatibleToken token_ = IShadowCompatibleToken(_input.token);
-            require(_input.amount <= token_.maxShadowMintAmount(), AmountExceedsMax(_input.amount, token_.maxShadowMintAmount()));
+            require(
+                _input.amount <= token_.maxShadowMintAmount(),
+                AmountExceedsMax(_input.amount, token_.maxShadowMintAmount())
+            );
             token_.shadowMint(_input.recipient, netAmount);
             if (fee > 0) {
                 token_.shadowMint(feeRecipient, fee);
