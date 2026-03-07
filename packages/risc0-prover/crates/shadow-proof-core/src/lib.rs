@@ -1090,12 +1090,8 @@ mod tests {
         ]);
         let storage_root = keccak256(&leaf_node);
 
-        let result = verify_storage_proof_and_get_value(
-            &storage_root,
-            &storage_key,
-            &[leaf_node],
-        )
-        .unwrap();
+        let result =
+            verify_storage_proof_and_get_value(&storage_root, &storage_key, &[leaf_node]).unwrap();
 
         let mut expected = [0u8; 32];
         expected[24..].copy_from_slice(&raw_value);
@@ -1118,12 +1114,8 @@ mod tests {
         ]);
         let storage_root = keccak256(&leaf_node);
 
-        let result = verify_storage_proof_and_get_value(
-            &storage_root,
-            &storage_key,
-            &[leaf_node],
-        )
-        .unwrap();
+        let result =
+            verify_storage_proof_and_get_value(&storage_root, &storage_key, &[leaf_node]).unwrap();
 
         let mut expected = [0u8; 32];
         expected[31] = 0x42;
