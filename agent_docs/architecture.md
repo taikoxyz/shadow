@@ -25,9 +25,10 @@ packages/contracts/src/
 ### ERC20 Claim Flow
 
 1. Holder sends tokens to `targetAddress` via a plain ERC20 transfer (no special contract interaction)
-2. ZK circuit proves `_balances[targetAddress] >= total_note_amounts` using a two-level MPT proof: state trie → token account `storageRoot` → storage trie → `_balances[holder]`
-3. The circuit recomputes `balanceStorageKey = keccak256(abi.encode(targetAddress, balanceSlot))` inside the proof to bind the storage key to the target address
-4. `Shadow.claim()` calls `token.shadowMint(recipient, amount)` to mint new tokens
+2. Server calls `token.balanceStorageSlot(targetAddress)` to get the exact storage key, then `eth_getProof(tokenAddress, [storageKey], blockNumber)` for the two-level MPT proof data
+3. ZK circuit proves `_balances[targetAddress] >= total_note_amounts` using a two-level MPT proof: state trie → token account `storageRoot` → storage trie → `_balances[targetAddress]`
+4. The circuit uses `balanceSlot` (from `token.balanceSlot()`) to recompute the expected storage key inside the proof, preventing a malicious prover from substituting an arbitrary key
+5. `Shadow.claim()` calls `token.shadowMint(recipient, amount)` to mint new tokens — net amount minus 0.1% fee
 
 ### Security: Balance Slot Binding
 

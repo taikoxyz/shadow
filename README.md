@@ -1,6 +1,6 @@
 # Shadow Protocol
 
-Privacy-preserving ETH claims on Taiko L2 using zero-knowledge proofs.
+Privacy-preserving ETH and ERC20 token claims on Taiko L2 using zero-knowledge proofs.
 
 ## Quick Start
 
@@ -155,25 +155,40 @@ cargo run --manifest-path packages/risc0-prover/Cargo.toml -p shadow-risc0-host 
 ### 2. Create a deposit
 
 From the UI, click **+ New Deposit** and fill in:
-- **Recipient**: the Ethereum address that will claim the ETH
-- **Amount**: amount in wei (e.g. `1000000000000000` = 0.001 ETH)
+- **Recipient**: the Ethereum address that will claim the ETH or tokens
+- **Amount**: amount in the token's smallest units (e.g. `1000000000000000` = 0.001 ETH, or `1000000` = 1 USDC with 6 decimals)
+- **Token** (optional): ERC20 token contract address. Leave empty for ETH deposits.
 
 Or via the API:
 ```bash
+# ETH deposit
 curl -X POST http://localhost:3000/api/deposits \
   -H 'Content-Type: application/json' \
   -d '{"chainId":"167013","notes":[{"recipient":"0xYourAddress","amount":"1000000000000000","label":"my note"}]}'
+
+# ERC20 deposit
+curl -X POST http://localhost:3000/api/deposits \
+  -H 'Content-Type: application/json' \
+  -d '{"chainId":"167013","token":"0xTokenAddress","notes":[{"recipient":"0xYourAddress","amount":"1000000","label":"my note"}]}'
 ```
 
 Deposit creation is instant (generates a random secret and derives a target address).
 
 ### 3. Fund the target address
 
-Send ETH to the `targetAddress` shown in the deposit. The total amount must cover all notes plus a 0.1% claim fee.
+**ETH deposit**: Send ETH to the `targetAddress`. The total amount must cover all notes plus a 0.1% claim fee.
 
 ```bash
 cast send <targetAddress> \
   --value <totalAmount> \
+  --rpc-url https://rpc.hoodi.taiko.xyz \
+  --private-key 0x...
+```
+
+**ERC20 deposit**: Send tokens via a plain ERC20 `transfer` to the `targetAddress`.
+
+```bash
+cast send <tokenAddress> "transfer(address,uint256)" <targetAddress> <totalAmount> \
   --rpc-url https://rpc.hoodi.taiko.xyz \
   --private-key 0x...
 ```
@@ -210,12 +225,13 @@ From the UI, click **Claim** next to each note (requires MetaMask connected to T
 | Contract | Address |
 |----------|---------|
 | Shadow (proxy) | `0x77cdA0575e66A5FC95404fdA856615AD507d8A07` |
-| ShadowVerifier | `0x2A24265cA599A4a228647AdE0a26dA7dCc83354a` |
-| Risc0CircuitVerifier | `0x4C216c036777e7106560a05832982BCC42eb9c68` |
+| ShadowVerifier | `0xf2bbb2ca267227422c8b4975489606d969cbc8b1` |
+| Risc0CircuitVerifier | `0xb7b85498cd316348d2ad64d59033cd8d6254e356` |
 | RiscZeroGroth16Verifier | `0xd1934807041B168f383870A0d8F565aDe2DF9D7D` |
 | DummyEtherMinter | `0x6DC226aA43E86fE77735443fB50a0A90e5666AA4` |
+| TestShadowToken (TST) | `0x25a8012b7A97a00Bed854B960D9335d010fAc6a3` |
 
-Circuit ID (imageId): `0x08a05132ea1bfb9e7adbea32dd5bade4132986e9d23e8871d515f9a6a3e3d121`
+Circuit ID (imageId): `0xa7dd3b3e61fe665ea86945431797de7f6fa7953f99f725f6e17ad56f8d104728`
 Chain ID: `167013` (Taiko Hoodi testnet)
 
 ## Architecture
@@ -230,7 +246,7 @@ Chain ID: `167013` (Taiko Hoodi testnet)
                            |
                      +-----v-----+
                      |  Server   |  shadow-server (Axum)
-                     |  (Rust)   |  - deposit creation
+                     |  (Rust)   |  - deposit creation (ETH + ERC20)
                      +-----+-----+  - proof generation (RISC Zero)
                            |        - workspace file management
                      +-----v-----+  - on-chain queries (RPC)
@@ -238,7 +254,8 @@ Chain ID: `167013` (Taiko Hoodi testnet)
                      | Contract  |  UUPS proxy on Taiko L2
                      +-----------+  - ZK proof verification
                                     - nullifier tracking
-                                    - ETH claiming (0.1% fee)
+                                    - ETH claiming via IEthMinter (0.1% fee)
+                                    - ERC20 claiming via IShadowCompatibleToken.shadowMint
 ```
 
 ## Project Structure

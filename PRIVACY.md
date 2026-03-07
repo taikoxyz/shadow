@@ -14,11 +14,11 @@ Shadow is **not a mixer**. It does not provide a large anonymity set, and it doe
 
 ### Funding
 
-Funding the derived `targetAddress` is a standard ETH transfer. Like any ETH transfer, observers can see:
+Funding the derived `targetAddress` is a standard transfer. For ETH deposits it is a standard ETH transfer; for ERC20 deposits it is a plain ERC20 `transfer`. Like any transfer, observers can see:
 
 - sender address
 - `targetAddress`
-- amount
+- amount (and token contract address for ERC20)
 - timestamp / block number
 
 There is no protocol-level way to hide this on a public blockchain.
@@ -40,6 +40,7 @@ In the current implementation, the claim proof payload also includes a **RISC Ze
 - `recipient`
 - `amount`
 - `nullifier`
+- `token` (ERC20 token contract address, or `address(0)` for ETH)
 
 The journal is used only to bind the proof to the already-public claim inputs and does **not** include:
 
@@ -67,6 +68,15 @@ Even if you avoid reusing addresses, observers can correlate deposits and claims
 ### Secret Reuse Is Unsafe
 
 Reusing the same `secret` across multiple deposit files is strongly discouraged because `nullifier` does not include the note set, so it can create nullifier collisions across deposits (claims may fail or be blocked).
+
+### ERC20 Anonymity Set
+
+For ETH claims, the anonymity set is all ETH transfers to any address before `blockNumber`. For ERC20 claims, the set is all transfers of the **specific token** to any address before `blockNumber` — a smaller set. The practical impact depends on token transaction volume:
+
+- High-volume tokens (bridged USDC, WETH): large anonymity set, stronger privacy
+- Low-volume tokens: smaller set — wait longer before claiming to improve privacy
+
+The `token` address is public in the journal and `Claimed` event, which narrows the observable claim to a specific token type. This is inherent: Shadow.sol must know which token to call `shadowMint` on.
 
 ### Historical Balance Proofs
 

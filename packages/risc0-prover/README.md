@@ -36,6 +36,8 @@ Default RPC and contract addresses are configured for Taiko Hoodi (chainId 16701
 
 ## Deposit File Format
 
+### v2 (ETH, backward compatible)
+
 ```json
 {
   "version": "v2",
@@ -47,6 +49,25 @@ Default RPC and contract addresses are configured for Taiko Hoodi (chainId 16701
   ]
 }
 ```
+
+### v3 (ERC20 support)
+
+```json
+{
+  "version": "v3",
+  "created": "20260307T000000",
+  "chainId": "167013",
+  "token": "0x25a8012b7A97a00Bed854B960D9335d010fAc6a3",
+  "secret": "0x...",
+  "notes": [
+    { "recipient": "0x...", "amount": "1000000000000000000", "label": "one TST" }
+  ]
+}
+```
+
+- `token`: ERC20 contract address. Absent or `null` = ETH (v2 behavior).
+- Amounts are always in raw smallest units (wei for ETH, or the token's base unit).
+- The server calls `token.balanceStorageSlot(targetAddress)` before proving to get the storage key for the two-level MPT proof.
 
 Schema: `packages/docs/data/schema/deposit.schema.json`
 
