@@ -2,7 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {Test} from "forge-std/Test.sol";
-import {IShadowCompatibleToken} from "../src/iface/IShadowCompatibleToken.sol";
+import {ShadowCompatibleERC20} from "../src/impl/ShadowCompatibleERC20.sol";
 import {TestShadowToken} from "../src/impl/TestShadowToken.sol";
 
 contract ShadowCompatibleERC20Test is Test {
@@ -27,12 +27,12 @@ contract ShadowCompatibleERC20Test is Test {
 
     function test_shadowMint_RevertWhen_CallerIsNotShadow() external {
         vm.prank(address(0xBAD));
-        vm.expectRevert(IShadowCompatibleToken.ShadowUnauthorised.selector);
+        vm.expectRevert(ShadowCompatibleERC20.ShadowUnauthorised.selector);
         token.shadowMint(address(0xBEEF), 1 ether);
     }
 
     function test_shadowMint_RevertWhen_CallerIsOwner() external {
-        vm.expectRevert(IShadowCompatibleToken.ShadowUnauthorised.selector);
+        vm.expectRevert(ShadowCompatibleERC20.ShadowUnauthorised.selector);
         token.shadowMint(address(0xBEEF), 1 ether);
     }
 

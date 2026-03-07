@@ -21,9 +21,6 @@ pragma solidity ^0.8.33;
 ///          targetAddress never called delegate(), so its locked tokens carry
 ///          no active voting weight.
 interface IShadowCompatibleToken {
-    /// @notice Caller is not the authorised Shadow contract.
-    error ShadowUnauthorised();
-
     /// @notice Mint tokens to a Shadow claim recipient.
     /// @dev    MUST revert with ShadowUnauthorised if the caller is not authorised.
     ///         MUST mint `_amount` new tokens to `_to` via _mint or equivalent.

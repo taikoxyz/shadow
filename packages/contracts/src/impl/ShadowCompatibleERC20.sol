@@ -8,6 +8,8 @@ import {IShadowCompatibleToken} from "../iface/IShadowCompatibleToken.sol";
 /// @title  ShadowCompatibleERC20
 /// @notice Abstract base for ERC20 tokens supporting Shadow privacy transfers.
 abstract contract ShadowCompatibleERC20 is ERC20, IShadowCompatibleToken {
+    error ShadowUnauthorised();
+
     address private _shadowContract;
 
     // The _balances mapping slot. Depends entirely on inheritance chain:
