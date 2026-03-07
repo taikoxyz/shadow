@@ -5,8 +5,5 @@ pragma solidity ^0.8.33;
 
 interface ICircuitVerifier {
     /// @notice Verifies a proof against public inputs.
-    function verifyProof(bytes calldata _proof, uint256[] calldata _publicInputs)
-        external
-        view
-        returns (bool _isValid_);
+    function verifyProof(bytes calldata _proof, uint256[] calldata _publicInputs) external view returns (bool _isValid_);
 }
