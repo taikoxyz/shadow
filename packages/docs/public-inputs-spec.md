@@ -173,13 +173,25 @@ The full Ethereum block header is provided as private input. The circuit verifie
 - The header RLP hashes to the public `blockHash`
 - The header contains the correct `stateRoot` for the account proof verification
 
-### Account Proof
+### Account Proof (ETH Path)
 
 Merkle-Patricia trie proof for the target address:
 
 - `accountProofNodes[]`: RLP-encoded trie nodes from `eth_getProof`
 - The circuit verifies the proof is valid under the block's `stateRoot`
-- Extracts and validates the account balance
+- Extracts and validates the account balance (`balance(targetAddress) >= sum(noteAmounts)`)
+
+### ERC20 Token Proof (ERC20 Path)
+
+When `token != address(0)`, the circuit requires additional private inputs for a two-level MPT proof:
+
+- `token_address`: The ERC20 token contract address (must match the public `token` output)
+- `balance_slot`: The raw `_balances` mapping storage slot index (read from `IShadowCompatibleToken.balanceSlot()`)
+- `balance_storage_key`: The Ethereum storage key for `_balances[targetAddress]`
+- `token_account_proof_nodes[]`: State trie proof for the token contract account under `stateRoot` (extracts `storageRoot`)
+- `token_storage_proof_nodes[]`: Storage trie proof for the balance slot under the token's `storageRoot`
+
+**Security constraint:** The circuit recomputes `expected_key = keccak256(abi.encode(targetAddress, balance_slot))` and asserts `expected_key == balance_storage_key`. This binds the storage key to the target address, preventing a malicious prover from using an arbitrary address's balance.
 
 ### Secret Material
 

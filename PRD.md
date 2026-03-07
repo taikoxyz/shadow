@@ -2,9 +2,9 @@
 
 ## Goal
 
-Shadow is a privacy-forward ETH claim system on **Taiko** where claims are authorized by proving that a **deterministically derived target address** held enough ETH at a recent block hash verified by the prover.
+Shadow is a privacy-forward claim system on **Taiko** supporting both **ETH** and **ERC20 tokens**. Claims are authorized by proving that a **deterministically derived target address** held enough ETH (or ERC20 balance) at a recent block hash verified by the prover.
 
-Key property: deposits are normal ETH transfers to the target address (no deposit contract, no burn event).
+Key property: deposits are normal ETH transfers or ERC20 transfers to the target address (no deposit contract, no burn event).
 
 ## Privacy
 
@@ -24,7 +24,7 @@ Shadow provides privacy properties but does not guarantee anonymity. See `PRIVAC
   - `recipient` (address)
   - `amount` (wei, > 0)
   - `label` (optional; excluded from derivation and proving)
-- Total note sum: **<= 8 ETH**.
+- Total note sum: **<= 8 ETH** (for ETH deposits) or **<= maxShadowMintAmount** (for ERC20 tokens).
 
 ### Deposit File (User Secret Material)
 
@@ -57,25 +57,26 @@ Current implementation:
 
 1. User creates a deposit file (note set + secret).
 2. App/CLI derives `targetAddress` and displays it.
-3. Anyone funds `targetAddress` with ETH.
+3. Anyone funds `targetAddress` with ETH or ERC20 tokens.
 4. Claimer generates a ZK proof for a single `noteIndex` using:
    - A canonical L1 `blockHash` at some `blockNumber` (fetched from `TaikoAnchor.blockHashes(blockNumber)` on Hoodi L2)
    - An Ethereum account trie proof (`eth_getProof`) for `targetAddress` at that block
+   - For ERC20: an additional storage trie proof for the token contract's `_balances[targetAddress]` slot
 5. Claimer submits an L2 transaction calling `Shadow.claim(proof, input)`.
 
 ## ZK Proof Statement (What Must Be Proven)
 
-Given private inputs `(secret, noteIndex, full note set, accountProofNodes...)` and public inputs `(blockNumber, blockHash, chainId, recipient, amount, nullifier)` the proof must show:
+Given private inputs `(secret, noteIndex, full note set, accountProofNodes..., [tokenClaimInput])` and public inputs `(blockNumber, blockHash, chainId, recipient, amount, nullifier, token)` the proof must show:
 
 1. Note validity
    - `noteIndex` is within note set bounds.
    - Selected note matches the public `recipient` and `amount` (recipient is bound via a hash inside the circuit).
 2. Target address derivation
    - `targetAddress` is derived deterministically from `(secret, chainId, notesHash)`.
-3. Balance authorization (account proof)
+3. Balance authorization
    - The circuit verifies `keccak256(block_header_rlp) == blockHash`, then extracts `stateRoot` from the block header (stateRoot is never a public input — it is derived privately inside the circuit).
-   - The provided Merkle-Patricia trie proof authenticates the account record for `targetAddress` under that `stateRoot`.
-   - The extracted account balance satisfies `balance(targetAddress) >= sum(noteAmounts)`.
+   - **ETH path**: The provided Merkle-Patricia trie proof authenticates the account record for `targetAddress` under that `stateRoot`. The extracted account balance satisfies `balance(targetAddress) >= sum(noteAmounts)`.
+   - **ERC20 path**: A two-level MPT proof is verified: (1) state trie proof authenticates the token contract account under `stateRoot`, extracting its `storageRoot`; (2) storage trie proof authenticates `_balances[targetAddress]` under that `storageRoot`. The circuit recomputes `balanceStorageKey = keccak256(abi.encode(targetAddress, balanceSlot))` to bind the storage key to the target address. The extracted balance satisfies `balance >= sum(noteAmounts)`.
 4. Nullifier correctness
    - `nullifier` is derived correctly for `(secret, chainId, noteIndex)`.
 
@@ -88,7 +89,8 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
   - Calls `ShadowVerifier.verifyProof`.
   - Consumes the nullifier (tracked internally in `Shadow` storage).
   - Applies claim fee: `fee = amount / 1000` (0.1%).
-  - Mints `amount - fee` to the note `recipient` and (if `fee > 0`) mints `fee` to an immutable `feeRecipient` (currently set to the initial owner at deployment).
+  - **ETH path** (`token == address(0)`): Mints `amount - fee` to the note `recipient` and (if `fee > 0`) mints `fee` to an immutable `feeRecipient` via `IEthMinter`.
+  - **ERC20 path** (`token != address(0)`): Calls `IShadowCompatibleToken(token).shadowMint(recipient, netAmount)` and `shadowMint(feeRecipient, fee)`. Enforces `amount <= token.maxShadowMintAmount()`.
 
 - `ShadowVerifier`:
   - Fetches the canonical `blockHash` from `TaikoAnchor.blockHashes(blockNumber)`.
@@ -105,6 +107,15 @@ Proof system (current): **RISC Zero zkVM**, with **Groth16 receipts** for on-cha
 - `IEthMinter`:
   - Testnet: `DummyEtherMinter` emits `EthMinted(to, amount)` (no real mint).
   - Production: integrate Taiko protocol's real `IEthMinter`.
+
+- `IShadowCompatibleToken`:
+  - Interface for ERC20 tokens supporting Shadow privacy transfers.
+  - `shadowMint(to, amount)`: Mints tokens to a claim recipient. Only callable by the Shadow contract.
+  - `balanceStorageSlot(holder)`: Returns the Ethereum storage key where `holder`'s balance lives.
+  - `balanceSlot()`: Returns the raw `_balances` mapping slot index (used by the ZK circuit to recompute the storage key).
+  - `maxShadowMintAmount()`: Returns the maximum amount per single claim.
+  - Reference implementation: `ShadowCompatibleERC20` (abstract, extends OpenZeppelin ERC20).
+  - Test token: `TestShadowToken` (TST) deployed on Hoodi with `devMint()` for testing.
 
 ## Chain Parameters
 
