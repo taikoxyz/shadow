@@ -3462,7 +3462,7 @@ dependencies = [
 
 [[package]]
 name = "shadow-proof-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "sha2",
@@ -3471,7 +3471,7 @@ dependencies = [
 
 [[package]]
 name = "shadow-prover-lib"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -3485,7 +3485,7 @@ dependencies = [
 
 [[package]]
 name = "shadow-risc0-host"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3496,14 +3496,14 @@ dependencies = [
 
 [[package]]
 name = "shadow-risc0-methods"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "shadow_claim_guest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "risc0-zkvm",
  "shadow-proof-core",

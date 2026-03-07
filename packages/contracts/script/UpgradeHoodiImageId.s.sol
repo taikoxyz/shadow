@@ -18,7 +18,7 @@ contract UpgradeHoodiImageId is Script {
     address internal constant RISC0_GROTH16_VERIFIER = 0xd1934807041B168f383870A0d8F565aDe2DF9D7D;
     address internal constant DUMMY_ETHER_MINTER = 0x6DC226aA43E86fE77735443fB50a0A90e5666AA4;
     address internal constant SHADOW_PROXY = 0x77cdA0575e66A5FC95404fdA856615AD507d8A07;
-    // Image ID deployed: 0xd3515023284a4bc91b3207ba068d6bae09015ae0c405e19bc5182ef7dc760f41
+    // Image ID deployed: 0x7c0fdf9a31385943c3b5d62a4cafb20a8f797a649341b11d4bc16e360ecf3a99
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_KEY");
