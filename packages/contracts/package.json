@@ -6,7 +6,11 @@
     "test": "forge test -vvv",
     "fmt": "forge fmt",
     "layout": "./script/gen-layouts.sh",
-    "coverage": "forge coverage"
+    "coverage": "forge coverage",
+    "deploy:mainnet": "forge script script/DeployMainnet.s.sol:DeployMainnet --rpc-url https://rpc.mainnet.taiko.xyz --broadcast",
+    "upgrade:mainnet": "forge script script/UpgradeMainnetImageId.s.sol:UpgradeMainnetImageId --rpc-url https://rpc.mainnet.taiko.xyz --broadcast",
+    "deploy:hoodi": "forge script script/DeployHoodi.s.sol:DeployHoodi --rpc-url https://rpc.hoodi.taiko.xyz --broadcast",
+    "upgrade:hoodi": "forge script script/UpgradeHoodiImageId.s.sol:UpgradeHoodiImageId --rpc-url https://rpc.hoodi.taiko.xyz --broadcast"
   },
   "dependencies": {
     "@openzeppelin/contracts": "4.9.6",
