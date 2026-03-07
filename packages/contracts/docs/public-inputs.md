@@ -1,7 +1,7 @@
 # Shadow public input layout
 
 `ShadowPublicInputs.toArray(IShadow.PublicInput input, bytes32 blockHash)` flattens the
-public inputs into a `uint256[]` of length **87**. Each byte of `bytes32` and
+public inputs into a `uint256[]` of length **107**. Each byte of `bytes32` and
 `address` values is written in
 the same order as Solidity's `bytes` indexing (most-significant byte first).
 
@@ -18,9 +18,11 @@ see `packages/docs/public-inputs-spec.md`.
 | amount | 34 | 1 | `uint256` stored directly in `inputs[34]`. |
 | recipient | 35 | 20 | Bytes 0..19 of `address` (MSB → LSB). |
 | nullifier | 55 | 32 | Bytes 0..31 of `bytes32` (MSB → LSB). |
+| token | 87 | 20 | Bytes 0..19 of `address` (MSB → LSB). `address(0)` = ETH claim. |
 
 ## Notes
 
-- `inputs.length == 87` must hold for verifier calls.
+- `inputs.length == 107` must hold for verifier calls.
 - `blockHash` is included in the circuit public inputs, but is fetched on-chain from `TaikoAnchor.blockHashes(blockNumber)` — it is not user-provided calldata.
+- `token == address(0)` indicates an ETH claim; any other address is the ERC20 token contract.
 - The byte ordering matches Solidity byte indexing (MSB -> LSB) and is enforced by `ShadowPublicInputs` tests.

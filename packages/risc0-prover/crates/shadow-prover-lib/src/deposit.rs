@@ -29,6 +29,9 @@ pub struct DepositFile {
     pub notes: Vec<DepositNote>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_address: Option<String>,
+    /// Token contract address (0x-prefixed hex). Absent/null = ETH.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 /// A single note within a deposit.
@@ -55,6 +58,8 @@ pub struct DerivedDepositInfo {
     pub notes: Vec<DerivedNoteInfo>,
     /// Total amount across all notes (in wei).
     pub total_amount: u128,
+    /// Token contract address (None = ETH).
+    pub token: Option<[u8; 20]>,
 }
 
 /// Per-note derived information.
@@ -136,6 +141,11 @@ pub fn validate_deposit(deposit: &DepositFile) -> Result<()> {
         parse_hex_address(addr).context("invalid targetAddress")?;
     }
 
+    // token (optional)
+    if let Some(ref token) = deposit.token {
+        parse_hex_address(token).context("invalid token address")?;
+    }
+
     Ok(())
 }
 
@@ -203,6 +213,13 @@ pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> 
         }
     }
 
+    let token = deposit
+        .token
+        .as_ref()
+        .map(|t| parse_hex_address(t))
+        .transpose()
+        .context("invalid token address")?;
+
     Ok(DerivedDepositInfo {
         chain_id,
         secret,
@@ -210,6 +227,7 @@ pub fn derive_deposit_info(deposit: &DepositFile) -> Result<DerivedDepositInfo> 
         notes_hash,
         notes: derived_notes,
         total_amount,
+        token,
     })
 }
 
@@ -424,6 +442,7 @@ mod tests {
                 label: Some("example".into()),
             }],
             target_address: None,
+            token: None,
         };
         validate_deposit(&deposit).unwrap();
     }
@@ -440,6 +459,7 @@ mod tests {
                 label: None,
             }],
             target_address: None,
+            token: None,
         };
         assert!(validate_deposit(&deposit).is_err());
     }
@@ -452,6 +472,7 @@ mod tests {
             secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
             notes: vec![],
             target_address: None,
+            token: None,
         };
         assert!(validate_deposit(&deposit).is_err());
     }
@@ -468,6 +489,7 @@ mod tests {
                 label: None,
             }],
             target_address: None,
+            token: None,
         };
         assert!(validate_deposit(&deposit).is_err());
     }
@@ -491,6 +513,7 @@ mod tests {
                 },
             ],
             target_address: None,
+            token: None,
         };
 
         let info = derive_deposit_info(&deposit).unwrap();
@@ -519,10 +542,84 @@ mod tests {
                 label: None,
             }],
             target_address: Some("0x0000000000000000000000000000000000000001".into()),
+            token: None,
         };
 
         // Should fail because the computed target address won't match
         assert!(derive_deposit_info(&deposit).is_err());
+    }
+
+    #[test]
+    fn validate_deposit_good_with_token() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "1230000000000".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: Some("0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF".into()),
+        };
+        validate_deposit(&deposit).unwrap();
+    }
+
+    #[test]
+    fn validate_deposit_rejects_bad_token_address() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "100".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: Some("0xBAD".into()),
+        };
+        assert!(validate_deposit(&deposit).is_err());
+    }
+
+    #[test]
+    fn derive_deposit_info_with_token() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "1230000000000".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: Some("0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF".into()),
+        };
+        let info = derive_deposit_info(&deposit).unwrap();
+        assert!(info.token.is_some());
+        let token_bytes = info.token.unwrap();
+        assert_eq!(token_bytes[0], 0xDE);
+        assert_eq!(token_bytes[19], 0xeF);
+    }
+
+    #[test]
+    fn derive_deposit_info_without_token() {
+        let deposit = DepositFile {
+            version: "v2".into(),
+            chain_id: "167013".into(),
+            secret: "0x8c4d3df220b9aa338eafbe43871a800a9ef971fc7242c4d0de98e056cc8c7bfa".into(),
+            notes: vec![DepositNote {
+                recipient: "0x1111111111111111111111111111111111111111".into(),
+                amount: "1230000000000".into(),
+                label: None,
+            }],
+            target_address: None,
+            token: None,
+        };
+        let info = derive_deposit_info(&deposit).unwrap();
+        assert!(info.token.is_none());
     }
 
     #[test]

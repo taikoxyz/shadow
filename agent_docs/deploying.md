@@ -75,6 +75,31 @@ forge create src/impl/Shadow.sol:Shadow \
 curl "https://api.etherscan.io/v2/api?chainid=167013&module=contract&action=checkverifystatus&guid=<GUID>&apikey=$ETHERSCAN_API_KEY"
 ```
 
+## Deploy TestShadowToken (ERC20)
+
+```bash
+DEPLOYER_KEY=$DEPLOYER_KEY forge script script/DeployTestShadowToken.s.sol:DeployTestShadowToken \
+  --rpc-url https://rpc.hoodi.taiko.xyz --broadcast -vvvv
+```
+
+The script deploys a `TestShadowToken` (TST) with 18 decimals and `maxShadowMintAmount = 100 ETH`.
+After deploying, mint an initial supply to the deployer:
+
+```bash
+cast send <TOKEN_ADDRESS> "devMint(address,uint256)" <DEPLOYER_ADDRESS> 100000000000000000000000000 \
+  --rpc-url https://rpc.hoodi.taiko.xyz --private-key $DEPLOYER_KEY
+```
+
+## Upgrade ImageId
+
+When the ZK circuit changes, redeploy the verifier chain and upgrade the Shadow proxy:
+
+```bash
+DEPLOYER_KEY=$DEPLOYER_KEY IMAGE_ID=$(cargo run --manifest-path packages/risc0-prover/host/Cargo.toml -- circuit-id) \
+  forge script script/UpgradeHoodiImageId.s.sol:UpgradeHoodiImageId \
+  --rpc-url https://rpc.hoodi.taiko.xyz --broadcast -vvvv
+```
+
 ## Notes
 
 - Taiko is a Type-1 zkEVM — standard Solidity deploys without modification

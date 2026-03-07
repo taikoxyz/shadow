@@ -8,7 +8,7 @@ import {ShadowPublicInputs} from "../src/lib/ShadowPublicInputs.sol";
 import {MockRiscZeroVerifier} from "./mocks/MockRiscZeroVerifier.sol";
 
 contract Risc0CircuitVerifierTest is Test {
-    uint256 private constant _JOURNAL_LEN = 116;
+    uint256 private constant _JOURNAL_LEN = 136;
     bytes32 private constant _IMAGE_ID = keccak256("shadow-image-id");
 
     MockRiscZeroVerifier internal risc0Verifier;
@@ -217,13 +217,45 @@ contract Risc0CircuitVerifierTest is Test {
         return ShadowPublicInputs.toArray(_input, _stateRoot);
     }
 
+    function test_verifyProof_returnsFalseWhenTokenMismatch() external {
+        bytes32 stateRoot = _sampleStateRoot();
+        IShadow.PublicInput memory input = _sampleInput();
+        input.token = address(0xDEADBEEF);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
+
+        bytes memory seal = hex"0005";
+        bytes memory journal = _buildJournal(input, stateRoot);
+        bytes memory proof = abi.encode(seal, journal);
+
+        // Tamper with token in public inputs so it mismatches journal
+        publicInputs[87] = (publicInputs[87] + 1) % 256;
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertFalse(ok);
+    }
+
+    function test_verifyProof_succeedsWithNonZeroToken() external {
+        bytes32 stateRoot = _sampleStateRoot();
+        IShadow.PublicInput memory input = _sampleInput();
+        input.token = address(0xDEADBEEF);
+        uint256[] memory publicInputs = this._toArray(input, stateRoot);
+
+        bytes memory seal = hex"0006";
+        bytes memory journal = _buildJournal(input, stateRoot);
+        bytes memory proof = abi.encode(seal, journal);
+
+        risc0Verifier.setExpectations(_IMAGE_ID, sha256(journal), seal, true);
+        bool ok = adapter.verifyProof(proof, publicInputs);
+        assertTrue(ok);
+    }
+
     function _sampleInput() private view returns (IShadow.PublicInput memory) {
         return IShadow.PublicInput({
             blockNumber: 4_353_615,
             chainId: uint64(block.chainid),
             amount: 1_230_000_000_000,
             recipient: 0xA92C80B3962F10e063Ad5463f996fe414F0E1F66,
-            nullifier: keccak256("nullifier")
+            nullifier: keccak256("nullifier"),
+            token: address(0)
         });
     }
 
@@ -244,6 +276,7 @@ contract Risc0CircuitVerifierTest is Test {
         _writeLe(journal_, 48, _input.amount, 16);
         _writeAddress(journal_, 64, _input.recipient);
         _writeBytes32(journal_, 84, _input.nullifier);
+        _writeAddress(journal_, 116, _input.token);
     }
 
     function _writeLe(bytes memory _buffer, uint256 _offset, uint256 _value, uint256 _len) private pure {

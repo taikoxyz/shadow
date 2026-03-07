@@ -168,6 +168,43 @@ impl ChainClient {
         Ok(value.to_string())
     }
 
+    /// Query ERC20 token symbol (calls symbol() on the token contract).
+    pub async fn get_token_symbol(&self, token: &str) -> Result<String> {
+        let result = self
+            .eth_call(token, "0x95d89b41", "latest")
+            .await
+            .context("symbol() call failed")?;
+        let hex = result.strip_prefix("0x").unwrap_or(&result);
+        if hex.len() < 128 {
+            return Ok(String::new());
+        }
+        let len = usize::from_str_radix(hex[64..128].trim_start_matches('0'), 16).unwrap_or(0);
+        if len == 0 || hex.len() < 128 + len * 2 {
+            return Ok(String::new());
+        }
+        let bytes = hex::decode(&hex[128..128 + len * 2]).unwrap_or_default();
+        Ok(String::from_utf8_lossy(&bytes).to_string())
+    }
+
+    /// Query ERC20 token balance of an address (returns wei as decimal string).
+    pub async fn get_token_balance(&self, token: &str, address: &str) -> Result<String> {
+        // balanceOf(address) selector: 0x70a08231
+        let addr_stripped = address.strip_prefix("0x").unwrap_or(address);
+        let data = format!("0x70a08231000000000000000000000000{addr_stripped}");
+        let result = self
+            .eth_call(token, &data, "latest")
+            .await
+            .context("balanceOf call failed")?;
+        let hex = result.strip_prefix("0x").unwrap_or(&result);
+        let trimmed = hex.trim_start_matches('0');
+        let value = if trimmed.is_empty() {
+            0u128
+        } else {
+            u128::from_str_radix(trimmed, 16).context("invalid balanceOf hex")?
+        };
+        Ok(value.to_string())
+    }
+
     /// Perform an `eth_call` (read-only contract call).
     async fn eth_call(&self, to: &str, data: &str, block: &str) -> Result<String> {
         let req = serde_json::json!({

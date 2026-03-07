@@ -198,6 +198,153 @@ pub async fn eth_get_proof(
     })
 }
 
+/// ERC20 balance proof data from `eth_getProof` with a storage key.
+#[derive(Debug, Clone)]
+pub struct Erc20BalanceProofData {
+    /// Token contract account proof nodes (state trie → token account).
+    pub token_account_proof_nodes: Vec<Vec<u8>>,
+    /// Storage proof nodes for the balance slot.
+    pub balance_storage_proof_nodes: Vec<Vec<u8>>,
+    /// The storage key (keccak256(abi.encode(holder, slot))).
+    pub balance_storage_key: [u8; 32],
+    /// The raw _balances mapping slot index.
+    pub balance_slot: u64,
+}
+
+fn compute_selector(signature: &str) -> [u8; 4] {
+    use tiny_keccak::Hasher;
+    let mut keccak = tiny_keccak::Keccak::v256();
+    keccak.update(signature.as_bytes());
+    let mut hash = [0u8; 32];
+    keccak.finalize(&mut hash);
+    let mut sel = [0u8; 4];
+    sel.copy_from_slice(&hash[..4]);
+    sel
+}
+
+async fn eth_call_bytes32(
+    client: &reqwest::Client,
+    url: &str,
+    contract: &str,
+    calldata: &[u8],
+    block_hex: &str,
+) -> Result<[u8; 32]> {
+    let calldata_hex = format!("0x{}", hex::encode(calldata));
+    let result = rpc_call(
+        client,
+        url,
+        "eth_call",
+        serde_json::json!([{"to": contract, "data": calldata_hex}, block_hex]),
+    )
+    .await?;
+    let hex_str = result.as_str().context("expected hex string result")?;
+    let bytes = parse_hex_bytes(hex_str)?;
+    if bytes.len() != 32 {
+        bail!("eth_call returned {} bytes, expected 32", bytes.len());
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(out)
+}
+
+fn parse_proof_array(arr: &[Value], label: &str) -> Result<Vec<Vec<u8>>> {
+    let mut nodes = Vec::with_capacity(arr.len());
+    for (i, node) in arr.iter().enumerate() {
+        let hex_str = node
+            .as_str()
+            .with_context(|| format!("{} node {} is not a string", label, i))?;
+        nodes.push(parse_hex_bytes(hex_str)?);
+    }
+    Ok(nodes)
+}
+
+/// Fetch ERC20 balance proof for a holder at a token contract.
+///
+/// 1. Calls `balanceSlot()` and `balanceStorageSlot(holder)` on the token contract.
+/// 2. Calls `eth_getProof(tokenAddress, [storageKey], blockNumber)` for both proofs.
+pub async fn eth_get_erc20_balance_proof(
+    client: &reqwest::Client,
+    url: &str,
+    token_address: &[u8; 20],
+    holder_address: &[u8; 20],
+    block_number: u64,
+) -> Result<Erc20BalanceProofData> {
+    let token_hex = format!("0x{}", hex::encode(token_address));
+    let block_hex = format!("0x{:x}", block_number);
+
+    let slot_calldata = compute_selector("balanceSlot()").to_vec();
+
+    let mut key_calldata = Vec::with_capacity(36);
+    key_calldata.extend_from_slice(&compute_selector("balanceStorageSlot(address)"));
+    let mut padded_holder = [0u8; 32];
+    padded_holder[12..32].copy_from_slice(holder_address);
+    key_calldata.extend_from_slice(&padded_holder);
+
+    let slot_bytes = eth_call_bytes32(client, url, &token_hex, &slot_calldata, &block_hex)
+        .await
+        .context("balanceSlot() eth_call failed")?;
+    let balance_slot = u64::from_be_bytes(slot_bytes[24..32].try_into().unwrap());
+
+    let balance_storage_key = eth_call_bytes32(client, url, &token_hex, &key_calldata, &block_hex)
+        .await
+        .context("balanceStorageSlot eth_call failed")?;
+
+    tracing::debug!(
+        token = %token_hex, balance_slot, storage_key = %format!("0x{}", hex::encode(balance_storage_key)),
+        "ERC20 balance storage key retrieved"
+    );
+
+    let storage_key_json = format!("0x{}", hex::encode(balance_storage_key));
+    let result = rpc_call(
+        client,
+        url,
+        "eth_getProof",
+        serde_json::json!([token_hex, [storage_key_json], block_hex]),
+    )
+    .await?;
+
+    let obj = result.as_object().context("expected proof object")?;
+
+    let token_account_proof_nodes = parse_proof_array(
+        obj.get("accountProof")
+            .and_then(|v| v.as_array())
+            .context("missing accountProof")?,
+        "account proof",
+    )?;
+
+    let storage_proof_array = obj
+        .get("storageProof")
+        .and_then(|v| v.as_array())
+        .context("missing storageProof")?;
+    if storage_proof_array.is_empty() {
+        bail!("storageProof array is empty");
+    }
+    let storage_entry = storage_proof_array[0]
+        .as_object()
+        .context("storageProof entry is not an object")?;
+    let balance_storage_proof_nodes = parse_proof_array(
+        storage_entry
+            .get("proof")
+            .and_then(|v| v.as_array())
+            .context("missing storage proof nodes")?,
+        "storage proof",
+    )?;
+
+    tracing::info!(
+        token = %token_hex,
+        account_proof_depth = token_account_proof_nodes.len(),
+        storage_proof_depth = balance_storage_proof_nodes.len(),
+        "ERC20 balance proof fetched"
+    );
+
+    Ok(Erc20BalanceProofData {
+        token_account_proof_nodes,
+        balance_storage_proof_nodes,
+        balance_storage_key,
+        balance_slot,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Block header RLP encoding (ported from shadowcli.mjs encodeBlockHeaderFromJson)
 // ---------------------------------------------------------------------------

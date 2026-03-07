@@ -494,14 +494,31 @@ async function handleFundDeposit(deposit) {
 
   try {
     showToast('Confirm the funding transaction in your wallet...', 'info');
-    const txHash = await window.ethereum.request({
-      method: 'eth_sendTransaction',
-      params: [{
-        from: state.walletAddress,
-        to: deposit.targetAddress,
-        value: '0x' + dueWei.toString(16),
-      }],
-    });
+    let txHash;
+    if (deposit.token) {
+      // ERC20: call transfer(address,uint256) on the token contract
+      const transferSelector = '0xa9059cbb';
+      const paddedTo = deposit.targetAddress.slice(2).padStart(64, '0');
+      const paddedAmount = dueWei.toString(16).padStart(64, '0');
+      txHash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: state.walletAddress,
+          to: deposit.token,
+          data: transferSelector + paddedTo + paddedAmount,
+        }],
+      });
+    } else {
+      // Native ETH transfer
+      txHash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: state.walletAddress,
+          to: deposit.targetAddress,
+          value: '0x' + dueWei.toString(16),
+        }],
+      });
+    }
     state.fundingTxHash = txHash;
     showToast(`Funding tx submitted: ${txHash.slice(0, 18)}...`, 'success');
     render();
@@ -691,11 +708,12 @@ async function handleMineDeposit(formData) {
   try {
     const chainId = formData.chainId || state.config?.chainId;
     if (!chainId) { showToast('Chain ID not available — check server RPC config', 'error'); state.mining = false; render(); return; }
-    await api.createDeposit(chainId, formData.notes, formData.comment);
+    await api.createDeposit(chainId, formData.notes, formData.comment, formData.token);
     state.showMiningForm = false;
     state.mining = false;
     state.miningNotes = null;
     state.miningComment = '';
+    state.miningToken = '';
     state.miningErrors = {};
     showToast('Deposit created!', 'success');
     await refresh();
@@ -962,7 +980,7 @@ function renderDepositCard(deposit) {
       ]),
       el('div', { className: 'deposit-card-meta' }, [
         el('span', {}, `${deposit.noteCount} note${deposit.noteCount !== 1 ? 's' : ''}`),
-        el('span', {}, `${totalEth} ETH`),
+        el('span', {}, `${totalEth} ${deposit.tokenSymbol || 'ETH'}`),
         el('span', {}, `Chain ${deposit.chainId}`),
         deposit.createdAt ? el('span', { title: formatDate(deposit.createdAt) }, timeAgo(deposit.createdAt)) : null,
       ].filter(Boolean)),
@@ -1042,6 +1060,93 @@ function proofFileRow(deposit, status) {
   ]);
 }
 
+function renderProofAction(deposit, status, circuitMismatch) {
+  if (status === 'proving') {
+    return el('span', { className: 'proof-action-hint' }, 'Proof generation in progress \u2014 see banner above');
+  }
+  if (deposit.hasProof) {
+    return el('button', {
+      className: 'btn',
+      onclick: () => handleProve(deposit.id, true),
+      disabled: isProving() || circuitMismatch,
+      title: circuitMismatch
+        ? 'Disabled: local circuit ID does not match on-chain verifier'
+        : undefined,
+    }, 'Regenerate Proof');
+  }
+  return el('button', {
+    className: 'btn btn-primary',
+    onclick: () => handleProve(deposit.id),
+    disabled: isProving() || status === 'new' || status === 'funding' || circuitMismatch,
+    title: circuitMismatch
+      ? 'Disabled: local circuit ID does not match on-chain verifier'
+      : (status === 'new' || status === 'funding')
+        ? 'Fund the deposit first'
+        : undefined,
+  }, 'Generate Proof');
+}
+
+function renderFundAction(deposit, status, circuitMismatch) {
+  if (status !== 'new' && status !== 'funding') return null;
+  if (circuitMismatch) {
+    return el(
+      'p',
+      { className: 'form-hint form-hint-top warning-text' },
+      'Funding disabled: local circuit ID does not match on-chain verifier.',
+    );
+  }
+  if (state.fundingTxHash) {
+    return el('p', { className: 'tx-submitted' }, [
+      'Funding tx submitted: ',
+      el('a', {
+        href: explorerEntityUrl(deposit.chainId, 'tx', state.fundingTxHash),
+        target: '_blank',
+        rel: 'noopener',
+        className: 'link-accent',
+      }, `${state.fundingTxHash.slice(0, 18)}...`),
+    ]);
+  }
+  if (window.ethereum) {
+    return el('div', { className: 'actions actions-right' }, [
+      el('button', {
+        className: 'btn btn-primary',
+        onclick: () => handleFundDeposit(deposit),
+        disabled: circuitMismatch,
+        title: circuitMismatch
+          ? 'Disabled: local circuit ID does not match on-chain verifier'
+          : undefined,
+      }, 'Fund Deposit'),
+    ]);
+  }
+  const unit = deposit.tokenSymbol || (deposit.token ? 'tokens' : 'ETH');
+  return el('p', { className: 'form-hint form-hint-top' },
+    `Send ${weiToEth(state.depositBalance?.due || '0')} ${unit} to ${deposit.targetAddress}`);
+}
+
+function renderFundingSection(deposit, fundAction) {
+  if (state.depositBalance?.error) {
+    return el('div', { className: 'detail-section' }, [
+      el('h2', {}, 'Funding'),
+      el('p', { className: 'form-hint' }, 'Could not load balance \u2014 RPC may be unavailable.'),
+    ]);
+  }
+  if (state.depositBalance) {
+    return el('div', { className: 'detail-section' }, [
+      el('h2', {}, 'Funding'),
+      detailRow('Required', `${weiToEth(state.depositBalance.required)} ${state.depositBalance.tokenSymbol || (state.depositBalance.token ? 'tokens' : 'ETH')}`),
+      detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ${state.depositBalance.tokenSymbol || (state.depositBalance.token ? 'tokens' : 'ETH')}`),
+      !state.depositBalance.isFunded
+        ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ${state.depositBalance.tokenSymbol || (state.depositBalance.token ? 'tokens' : 'ETH')}`)
+        : null,
+      fundAction,
+    ].filter(Boolean));
+  }
+  return el('div', { className: 'detail-section' }, [
+    el('h2', {}, 'Funding'),
+    el('p', { className: 'form-hint' }, 'Loading balance...'),
+  ]);
+}
+
 function renderDetailView() {
   const deposit = state.deposits.find((d) => d.id === state.selectedId);
   if (!deposit) {
@@ -1056,73 +1161,10 @@ function renderDetailView() {
   const circuitMismatch = hasCircuitMismatch();
   const cardStatus = getCardStatus(deposit, state.queueJob, state.depositBalance);
   const overviewStatusTag = el('span', { className: `badge ${cardStatus.cls}` }, cardStatus.label);
-
-  // Proof action button / hint (shown inside Proofs section)
-  const proofAction = (() => {
-    if (status === 'proving') {
-      return el('span', { className: 'proof-action-hint' }, 'Proof generation in progress \u2014 see banner above');
-    }
-    if (deposit.hasProof) {
-      return el('button', {
-        className: 'btn',
-        onclick: () => handleProve(deposit.id, true),
-        disabled: isProving() || circuitMismatch,
-        title: circuitMismatch
-          ? 'Disabled: local circuit ID does not match on-chain verifier'
-          : undefined,
-      }, 'Regenerate Proof');
-    }
-    return el('button', {
-      className: 'btn btn-primary',
-      onclick: () => handleProve(deposit.id),
-      disabled: isProving() || status === 'new' || status === 'funding' || circuitMismatch,
-      title: circuitMismatch
-        ? 'Disabled: local circuit ID does not match on-chain verifier'
-        : (status === 'new' || status === 'funding')
-          ? 'Fund the deposit first'
-          : undefined,
-    }, 'Generate Proof');
-  })();
-
-  // Fund button or submitted tx link
-  const fundAction = (() => {
-    if (status !== 'new' && status !== 'funding') return null;
-    if (circuitMismatch) {
-      return el(
-        'p',
-        { className: 'form-hint form-hint-top warning-text' },
-        'Funding disabled: local circuit ID does not match on-chain verifier.',
-      );
-    }
-    if (state.fundingTxHash) {
-      return el('p', { className: 'tx-submitted' }, [
-        'Funding tx submitted: ',
-        el('a', {
-          href: explorerEntityUrl(deposit.chainId, 'tx', state.fundingTxHash),
-          target: '_blank',
-          rel: 'noopener',
-          className: 'link-accent',
-        }, `${state.fundingTxHash.slice(0, 18)}...`),
-      ]);
-    }
-    if (window.ethereum) {
-      return el('div', { className: 'actions actions-right' }, [
-        el('button', {
-          className: 'btn btn-primary',
-          onclick: () => handleFundDeposit(deposit),
-          disabled: circuitMismatch,
-          title: circuitMismatch
-            ? 'Disabled: local circuit ID does not match on-chain verifier'
-            : undefined,
-        }, 'Fund Deposit'),
-      ]);
-    }
-    return el('p', { className: 'form-hint form-hint-top' },
-      `Send ${weiToEth(state.depositBalance?.due || '0')} ETH to ${deposit.targetAddress}`);
-  })();
+  const proofAction = renderProofAction(deposit, status, circuitMismatch);
+  const fundAction = renderFundAction(deposit, status, circuitMismatch);
 
   return el('div', {}, [
-    // Breadcrumb
     el('div', { className: 'breadcrumb' }, [
       el('a', { onclick: () => navigateTo('list') }, 'Deposits'),
       ' / ',
@@ -1130,49 +1172,26 @@ function renderDetailView() {
       el('span', {}, truncateDepositId(deposit.id)),
     ]),
 
-    // Comment (if present)
     deposit.comment
       ? el('p', { className: 'deposit-comment' }, deposit.comment)
       : null,
 
-    // Overview
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Overview'),
       depositFileRow(deposit),
       detailRow('Network', `${networkName(deposit.chainId)} (${deposit.chainId})`),
       addressRow('Target Address', deposit.targetAddress, deposit.chainId),
-      detailRow('Total Amount', `${totalEth} ETH (${deposit.totalAmount} wei)`),
+      detailRow('Total Amount', `${totalEth} ${deposit.tokenSymbol || 'ETH'} (${deposit.totalAmount} wei)`),
       detailRow('Notes', String(deposit.noteCount)),
       deposit.createdAt ? detailRow('Created', formatDate(deposit.createdAt)) : null,
       detailRow('Status', overviewStatusTag),
     ].filter(Boolean)),
 
-    // Funding
-    state.depositBalance?.error
-      ? el('div', { className: 'detail-section' }, [
-          el('h2', {}, 'Funding'),
-          el('p', { className: 'form-hint' }, 'Could not load balance \u2014 RPC may be unavailable.'),
-        ])
-      : state.depositBalance
-        ? el('div', { className: 'detail-section' }, [
-            el('h2', {}, 'Funding'),
-            detailRow('Required', `${weiToEth(state.depositBalance.required)} ETH`),
-            detailRow('On-chain Balance', `${weiToEth(state.depositBalance.balance)} ETH`),
-            !state.depositBalance.isFunded
-              ? detailRow('Balance Due', `${weiToEth(state.depositBalance.due)} ETH`)
-              : null,
-            fundAction,
-          ].filter(Boolean))
-        : el('div', { className: 'detail-section' }, [
-            el('h2', {}, 'Funding'),
-            el('p', { className: 'form-hint' }, 'Loading balance...'),
-          ]),
+    renderFundingSection(deposit, fundAction),
 
-    // Proofs (hidden until funded)
     status !== 'new' && status !== 'funding' ? el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Proofs'),
       proofFileRow(deposit, status),
-      // Show failure details while the failed job is not yet dismissed
       status === 'failed' && state.queueJob?.error
         ? el('div', { className: 'proof-failure-detail' }, [
             el('span', { className: 'proof-failure-label' }, 'Error'),
@@ -1184,7 +1203,6 @@ function renderDetailView() {
         : null,
     ].filter(Boolean)) : null,
 
-    // Notes
     el('div', { className: 'detail-section' }, [
       el('h2', {}, 'Notes'),
       renderNotesTable(deposit),
@@ -1213,7 +1231,7 @@ function renderNotesTable(deposit) {
           el('td', { className: 'note-recipient-cell' }, [
             explorerLink(deposit.chainId, 'address', note.recipient),
           ]),
-          el('td', {}, `${weiToEth(note.amount)} ETH`),
+          el('td', {}, `${weiToEth(note.amount)} ${deposit.tokenSymbol || 'ETH'}`),
           el('td', { className: 'note-label-cell' }, note.label || '-'),
           el('td', {}, [
             el('span', { className: `badge badge-${note.claimStatus}` }, note.claimStatus),

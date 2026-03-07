@@ -1,4 +1,4 @@
-# Shadow: Reclaim Your ETH Privacy — A Complete Guide
+# Shadow: Reclaim Your On-Chain Privacy — A Complete Guide
 
 *Written for crypto-savvy users who want financial privacy without the complexity*
 
@@ -10,7 +10,7 @@ Imagine you could prove you have ETH without telling anyone who you are or how m
 
 **The Problem:** Ethereum is transparent. Anyone can look up your wallet, see your balances, trace your transactions, and follow your money. For many people — traders, privacy-conscious users, even businesses — this is a problem. You might not want the world knowing your financial situation or who you're paying.
 
-**What Shadow Does:** Shadow is a privacy-preserving system that lets you claim ETH on Taiko L2 (a Layer 2 rollup) without linking your identity to the transaction. It uses something called **zero-knowledge proofs** (ZK proofs) — a type of cryptographic magic that lets you prove something is true without revealing the details.
+**What Shadow Does:** Shadow is a privacy-preserving system that lets you claim ETH or ERC20 tokens on Taiko L2 (a Layer 2 rollup) without linking your identity to the transaction. It uses something called **zero-knowledge proofs** (ZK proofs) — a type of cryptographic magic that lets you prove something is true without revealing the details.
 
 Think of it like a sealed envelope: you can prove you have $100 inside without showing who put it there or even opening the envelope.
 
@@ -18,9 +18,9 @@ Think of it like a sealed envelope: you can prove you have $100 inside without s
 
 Unlike traditional privacy mixers (like the now-sanctioned Tornado Cash), Shadow doesn't pool everyone's funds together. Instead, you:
 
-1. Send ETH to a special "derived" address (a normal ETH transfer)
-2. Later, generate a ZK proof that proves that address held enough ETH
-3. Claim that ETH to a new address you control
+1. Send ETH (or ERC20 tokens) to a special "derived" address (a normal transfer)
+2. Later, generate a ZK proof that proves that address held enough ETH or tokens
+3. Claim to a new address you control — new ETH or tokens are minted to that address
 
 The blockchain sees a deposit... and later a claim... but it can't connect the two.
 
@@ -35,9 +35,10 @@ Let's walk through the flow step by step.
 You start by creating a deposit file. This is a JSON file that contains:
 
 - A **secret** (like a password, but randomly generated)
+- A **token** (optional): an ERC20 contract address, or leave empty for ETH
 - A list of **notes** — essentially payment instructions (who gets what amount)
 
-You can create 1 to 5 notes per deposit, with a maximum total of 8 ETH.
+You can create 1 to 5 notes per deposit. For ETH, the maximum total is 8 ETH. For ERC20 tokens, the maximum is set by the token's `maxShadowMintAmount()`.
 
 ![Deposit File Structure](images/deposit-file.svg)
 
@@ -49,7 +50,7 @@ From your secret and notes, Shadow mathematically derives a unique **target addr
 
 ### Step 3: Fund the Target Address
 
-You send ETH to that target address using a normal Ethereum transfer. In the web UI, click **Fund Deposit** and confirm in MetaMask. This looks exactly like any other ETH transaction — there's nothing special or suspicious about it.
+You send ETH (or ERC20 tokens) to the target address using a normal transfer. In the web UI, click **Fund Deposit** and confirm in MetaMask. For ETH this is a standard ETH transfer; for ERC20 it is a plain `transfer()` call on the token contract. Either way it looks exactly like any other transfer — there's nothing special or suspicious about it.
 
 ![Step 3: Fund](images/step-fund.svg)
 
@@ -63,9 +64,9 @@ Now comes the cryptographic magic. In the web UI, click **Generate Proof** for y
 
 ![Step 4: Prove](images/step-prove.svg)
 
-### Step 5: Claim Your ETH
+### Step 5: Claim Your ETH or Tokens
 
-Click **Claim** next to each note in the web UI and confirm in MetaMask. The Shadow contract on Taiko L2 verifies the proof (without learning your secrets) and mints the ETH to your specified recipient address — minus a small 0.1% fee.
+Click **Claim** next to each note in the web UI and confirm in MetaMask. The Shadow contract on Taiko L2 verifies the proof (without learning your secrets) and mints the ETH or ERC20 tokens to your specified recipient address — minus a small 0.1% fee. For ETH the contract calls `IEthMinter.mintEth`; for ERC20 tokens it calls `IShadowCompatibleToken.shadowMint`.
 
 ![Step 5: Claim](images/step-claim.svg)
 
@@ -118,8 +119,8 @@ A single Docker image bundles the backend server and the web UI. Start it with o
 
 Then open the printed URL in your browser and walk through the flow:
 
-1. **Create deposit** — fill in recipient addresses and amounts (1-5 notes, up to 8 ETH total)
-2. **Fund deposit** — click "Fund Deposit", confirm the ETH transfer in MetaMask (Hoodi L1, chain 560048)
+1. **Create deposit** — fill in recipient addresses, amounts, and optionally an ERC20 token address (1-5 notes; up to 8 ETH total for ETH, or up to the token's `maxShadowMintAmount` for ERC20)
+2. **Fund deposit** — click "Fund Deposit", confirm the transfer in MetaMask (Hoodi L1, chain 560048): ETH transfer for ETH deposits, ERC20 `transfer()` for token deposits
 3. **Generate proof** — click "Generate Proof"; the server runs RISC Zero + Groth16 inside Docker (takes several minutes; real-time progress via WebSocket)
 4. **Claim** — click "Claim" next to each note, confirm in MetaMask (Hoodi L2, chain 167013)
 
@@ -174,15 +175,16 @@ This transparency is refreshing in the privacy space.
 - **Network**: Taiko Hoodi testnet (chain ID `167013`)
 - **Interface**: Web UI (server + frontend in a single Docker image)
 - **Phase**: Active development / testing
-- **ETH**: Testnet ETH only (no real value)
+- **Assets**: Testnet ETH and ERC20 tokens only (no real value)
 
 ### What You Can't Do (Yet)
 
 - Use on Ethereum mainnet
-- Use with real ETH
+- Use with real ETH or tokens
 - Hide the recipient address (it's public in the claim)
 - Hide the amount (it's public in the claim)
 - Get perfect anonymity (no large anonymity set)
+- Use arbitrary ERC20 tokens — tokens must implement `IShadowCompatibleToken` (contact token governance or use a wrapper)
 
 ### What's Working
 
@@ -190,7 +192,9 @@ This transparency is refreshing in the privacy space.
 - One-command Docker launch (`./start.sh`)
 - MetaMask integration with automatic chain switching
 - Real-time proof progress via WebSocket
-- ZK proof generation (RISC Zero + Groth16)
+- ZK proof generation (RISC Zero + Groth16) for both ETH and ERC20
+- ERC20 token claims via `IShadowCompatibleToken.shadowMint`
+- Two-level MPT proof for ERC20 balance verification
 - Smart contract verification on-chain
 - Deposit file management (create, import, download, delete)
 
@@ -266,7 +270,7 @@ For security concerns, contact: **security@taiko.xyz**
 
 ## Summary
 
-Shadow represents an interesting approach to Ethereum privacy: instead of pooling funds like a mixer, it uses zero-knowledge proofs to let you prove you had ETH at a certain address without revealing who you are. It's:
+Shadow represents an interesting approach to Ethereum privacy: instead of pooling funds like a mixer, it uses zero-knowledge proofs to let you prove you had ETH or ERC20 tokens at a certain address without revealing who you are. It's:
 
 - **Not a mixer** — No large anonymity set
 - **Built on Taiko** — Low fees, Ethereum-compatible

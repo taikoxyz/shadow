@@ -17,6 +17,15 @@ const MAGIC_ADDRESS: &[u8] = b"shadow.address.v1";
 const MAGIC_NULLIFIER: &[u8] = b"shadow.nullifier.v1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TokenClaimInput {
+    pub token_address: [u8; 20],
+    pub balance_slot: u64,
+    pub balance_storage_key: [u8; 32],
+    pub token_account_proof_nodes: Vec<Vec<u8>>,
+    pub balance_storage_proof_nodes: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaimInput {
     pub block_number: u64,
     pub block_hash: [u8; 32],
@@ -31,6 +40,7 @@ pub struct ClaimInput {
     pub block_header_rlp: Vec<u8>,
     pub proof_depth: u32,
     pub proof_nodes: Vec<Vec<u8>>,
+    pub token: Option<TokenClaimInput>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -44,18 +54,21 @@ pub struct ClaimJournal {
     pub amount: u128,
     pub recipient: [u8; 20],
     pub nullifier: [u8; 32],
+    /// Token contract address. [0u8; 20] = ETH (native).
+    pub token: [u8; 20],
 }
 
 // Packed journal layout (little-endian fields, fixed widths):
-// - block_number: u64 (8)
-// - block_hash: bytes32 (32)
-// - chain_id: u64 (8)
-// - amount: u128 (16)
-// - recipient: address (20)
-// - nullifier: bytes32 (32)
+// - block_number: u64 (8)      offset 0
+// - block_hash: bytes32 (32)   offset 8
+// - chain_id: u64 (8)          offset 40
+// - amount: u128 (16)          offset 48
+// - recipient: address (20)    offset 64
+// - nullifier: bytes32 (32)    offset 84
+// - token: address (20)        offset 116  [0u8; 20] = ETH
 //
 // NOTE: `note_index` is intentionally NOT part of the public journal.
-pub const PACKED_JOURNAL_LEN: usize = 116;
+pub const PACKED_JOURNAL_LEN: usize = 136;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PackedJournalError {
@@ -91,6 +104,7 @@ pub fn pack_journal(journal: &ClaimJournal) -> [u8; PACKED_JOURNAL_LEN] {
     out[48..64].copy_from_slice(&journal.amount.to_le_bytes());
     out[64..84].copy_from_slice(&journal.recipient);
     out[84..116].copy_from_slice(&journal.nullifier);
+    out[116..136].copy_from_slice(&journal.token);
 
     out
 }
@@ -106,6 +120,7 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
     let amount = u128::from_le_bytes(copy_array::<16>(&bytes[48..64]));
     let recipient = copy_array::<20>(&bytes[64..84]);
     let nullifier = copy_array::<32>(&bytes[84..116]);
+    let token = copy_array::<20>(&bytes[116..136]);
 
     Ok(ClaimJournal {
         block_number,
@@ -114,6 +129,7 @@ pub fn unpack_journal(bytes: &[u8]) -> Result<ClaimJournal, PackedJournalError> 
         amount,
         recipient,
         nullifier,
+        token,
     })
 }
 
@@ -145,6 +161,12 @@ pub enum ClaimValidationError {
     InvalidBlockHeaderHash,
     InvalidBlockHeaderShape,
     BlockNumberMismatch,
+    StorageProofFailed,
+    StorageRootMissing,
+    InvalidStorageValue,
+    InvalidTokenProofDepth,
+    TokenProofNodeTooLarge,
+    StorageKeyMismatch,
 }
 
 impl ClaimValidationError {
@@ -170,6 +192,12 @@ impl ClaimValidationError {
             Self::InvalidBlockHeaderHash => "block header hash mismatch",
             Self::InvalidBlockHeaderShape => "invalid block header shape",
             Self::BlockNumberMismatch => "block header number mismatch",
+            Self::StorageProofFailed => "storage proof verification failed",
+            Self::StorageRootMissing => "storage root missing from account",
+            Self::InvalidStorageValue => "invalid storage value encoding",
+            Self::InvalidTokenProofDepth => "invalid token proof depth",
+            Self::TokenProofNodeTooLarge => "token proof node exceeds max byte length",
+            Self::StorageKeyMismatch => "balance storage key does not match target address",
         }
     }
 }
@@ -198,19 +226,7 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         return Err(ClaimValidationError::RecipientHashMismatch);
     }
 
-    let mut total_amount: u128 = 0;
-    for i in 0..note_count {
-        let amt = input.amounts[i];
-        if amt == 0 {
-            return Err(ClaimValidationError::InactiveNoteHasZeroAmount);
-        }
-        total_amount = total_amount
-            .checked_add(amt)
-            .ok_or(ClaimValidationError::TotalAmountExceeded)?;
-    }
-    if total_amount > MAX_TOTAL_WEI {
-        return Err(ClaimValidationError::TotalAmountExceeded);
-    }
+    let total_amount = validate_note_amounts(note_count, &input.amounts)?;
 
     if input.proof_depth == 0 || input.proof_depth as usize > MAX_PROOF_DEPTH {
         return Err(ClaimValidationError::InvalidProofDepth);
@@ -232,16 +248,21 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         input.block_number,
         &input.block_header_rlp,
     )?;
-    let account_balance =
-        verify_account_proof_and_get_balance(&state_root, &target_address, &input.proof_nodes)?;
-    if !balance_gte_total(&account_balance, total_amount) {
-        return Err(ClaimValidationError::InsufficientAccountBalance);
-    }
+
+    let token_bytes = match &input.token {
+        None => verify_eth_balance(
+            &state_root,
+            &target_address,
+            &input.proof_nodes,
+            total_amount,
+        )?,
+        Some(token_input) => {
+            verify_erc20_balance(&state_root, &target_address, token_input, total_amount)?
+        }
+    };
 
     let nullifier = derive_nullifier(&input.secret, input.chain_id, input.note_index, &notes_hash);
 
-    // Note: stateRoot is derived in-circuit from block_header_rlp and verified against
-    // input.block_hash. We commit to block_hash because that's what TaikoAnchor provides.
     Ok(ClaimJournal {
         block_number: input.block_number,
         block_hash: input.block_hash,
@@ -249,7 +270,96 @@ pub fn evaluate_claim(input: &ClaimInput) -> Result<ClaimJournal, ClaimValidatio
         amount: input.amount,
         recipient: input.recipient,
         nullifier,
+        token: token_bytes,
     })
+}
+
+fn validate_note_amounts(
+    note_count: usize,
+    amounts: &[u128],
+) -> Result<u128, ClaimValidationError> {
+    let mut total_amount: u128 = 0;
+    for i in 0..note_count {
+        let amt = amounts[i];
+        if amt == 0 {
+            return Err(ClaimValidationError::InactiveNoteHasZeroAmount);
+        }
+        total_amount = total_amount
+            .checked_add(amt)
+            .ok_or(ClaimValidationError::TotalAmountExceeded)?;
+    }
+    if total_amount > MAX_TOTAL_WEI {
+        return Err(ClaimValidationError::TotalAmountExceeded);
+    }
+    Ok(total_amount)
+}
+
+fn verify_eth_balance(
+    state_root: &[u8; 32],
+    target_address: &[u8; 20],
+    proof_nodes: &[Vec<u8>],
+    total_amount: u128,
+) -> Result<[u8; 20], ClaimValidationError> {
+    let account_balance =
+        verify_account_proof_and_get_field(state_root, target_address, proof_nodes, 1)?;
+    if !balance_gte_total(&account_balance, total_amount) {
+        return Err(ClaimValidationError::InsufficientAccountBalance);
+    }
+    Ok([0u8; 20])
+}
+
+fn compute_balance_storage_key(holder: &[u8; 20], slot: u64) -> [u8; 32] {
+    let mut preimage = [0u8; 64];
+    preimage[12..32].copy_from_slice(holder);
+    preimage[56..64].copy_from_slice(&slot.to_be_bytes());
+    let mut keccak = Keccak::v256();
+    keccak.update(&preimage);
+    let mut key = [0u8; 32];
+    keccak.finalize(&mut key);
+    key
+}
+
+fn verify_erc20_balance(
+    state_root: &[u8; 32],
+    target_address: &[u8; 20],
+    token_input: &TokenClaimInput,
+    total_amount: u128,
+) -> Result<[u8; 20], ClaimValidationError> {
+    for node in &token_input.token_account_proof_nodes {
+        if node.len() > MAX_NODE_BYTES {
+            return Err(ClaimValidationError::TokenProofNodeTooLarge);
+        }
+    }
+    for node in &token_input.balance_storage_proof_nodes {
+        if node.len() > MAX_NODE_BYTES {
+            return Err(ClaimValidationError::TokenProofNodeTooLarge);
+        }
+    }
+
+    let expected_key = compute_balance_storage_key(target_address, token_input.balance_slot);
+    if expected_key != token_input.balance_storage_key {
+        return Err(ClaimValidationError::StorageKeyMismatch);
+    }
+
+    let storage_root = verify_account_proof_and_get_field(
+        state_root,
+        &token_input.token_address,
+        &token_input.token_account_proof_nodes,
+        2,
+    )?;
+    if storage_root == [0u8; 32] {
+        return Err(ClaimValidationError::StorageRootMissing);
+    }
+
+    let token_balance = verify_storage_proof_and_get_value(
+        &storage_root,
+        &token_input.balance_storage_key,
+        &token_input.balance_storage_proof_nodes,
+    )?;
+    if !balance_gte_total(&token_balance, total_amount) {
+        return Err(ClaimValidationError::InsufficientAccountBalance);
+    }
+    Ok(token_input.token_address)
 }
 
 pub fn compute_recipient_hash(recipient: &[u8; 20]) -> [u8; 32] {
@@ -565,7 +675,7 @@ mod tests {
         let state_root = keccak256(&leaf_node);
 
         let balance_32 =
-            verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node])
+            verify_account_proof_and_get_field(&state_root, &target_address, &[leaf_node], 1)
                 .unwrap();
 
         let mut expected = [0u8; 32];
@@ -589,7 +699,7 @@ mod tests {
         let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
 
         let wrong_root = [0x99u8; 32];
-        let err = verify_account_proof_and_get_balance(&wrong_root, &target_address, &[leaf_node])
+        let err = verify_account_proof_and_get_field(&wrong_root, &target_address, &[leaf_node], 1)
             .unwrap_err();
         assert!(matches!(err, ClaimValidationError::InvalidNodeReference));
     }
@@ -611,7 +721,7 @@ mod tests {
         let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
         let state_root = keccak256(&leaf_node);
 
-        let err = verify_account_proof_and_get_balance(&state_root, &target_address, &[leaf_node])
+        let err = verify_account_proof_and_get_field(&state_root, &target_address, &[leaf_node], 1)
             .unwrap_err();
         assert!(matches!(err, ClaimValidationError::InvalidTriePath));
     }
@@ -649,10 +759,11 @@ mod tests {
         let branch_node = rlp_encode_list(&branch_items);
         let state_root = keccak256(&branch_node);
 
-        let balance_32 = verify_account_proof_and_get_balance(
+        let balance_32 = verify_account_proof_and_get_field(
             &state_root,
             &target_address,
             &[branch_node, leaf_node],
+            1,
         )
         .unwrap();
 
@@ -739,10 +850,11 @@ mod tests {
         ]);
         let state_root = keccak256(&extension_node);
 
-        let balance_32 = verify_account_proof_and_get_balance(
+        let balance_32 = verify_account_proof_and_get_field(
             &state_root,
             &target_address,
             &[extension_node, parent_branch],
+            1,
         )
         .unwrap();
 
@@ -824,7 +936,7 @@ mod tests {
         let state_root = keccak256(&branch_node);
 
         let balance =
-            verify_account_proof_and_get_balance(&state_root, &addr, &[branch_node, leaf_node])
+            verify_account_proof_and_get_field(&state_root, &addr, &[branch_node, leaf_node], 1)
                 .expect("proof should succeed when hash-reference first byte >= 0xc0");
 
         let mut expected = [0u8; 32];
@@ -863,13 +975,151 @@ mod tests {
         let branch_node = rlp_encode_list(&branch_items);
         let state_root = keccak256(&branch_node);
 
-        let err = verify_account_proof_and_get_balance(
+        let err = verify_account_proof_and_get_field(
             &state_root,
             &target_address,
             &[branch_node, leaf_node],
+            1,
         )
         .unwrap_err();
         assert!(matches!(err, ClaimValidationError::InvalidNodeReference));
+    }
+
+    #[test]
+    fn pack_unpack_journal_roundtrip_with_zero_token() {
+        let journal = ClaimJournal {
+            block_number: 12345,
+            block_hash: [0xaau8; 32],
+            chain_id: 167013,
+            amount: 1_000_000_000_000,
+            recipient: [0xbbu8; 20],
+            nullifier: [0xccu8; 32],
+            token: [0u8; 20],
+        };
+        let packed = pack_journal(&journal);
+        assert_eq!(packed.len(), PACKED_JOURNAL_LEN);
+        let unpacked = unpack_journal(&packed).unwrap();
+        assert_eq!(unpacked.block_number, journal.block_number);
+        assert_eq!(unpacked.block_hash, journal.block_hash);
+        assert_eq!(unpacked.chain_id, journal.chain_id);
+        assert_eq!(unpacked.amount, journal.amount);
+        assert_eq!(unpacked.recipient, journal.recipient);
+        assert_eq!(unpacked.nullifier, journal.nullifier);
+        assert_eq!(unpacked.token, [0u8; 20]);
+    }
+
+    #[test]
+    fn pack_unpack_journal_roundtrip_with_nonzero_token() {
+        let token_addr = [
+            0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
+            0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+        ];
+        let journal = ClaimJournal {
+            block_number: 99999,
+            block_hash: [0x11u8; 32],
+            chain_id: 1,
+            amount: 5_000_000_000_000_000_000,
+            recipient: [0x22u8; 20],
+            nullifier: [0x33u8; 32],
+            token: token_addr,
+        };
+        let packed = pack_journal(&journal);
+        assert_eq!(packed.len(), PACKED_JOURNAL_LEN);
+        // Verify token is at offset 116
+        assert_eq!(&packed[116..136], &token_addr);
+        let unpacked = unpack_journal(&packed).unwrap();
+        assert_eq!(unpacked.token, token_addr);
+        assert_eq!(unpacked.amount, journal.amount);
+    }
+
+    #[test]
+    fn unpack_journal_rejects_wrong_length() {
+        let short = [0u8; 100];
+        assert!(unpack_journal(&short).is_err());
+        let long = [0u8; 200];
+        assert!(unpack_journal(&long).is_err());
+    }
+
+    #[test]
+    fn verify_account_proof_extracts_storage_root_field2() {
+        // Test that field_index=2 correctly extracts storageRoot from account RLP
+        let target_address = [0x44u8; 20];
+        let key_hash = keccak256(&target_address);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+
+        let storage_root_raw = [0xAAu8; 32];
+        let account_rlp = rlp_encode_list(&[
+            rlp_encode_bytes(&[]),               // nonce
+            rlp_encode_bytes(&[0x01]),           // balance
+            rlp_encode_bytes(&storage_root_raw), // storageRoot (field[2])
+            rlp_encode_bytes(&[0xBBu8; 32]),     // codeHash
+        ]);
+
+        let leaf_node = rlp_encode_list(&[rlp_encode_bytes(&path), rlp_encode_bytes(&account_rlp)]);
+        let state_root = keccak256(&leaf_node);
+
+        let result =
+            verify_account_proof_and_get_field(&state_root, &target_address, &[leaf_node], 2)
+                .unwrap();
+
+        let mut expected = [0u8; 32];
+        expected.copy_from_slice(&storage_root_raw);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn verify_storage_proof_decodes_rlp_encoded_value() {
+        // Storage trie values are RLP-encoded scalars. Build a minimal storage
+        // trie with a single leaf whose value is RLP(0x1bc16d674ec80000) = 2 ETH.
+        let storage_key = [0x55u8; 32];
+        let key_hash = keccak256(&storage_key);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+
+        // The raw storage value (big-endian, trimmed)
+        let raw_value: Vec<u8> = vec![0x1b, 0xc1, 0x6d, 0x67, 0x4e, 0xc8, 0x00, 0x00];
+
+        // In the storage trie, values are stored as RLP-encoded scalars.
+        // The leaf contains: RLP_LIST([compact_path, RLP_STRING(raw_value)])
+        let leaf_node = rlp_encode_list(&[
+            rlp_encode_bytes(&path),
+            rlp_encode_bytes(&rlp_encode_bytes(&raw_value)),
+        ]);
+        let storage_root = keccak256(&leaf_node);
+
+        let result =
+            verify_storage_proof_and_get_value(&storage_root, &storage_key, &[leaf_node]).unwrap();
+
+        let mut expected = [0u8; 32];
+        expected[24..].copy_from_slice(&raw_value);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn verify_storage_proof_decodes_single_byte_value() {
+        // For values <= 0x7f, RLP encoding is just the byte itself.
+        let storage_key = [0x77u8; 32];
+        let key_hash = keccak256(&storage_key);
+        let key_nibbles = hash_to_nibbles(&key_hash);
+
+        let path = nibbles_to_compact_path(&key_nibbles, true);
+        let raw_value: Vec<u8> = vec![0x42];
+
+        let leaf_node = rlp_encode_list(&[
+            rlp_encode_bytes(&path),
+            rlp_encode_bytes(&rlp_encode_bytes(&raw_value)),
+        ]);
+        let storage_root = keccak256(&leaf_node);
+
+        let result =
+            verify_storage_proof_and_get_value(&storage_root, &storage_key, &[leaf_node]).unwrap();
+
+        let mut expected = [0u8; 32];
+        expected[31] = 0x42;
+        assert_eq!(result, expected);
     }
 }
 
@@ -956,10 +1206,11 @@ struct RlpItem {
     total_len: usize,
 }
 
-fn verify_account_proof_and_get_balance(
+fn verify_account_proof_and_get_field(
     state_root: &[u8; 32],
     target_address: &[u8; 20],
     proof_nodes: &[Vec<u8>],
+    field_index: usize,
 ) -> Result<[u8; 32], ClaimValidationError> {
     let key_hash = keccak256(target_address);
     let key_nibbles = hash_to_nibbles(&key_hash);
@@ -1068,7 +1319,7 @@ fn verify_account_proof_and_get_balance(
     }
 
     let account = account_rlp.ok_or(ClaimValidationError::MissingAccountValue)?;
-    decode_account_balance(&account)
+    decode_account_field(&account, field_index)
 }
 
 fn node_matches_reference(node: &[u8], reference: &[u8]) -> bool {
@@ -1087,19 +1338,140 @@ fn is_inline_node(bytes: &[u8]) -> bool {
     !bytes.is_empty() && bytes.len() < 32 && bytes[0] >= 0xc0
 }
 
-fn decode_account_balance(account_rlp: &[u8]) -> Result<[u8; 32], ClaimValidationError> {
+fn decode_account_field(
+    account_rlp: &[u8],
+    field_index: usize,
+) -> Result<[u8; 32], ClaimValidationError> {
     let fields = decode_rlp_list_payload_items(account_rlp)?;
-    if fields.len() != 4 {
+    if fields.len() != 4 || field_index >= 4 {
         return Err(ClaimValidationError::InvalidAccountValue);
     }
 
-    let balance_raw = fields[1];
-    if balance_raw.len() > 32 {
+    let field_raw = fields[field_index];
+    if field_raw.len() > 32 {
         return Err(ClaimValidationError::InvalidAccountValue);
     }
 
     let mut out = [0u8; 32];
-    out[32 - balance_raw.len()..].copy_from_slice(balance_raw);
+    out[32 - field_raw.len()..].copy_from_slice(field_raw);
+    Ok(out)
+}
+
+fn verify_storage_proof_and_get_value(
+    storage_root: &[u8; 32],
+    storage_key: &[u8; 32],
+    proof_nodes: &[Vec<u8>],
+) -> Result<[u8; 32], ClaimValidationError> {
+    let key_hash = keccak256(storage_key);
+    let key_nibbles = hash_to_nibbles(&key_hash);
+
+    let mut key_index = 0usize;
+    let mut expected_ref: Option<Vec<u8>> = None;
+    let mut storage_value: Option<Vec<u8>> = None;
+    let mut pending_inline: Option<Vec<u8>> = None;
+    let mut proof_idx = 0usize;
+
+    loop {
+        let (node_bytes, needs_ref_check) = match pending_inline.take() {
+            Some(inline) => (inline, false),
+            None => {
+                if proof_idx >= proof_nodes.len() {
+                    break;
+                }
+                let b = proof_nodes[proof_idx].clone();
+                proof_idx += 1;
+                (b, true)
+            }
+        };
+
+        if needs_ref_check {
+            if proof_idx == 1 {
+                if keccak256(&node_bytes) != *storage_root {
+                    return Err(ClaimValidationError::StorageProofFailed);
+                }
+            } else {
+                let r = expected_ref
+                    .as_ref()
+                    .ok_or(ClaimValidationError::StorageProofFailed)?;
+                if !node_matches_reference(&node_bytes, r) {
+                    return Err(ClaimValidationError::StorageProofFailed);
+                }
+            }
+            expected_ref = None;
+        }
+
+        let elements = decode_rlp_list_payload_items(&node_bytes)
+            .map_err(|_| ClaimValidationError::StorageProofFailed)?;
+        match elements.len() {
+            17 => {
+                if key_index == key_nibbles.len() {
+                    let value = elements[16];
+                    if value.is_empty() {
+                        return Err(ClaimValidationError::InvalidStorageValue);
+                    }
+                    storage_value = Some(value.to_vec());
+                    break;
+                }
+
+                let next_ref = elements[key_nibbles[key_index] as usize];
+                if next_ref.is_empty() {
+                    return Err(ClaimValidationError::InvalidStorageValue);
+                }
+                if is_inline_node(next_ref) {
+                    pending_inline = Some(next_ref.to_vec());
+                } else {
+                    expected_ref = Some(next_ref.to_vec());
+                }
+                key_index += 1;
+            }
+            2 => {
+                let (is_leaf, path_nibbles) = decode_compact_nibbles(elements[0])
+                    .map_err(|_| ClaimValidationError::StorageProofFailed)?;
+                if key_index + path_nibbles.len() > key_nibbles.len() {
+                    return Err(ClaimValidationError::StorageProofFailed);
+                }
+                if key_nibbles[key_index..key_index + path_nibbles.len()] != path_nibbles[..] {
+                    return Err(ClaimValidationError::StorageProofFailed);
+                }
+                key_index += path_nibbles.len();
+
+                if is_leaf {
+                    if key_index != key_nibbles.len() {
+                        return Err(ClaimValidationError::StorageProofFailed);
+                    }
+                    let value = elements[1];
+                    if value.is_empty() {
+                        return Err(ClaimValidationError::InvalidStorageValue);
+                    }
+                    storage_value = Some(value.to_vec());
+                    break;
+                }
+
+                let next_ref = elements[1];
+                if next_ref.is_empty() {
+                    return Err(ClaimValidationError::StorageProofFailed);
+                }
+                if is_inline_node(next_ref) {
+                    pending_inline = Some(next_ref.to_vec());
+                } else {
+                    expected_ref = Some(next_ref.to_vec());
+                }
+            }
+            _ => return Err(ClaimValidationError::StorageProofFailed),
+        }
+    }
+
+    let rlp_encoded = storage_value.ok_or(ClaimValidationError::InvalidStorageValue)?;
+    // Storage trie values are RLP-encoded scalars. The trie leaf stores
+    // RLP(raw_value), and decode_rlp_list_payload_items strips the outer
+    // list encoding but leaves the inner RLP string encoding intact.
+    // Decode the RLP string to get the raw big-endian uint256 bytes.
+    let raw = decode_rlp_scalar(&rlp_encoded)?;
+    if raw.len() > 32 {
+        return Err(ClaimValidationError::InvalidStorageValue);
+    }
+    let mut out = [0u8; 32];
+    out[32 - raw.len()..].copy_from_slice(raw);
     Ok(out)
 }
 
@@ -1151,6 +1523,17 @@ fn decode_compact_nibbles(encoded: &[u8]) -> Result<(bool, Vec<u8>), ClaimValida
     }
 
     Ok((is_leaf, nibbles))
+}
+
+fn decode_rlp_scalar(input: &[u8]) -> Result<&[u8], ClaimValidationError> {
+    if input.is_empty() {
+        return Ok(&[]);
+    }
+    let item = decode_rlp_item(input, 0).map_err(|_| ClaimValidationError::InvalidStorageValue)?;
+    if item.is_list || item.total_len != input.len() {
+        return Err(ClaimValidationError::InvalidStorageValue);
+    }
+    Ok(&input[item.payload_offset..item.payload_offset + item.payload_len])
 }
 
 fn decode_rlp_list_payload_items(input: &[u8]) -> Result<Vec<&[u8]>, ClaimValidationError> {

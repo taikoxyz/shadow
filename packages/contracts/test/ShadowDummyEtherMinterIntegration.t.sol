@@ -45,7 +45,8 @@ contract ShadowDummyEtherMinterIntegrationTest is Test {
             chainId: uint64(block.chainid),
             amount: amount,
             recipient: recipient,
-            nullifier: nullifierValue
+            nullifier: nullifierValue,
+            token: address(0)
         });
 
         vm.expectEmit(true, false, false, true, address(etherMinter));

@@ -9,6 +9,7 @@ function ensureState(state) {
   if (!state.miningNotes) {
     state.miningNotes = [{ recipient: '', amount: '', label: '' }];
     state.miningComment = '';
+    state.miningToken = '';
   }
 }
 
@@ -24,6 +25,9 @@ function syncInputsToState(state) {
 
   const comment = document.getElementById('mine-comment');
   if (comment) state.miningComment = comment.value;
+
+  const token = document.getElementById('mine-token');
+  if (token) state.miningToken = token.value;
 }
 
 function errorIds(errorKey) {
@@ -72,7 +76,8 @@ function validateTotalCap(state) {
     total += BigInt(weiStr);
   }
 
-  const message = allValid && total > MAX_TOTAL_WEI
+  const isErc20 = state.miningToken && state.miningToken.trim();
+  const message = !isErc20 && allValid && total > MAX_TOTAL_WEI
     ? `Total ${weiToEth(total.toString())} ETH exceeds 8 ETH cap.`
     : '';
   setFieldError(state, 'total', message);
@@ -131,7 +136,7 @@ function parseNotes(notes) {
   }));
 }
 
-function noteRow(state, index, walletAddress, onRemove) {
+function noteRow(state, index, walletAddress, onRemove, amountLabel) {
   const note = state.miningNotes[index];
 
   return el('div', { className: 'note-entry' }, [
@@ -166,7 +171,7 @@ function noteRow(state, index, walletAddress, onRemove) {
         el('span', { className: 'form-field-warn', id: `mine-recipient-warn-${index}` }, ''),
       ]),
       el('div', { className: 'form-group form-group-amount' }, [
-        el('label', { className: 'form-label' }, 'Amount (ETH)'),
+        el('label', { className: 'form-label' }, amountLabel || 'Amount (ETH)'),
         el('input', {
           className: state.miningErrors[`amount-${index}`]
             ? 'form-input form-input-invalid'
@@ -229,7 +234,8 @@ export function renderMiningFormView({ state, chainId, walletAddress, onSubmit, 
     if (Object.keys(state.miningErrors).length > 0) return;
 
     const comment = document.getElementById('mine-comment')?.value?.trim() || undefined;
-    onSubmit({ notes: parseNotes(state.miningNotes), comment, chainId });
+    const token = state.miningToken?.trim() || undefined;
+    onSubmit({ notes: parseNotes(state.miningNotes), comment, chainId, token });
   }
 
   function renderContent() {
@@ -259,15 +265,42 @@ export function renderMiningFormView({ state, chainId, walletAddress, onSubmit, 
       if (comment) comment.value = state.miningComment;
     });
 
+    container.appendChild(el('div', { className: 'form-group' }, [
+      el('label', { className: 'form-label' }, 'Token (optional — leave empty for ETH)'),
+      el('input', {
+        className: 'form-input',
+        id: 'mine-token',
+        placeholder: '0x... token contract address',
+        value: state.miningToken || '',
+        oninput: (event) => { state.miningToken = event.target.value; },
+        onblur: (event) => {
+          state.miningToken = event.target.value;
+          const val = event.target.value.trim();
+          if (val && !/^0x[0-9a-fA-F]{40}$/.test(val)) {
+            setFieldError(state, 'token', 'Invalid address — must be 0x followed by 40 hex characters.');
+          } else {
+            setFieldError(state, 'token', '');
+          }
+          validateTotalCap(state);
+        },
+      }),
+      el('span', { className: 'form-field-error', id: 'mine-token-error' },
+        state.miningErrors?.token || ''),
+    ]));
+
+    const isErc20 = state.miningToken && state.miningToken.trim();
+    const capLabel = isErc20 ? 'Notes' : 'Notes (max 8 ETH total)';
+    const amountLabel = isErc20 ? 'Amount (tokens)' : 'Amount (ETH)';
+
     container.appendChild(el('div', { className: 'mining-notes-header' }, [
-      el('span', { className: 'form-label form-label-inline' }, 'Notes (max 8 ETH total)'),
+      el('span', { className: 'form-label form-label-inline' }, capLabel),
       state.miningNotes.length < MAX_NOTES
         ? el('button', { className: 'btn btn-small', onclick: addNote }, '+ Add Note')
         : null,
     ].filter(Boolean)));
 
     state.miningNotes.forEach((_note, index) => {
-      container.appendChild(noteRow(state, index, walletAddress, removeNote));
+      container.appendChild(noteRow(state, index, walletAddress, removeNote, amountLabel));
     });
 
     container.appendChild(el('span', { className: 'form-field-error', id: 'mine-total-error' },

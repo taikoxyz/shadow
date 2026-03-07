@@ -59,10 +59,15 @@ export function getDeposits() {
 }
 
 /** POST /api/deposits — mine a new deposit */
-export function createDeposit(chainId, notes, comment) {
+export function createDeposit(chainId, notes, comment, token) {
   return apiFetch('/deposits', {
     method: 'POST',
-    body: JSON.stringify({ chainId, notes, ...(comment ? { comment } : {}) }),
+    body: JSON.stringify({
+      chainId,
+      notes,
+      ...(comment ? { comment } : {}),
+      ...(token ? { token } : {}),
+    }),
   });
 }
 

@@ -16,6 +16,7 @@ It also specifies how `Risc0CircuitVerifier` binds `publicInputs` to the committ
 - `amount`: claimed amount (wei, gross note amount; `Shadow.claim` may apply a fee before minting)
 - `recipient`: claim recipient
 - `nullifier`: claim nullifier
+- `token`: token contract address (`address(0)` for ETH claims)
 
 ### Derived Public Value: `stateRoot`
 
@@ -36,9 +37,9 @@ The zkVM guest enforces this value privately:
 
 This value is not committed in the RISC0 journal and is not provided to contracts as calldata.
 
-## Flattened Public Inputs (`uint256[87]`)
+## Flattened Public Inputs (`uint256[107]`)
 
-`ShadowPublicInputs.toArray(IShadow.PublicInput input, bytes32 stateRoot)` flattens the values into a `uint256[]` of length **87**.
+`ShadowPublicInputs.toArray(IShadow.PublicInput input, bytes32 stateRoot)` flattens the values into a `uint256[]` of length **107**.
 
 Scalar values are stored directly in a single `uint256`. Multi-byte values are stored as **one byte per element**.
 
@@ -52,6 +53,7 @@ Scalar values are stored directly in a single `uint256`. Multi-byte values are s
 | 34 | 1 | `amount` | `uint256` | Stored directly. |
 | 35 | 20 | `recipient` | `address` | One byte per element, Solidity byte order (MSB to LSB). |
 | 55 | 32 | `nullifier` | `bytes32` | One byte per element, Solidity byte order (MSB to LSB). |
+| 87 | 20 | `token` | `address` | One byte per element, Solidity byte order (MSB to LSB). `address(0)` = ETH. |
 
 ### Constraints
 
@@ -94,13 +96,13 @@ publicInputs[o + 19] = uint8(bytes20(a)[19])  // LSB
 The verifier binds `publicInputs` to the proof by:
 
 1. decoding `(seal, journal)`
-2. checking `journal.length == 116`
+2. checking `journal.length == 136`
 3. parsing fields from `journal` and comparing them to the expected values derived from `publicInputs`
 4. calling the configured RISC0 verifier with `sha256(journal)`
 
-### Journal Binary Layout (`bytes[116]`)
+### Journal Binary Layout (`bytes[136]`)
 
-The journal is a fixed 116-byte binary blob with the following layout:
+The journal is a fixed 136-byte binary blob with the following layout:
 
 | Offset (bytes) | Size | Field | Type | Encoding |
 |---:|---:|---|---|---|
@@ -110,6 +112,7 @@ The journal is a fixed 116-byte binary blob with the following layout:
 | 48 | 16 | `amount` | `uint128` | Little-endian integer. |
 | 64 | 20 | `recipient` | `bytes20` | Raw bytes. |
 | 84 | 32 | `nullifier` | `bytes32` | Raw bytes. |
+| 116 | 20 | `token` | `bytes20` | Raw bytes. `0x00..00` = ETH. |
 
 ### Binding Rules
 
@@ -121,6 +124,7 @@ The binding checks are:
 - `journal.amount` (LE `uint128`) equals `publicInputs[34]`
 - `journal.recipient` equals `address(publicInputs[35..54])`
 - `journal.nullifier` equals `bytes32(publicInputs[55..86])`
+- `journal.token` equals `address(publicInputs[87..106])`
 
 Finally:
 
@@ -153,6 +157,9 @@ publicInputs[54]  = recipient[19]     // LSB
 publicInputs[55]  = nullifier[0]      // MSB
 ...
 publicInputs[86]  = nullifier[31]     // LSB
+publicInputs[87]  = token[0]          // MSB
+...
+publicInputs[106] = token[19]         // LSB (address(0) for ETH)
 ```
 
 ## Private Inputs
@@ -166,13 +173,25 @@ The full Ethereum block header is provided as private input. The circuit verifie
 - The header RLP hashes to the public `blockHash`
 - The header contains the correct `stateRoot` for the account proof verification
 
-### Account Proof
+### Account Proof (ETH Path)
 
 Merkle-Patricia trie proof for the target address:
 
 - `accountProofNodes[]`: RLP-encoded trie nodes from `eth_getProof`
 - The circuit verifies the proof is valid under the block's `stateRoot`
-- Extracts and validates the account balance
+- Extracts and validates the account balance (`balance(targetAddress) >= sum(noteAmounts)`)
+
+### ERC20 Token Proof (ERC20 Path)
+
+When `token != address(0)`, the circuit requires additional private inputs for a two-level MPT proof:
+
+- `token_address`: The ERC20 token contract address (must match the public `token` output)
+- `balance_slot`: The raw `_balances` mapping storage slot index (read from `IShadowCompatibleToken.balanceSlot()`)
+- `balance_storage_key`: The Ethereum storage key for `_balances[targetAddress]`
+- `token_account_proof_nodes[]`: State trie proof for the token contract account under `stateRoot` (extracts `storageRoot`)
+- `token_storage_proof_nodes[]`: Storage trie proof for the balance slot under the token's `storageRoot`
+
+**Security constraint:** The circuit recomputes `expected_key = keccak256(abi.encode(targetAddress, balance_slot))` and asserts `expected_key == balance_storage_key`. This binds the storage key to the target address, preventing a malicious prover from using an arbitrary address's balance.
 
 ### Secret Material
 

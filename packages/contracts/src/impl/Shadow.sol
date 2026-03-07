@@ -3,6 +3,7 @@ pragma solidity ^0.8.33;
 
 import {IEthMinter} from "../iface/IEthMinter.sol";
 import {IShadow} from "../iface/IShadow.sol";
+import {IShadowCompatibleToken} from "../iface/IShadowCompatibleToken.sol";
 import {IShadowVerifier} from "../iface/IShadowVerifier.sol";
 import {ShadowLayout} from "./Shadow_Layout.sol";
 import {OwnableUpgradeable} from "../lib/OwnableUpgradeable.sol";
@@ -86,7 +87,6 @@ contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeabl
     function claim(bytes calldata _proof, PublicInput calldata _input) external whenNotPaused nonReentrant {
         require(_input.chainId == block.chainid, ChainIdMismatch(_input.chainId, uint64(block.chainid)));
         require(_input.amount > 0, InvalidAmount(_input.amount));
-        require(_input.amount <= maxClaimAmount, AmountExceedsMax(_input.amount, maxClaimAmount));
         require(_input.recipient != address(0), InvalidRecipient(_input.recipient));
         if (_consumed[_input.nullifier]) {
             revert NullifierAlreadyConsumed(_input.nullifier);
@@ -99,11 +99,24 @@ contract Shadow is IShadow, ShadowLayout, OwnableUpgradeable, PausableUpgradeabl
         uint256 fee = _input.amount / _FEE_DIVISOR;
         uint256 netAmount = _input.amount - fee;
 
-        etherMinter.mintEth(_input.recipient, netAmount);
-        if (fee > 0) {
-            etherMinter.mintEth(feeRecipient, fee);
+        if (_input.token == address(0)) {
+            // ETH path
+            require(_input.amount <= maxClaimAmount, AmountExceedsMax(_input.amount, maxClaimAmount));
+            etherMinter.mintEth(_input.recipient, netAmount);
+            if (fee > 0) {
+                etherMinter.mintEth(feeRecipient, fee);
+            }
+        } else {
+            // ERC20 path
+            IShadowCompatibleToken token_ = IShadowCompatibleToken(_input.token);
+            uint256 maxMint = token_.maxShadowMintAmount();
+            require(_input.amount <= maxMint, AmountExceedsMax(_input.amount, maxMint));
+            token_.shadowMint(_input.recipient, netAmount);
+            if (fee > 0) {
+                token_.shadowMint(feeRecipient, fee);
+            }
         }
 
-        emit Claimed(_input.nullifier, _input.recipient, _input.amount);
+        emit Claimed(_input.nullifier, _input.recipient, _input.token);
     }
 }
