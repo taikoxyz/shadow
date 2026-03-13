@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 200">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Main container -->
+  <rect x="20" y="10" width="460" height="180" rx="8" fill="#1e1e2e" stroke="#6366f1" stroke-width="2"/>
+
+  <!-- Header -->
+  <rect x="20" y="10" width="460" height="35" rx="8" fill="url(#headerGrad)"/>
+  <rect x="20" y="35" width="460" height="10" fill="url(#headerGrad)"/>
+  <text x="250" y="33" fill="white" font-family="monospace" font-size="14" font-weight="bold" text-anchor="middle">DEPOSIT FILE</text>
+
+  <!-- Secret line -->
+  <text x="40" y="75" fill="#a5b4fc" font-family="monospace" font-size="12">secret:</text>
+  <text x="100" y="75" fill="#fbbf24" font-family="monospace" font-size="12">0x7a2f...e9c1</text>
+  <text x="220" y="75" fill="#6b7280" font-family="monospace" font-size="11" font-style="italic">(keep this private!)</text>
+
+  <!-- Notes section -->
+  <text x="40" y="105" fill="#a5b4fc" font-family="monospace" font-size="12">notes:</text>
+
+  <!-- Note items -->
+  <circle cx="55" cy="125" r="3" fill="#34d399"/>
+  <text x="70" y="130" fill="#e2e8f0" font-family="monospace" font-size="11">Note 0: Send</text>
+  <text x="170" y="130" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">1.0 ETH</text>
+  <text x="235" y="130" fill="#e2e8f0" font-family="monospace" font-size="11">to</text>
+  <text x="255" y="130" fill="#60a5fa" font-family="monospace" font-size="11">0xABCD...</text>
+
+  <circle cx="55" cy="150" r="3" fill="#34d399"/>
+  <text x="70" y="155" fill="#e2e8f0" font-family="monospace" font-size="11">Note 1: Send</text>
+  <text x="170" y="155" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">0.5 ETH</text>
+  <text x="235" y="155" fill="#e2e8f0" font-family="monospace" font-size="11">to</text>
+  <text x="255" y="155" fill="#60a5fa" font-family="monospace" font-size="11">0xEFGH...</text>
+
+  <circle cx="55" cy="175" r="3" fill="#34d399"/>
+  <text x="70" y="180" fill="#e2e8f0" font-family="monospace" font-size="11">Note 2: Send</text>
+  <text x="170" y="180" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">2.0 ETH</text>
+  <text x="235" y="180" fill="#e2e8f0" font-family="monospace" font-size="11">to</text>
+  <text x="255" y="180" fill="#60a5fa" font-family="monospace" font-size="11">0xIJKL...</text>
+</svg>

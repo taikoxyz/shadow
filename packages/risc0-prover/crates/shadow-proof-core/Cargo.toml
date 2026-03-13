@@ -1,0 +1,10 @@
+[package]
+name = "shadow-proof-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true, default-features = false, features = ["alloc", "derive"] }
+sha2.workspace = true
+tiny-keccak.workspace = true

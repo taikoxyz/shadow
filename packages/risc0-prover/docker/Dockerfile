@@ -1,0 +1,114 @@
+# =============================================================================
+# Taiko Shadow Prover - Docker Image
+# =============================================================================
+# Multi-stage build for generating ZK proofs on Taiko networks
+# Supports: Mainnet (167000) and Hoodi Testnet (167013)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Compile Rust binaries and prepare Node.js dependencies
+# -----------------------------------------------------------------------------
+FROM node:20-bookworm AS builder
+
+ENV PNPM_HOME=/root/.pnpm
+ENV PATH="/root/.cargo/bin:/root/.risc0/bin:${PNPM_HOME}:${PATH}"
+# Use all available CPU cores for builds (cargo defaults to all CPUs when unset)
+ENV CMAKE_BUILD_PARALLEL_LEVEL=0
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      git \
+      gnupg \
+      build-essential \
+      pkg-config \
+      libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Rust and RISC Zero toolchain
+RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
+RUN cargo install rzup --locked
+# Install RISC Zero toolchain with retries for network resilience
+RUN for i in 1 2 3 4 5; do \
+      echo "Attempt $i: Installing RISC Zero toolchain..." && \
+      rzup install && break || \
+      (echo "Attempt $i failed, retrying in 10s..." && sleep 10); \
+    done
+
+# Install pnpm
+RUN npm install -g pnpm@9
+
+WORKDIR /workspace
+
+# Copy package files for dependency installation
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages ./packages
+
+# Install Node.js dependencies
+RUN pnpm install --filter shadow-risc0-prover... --frozen-lockfile --ignore-scripts --force
+
+# Build Rust binary
+RUN cargo build --manifest-path packages/risc0-prover/Cargo.toml --release -p shadow-risc0-host
+
+# Extract circuit ID from the compiled binary
+RUN packages/risc0-prover/target/release/shadow-risc0-host circuit-id > /tmp/circuit-id.txt
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime - Minimal image for running the prover
+# -----------------------------------------------------------------------------
+FROM node:20-bookworm-slim AS runtime
+
+ENV PNPM_HOME=/root/.pnpm
+ENV PATH="/root/.cargo/bin:/root/.risc0/bin:${PNPM_HOME}:${PATH}"
+
+# Install runtime dependencies only
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      gnupg && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI (required for Groth16 proof generation)
+RUN install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends docker-ce-cli && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install pnpm
+RUN npm install -g pnpm@9
+
+WORKDIR /workspace
+
+# Copy built artifacts from builder stage
+COPY --from=builder /workspace/packages/risc0-prover/target/release/shadow-risc0-host \
+                    /workspace/packages/risc0-prover/target/release/shadow-risc0-host
+
+# Copy RISC Zero toolchain from builder
+COPY --from=builder /root/.risc0 /root/.risc0
+COPY --from=builder /root/.cargo/bin /root/.cargo/bin
+
+# Copy Node.js application and dependencies
+COPY --from=builder /workspace/package.json /workspace/pnpm-lock.yaml /workspace/pnpm-workspace.yaml ./
+COPY --from=builder /workspace/packages ./packages
+COPY --from=builder /workspace/node_modules ./node_modules
+
+# Copy entrypoint script
+COPY packages/risc0-prover/docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Copy circuit ID from builder stage (used by CI to tag the image)
+COPY --from=builder /tmp/circuit-id.txt /tmp/circuit-id.txt
+
+# Labels for container registry
+LABEL org.opencontainers.image.title="Taiko Shadow Prover"
+LABEL org.opencontainers.image.description="Generate ZK proofs for Shadow Protocol on Taiko networks"
+LABEL org.opencontainers.image.source="https://github.com/aspect-build/shadow"
+LABEL org.opencontainers.image.vendor="Aspect Build"
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,15 @@
+[package]
+name = "shadow-prover-lib"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bincode.workspace = true
+hex.workspace = true
+risc0-zkvm = { workspace = true, features = ["client", "prove"] }
+serde = { workspace = true, features = ["std"] }
+serde_json.workspace = true
+shadow-proof-core = { path = "../shadow-proof-core" }
+shadow-risc0-methods = { path = "../../methods" }

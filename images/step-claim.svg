@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 550 320">
+  <defs>
+    <linearGradient id="claimBoxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1e2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2d2d3f;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="contractGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+    </linearGradient>
+    <marker id="claimArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa"/>
+    </marker>
+    <marker id="successArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <rect x="175" y="10" width="200" height="30" rx="6" fill="#a78bfa"/>
+  <text x="275" y="32" fill="white" font-family="monospace" font-size="14" font-weight="bold" text-anchor="middle">STEP 5: CLAIM</text>
+
+  <!-- Submit Box -->
+  <rect x="20" y="55" width="200" height="110" rx="8" fill="url(#claimBoxGrad)" stroke="#60a5fa" stroke-width="2"/>
+  <text x="120" y="78" fill="#60a5fa" font-family="monospace" font-size="11" font-weight="bold" text-anchor="middle">Submit to Contract</text>
+
+  <circle cx="40" cy="100" r="3" fill="#34d399"/>
+  <text x="55" y="104" fill="#e2e8f0" font-family="monospace" font-size="10">ZK Proof</text>
+
+  <circle cx="40" cy="120" r="3" fill="#60a5fa"/>
+  <text x="55" y="124" fill="#e2e8f0" font-family="monospace" font-size="10">Recipient:</text>
+  <text x="130" y="124" fill="#60a5fa" font-family="monospace" font-size="10">0xEFGH...</text>
+
+  <circle cx="40" cy="140" r="3" fill="#34d399"/>
+  <text x="55" y="144" fill="#e2e8f0" font-family="monospace" font-size="10">Amount:</text>
+  <text x="115" y="144" fill="#34d399" font-family="monospace" font-size="10">0.5 ETH</text>
+
+  <circle cx="40" cy="160" r="3" fill="#a78bfa"/>
+  <text x="55" y="164" fill="#e2e8f0" font-family="monospace" font-size="10">Nullifier:</text>
+  <text x="120" y="164" fill="#a78bfa" font-family="monospace" font-size="10">0x9876...</text>
+
+  <!-- Arrow to Contract -->
+  <line x1="230" y1="110" x2="270" y2="110" stroke="#a78bfa" stroke-width="2" marker-end="url(#claimArrow)"/>
+
+  <!-- Shadow Contract Box -->
+  <rect x="280" y="60" width="180" height="100" rx="10" fill="url(#contractGrad)" stroke="#c4b5fd" stroke-width="2"/>
+  <text x="370" y="85" fill="white" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">SHADOW CONTRACT</text>
+  <line x1="300" y1="95" x2="440" y2="95" stroke="#e0e7ff" stroke-width="1"/>
+  <text x="310" y="115" fill="#e0e7ff" font-family="monospace" font-size="10">1. Verifies proof</text>
+  <text x="310" y="132" fill="#e0e7ff" font-family="monospace" font-size="10">2. Checks nullifier</text>
+  <text x="310" y="149" fill="#e0e7ff" font-family="monospace" font-size="10">3. Mints ETH</text>
+
+  <!-- Arrow down -->
+  <line x1="370" y1="170" x2="370" y2="200" stroke="#34d399" stroke-width="2" marker-end="url(#successArrow)"/>
+
+  <!-- Result Box -->
+  <rect x="120" y="210" width="310" height="100" rx="8" fill="url(#claimBoxGrad)" stroke="#34d399" stroke-width="2"/>
+  <text x="275" y="235" fill="#34d399" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">Result</text>
+
+  <!-- Recipient gets -->
+  <rect x="140" y="250" width="270" height="25" rx="4" fill="#064e3b" stroke="#34d399" stroke-width="1"/>
+  <text x="155" y="267" fill="#e2e8f0" font-family="monospace" font-size="10">Recipient gets:</text>
+  <text x="270" y="267" fill="#34d399" font-family="monospace" font-size="10" font-weight="bold">0.4995 ETH</text>
+  <text x="355" y="267" fill="#6b7280" font-family="monospace" font-size="9">(0.5 - 0.1%)</text>
+
+  <!-- Fee -->
+  <rect x="140" y="280" width="270" height="25" rx="4" fill="#1e1e2e" stroke="#6b7280" stroke-width="1"/>
+  <text x="155" y="297" fill="#e2e8f0" font-family="monospace" font-size="10">Fee recipient gets:</text>
+  <text x="290" y="297" fill="#fbbf24" font-family="monospace" font-size="10">0.0005 ETH</text>
+</svg>
