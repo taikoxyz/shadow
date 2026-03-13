@@ -1,6 +1,6 @@
 # Shadow Protocol
 
-Privacy-preserving ETH and ERC20 token claims on Taiko L2 using zero-knowledge proofs.
+Privacy-preserving ETH and ERC20 token claims using zero-knowledge proofs.
 
 > **Disclaimer**: This repository is an experimental research prototype and is **not production-ready**. The code lacks compliance modules and has not undergone the review necessary for any real-world deployment. Its presence in the Taiko GitHub organization is for open-source research purposes only and does not indicate that any product or protocol built on this codebase will be launched on Taiko or endorsed by Taiko. No proposal to deploy any privacy-related protocol — including this one — has been made or approved through Taiko DAO governance. Use this code strictly for educational and research purposes at your own risk.
 
